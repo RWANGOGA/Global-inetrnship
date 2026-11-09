@@ -857,8 +857,8 @@ interface ApiAuthResponse {
 
 // POST /auth/login -> stores the Bearer token and returns the safe user view.
 // Throws ApiError(401, "Incorrect email or password") on bad credentials.
-export async function loginApi(email: string, password: string): Promise<ApiUser> {
-  const data = await postJson<ApiAuthResponse>("/auth/login", { email, password });
+export async function loginApi(username: string, password: string): Promise<ApiUser> {
+  const data = await postJson<ApiAuthResponse>("/auth/login", { username, password });
   setToken(data.access_token);
   return data.user;
 }
