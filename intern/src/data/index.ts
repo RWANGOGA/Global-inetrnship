@@ -114,11 +114,11 @@ export const INITIAL_ADMIN_QUEUE: AdminQueueItem[] = [
 ];
 
 export const ACTIVITY: ActivityItem[] = [
-  ["Ministry of ICT", "posted 2 placements", "today, 09:12"],
-  ["Grace Achieng", "uploaded recommendation letter", "today, 08:40"],
-  ["Kite Mobility", "approved 3 candidates", "yesterday"],
-  ["Twaweza Foundation", "added requirements", "yesterday"],
-  ["Amina Nakato", "submitted application", "2 days ago"],
+  { who: "Ministry of ICT", action: "posted 2 placements", time: "today, 09:12" },
+  { who: "Grace Achieng", action: "uploaded recommendation letter", time: "today, 08:40" },
+  { who: "Kite Mobility", action: "approved 3 candidates", time: "yesterday" },
+  { who: "Twaweza Foundation", action: "added requirements", time: "yesterday" },
+  { who: "Amina Nakato", action: "submitted application", time: "2 days ago" },
 ];
 
 export const PLANS: Record<string, PlanSegment> = {

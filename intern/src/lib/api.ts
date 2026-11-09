@@ -809,7 +809,11 @@ export interface AdminQueueListResponse {
   items: AdminQueueItemRead[];
 }
 
-export type AdminActivityItem = [string, string, string];
+export interface AdminActivityItem {
+  who: string;
+  action: string;
+  time: string;
+}
 
 export async function fetchAdminMetrics(): Promise<AdminDashboardMetrics> {
   return getJson<AdminDashboardMetrics>("/admin/metrics");

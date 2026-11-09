@@ -107,7 +107,11 @@ export interface AdminQueueItem {
   st: "Review" | "Ready" | "Incomplete" | string;
 }
 
-export type ActivityItem = [string, string, string];
+export interface ActivityItem {
+  who: string;
+  action: string;
+  time: string;
+}
 
 export interface PlanTier {
   name: string;

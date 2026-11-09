@@ -225,7 +225,7 @@ export function AdminOverview() {
               ) : activity && activity.length === 0 ? (
                 <div className="muted">No recent activity.</div>
               ) : (
-                (activity || []).map(([w, a, t], idx) => (
+                (activity || []).map(({ who: w, action: a, time: t }, idx) => (
                   <div
                     key={idx}
                     style={{
