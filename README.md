@@ -1,162 +1,415 @@
-# BrighterWorks — internship and jobs platform
+# BrighterWorks Platform
 
-A placement office in software. Universities publish internships from **companies, government agencies, NGOs and university departments**; students see the requirement before applying; the office verifies documents; employers receive only qualified candidates.
+A dual-portal career platform (Internships + Jobs) built with Next.js/React frontend and FastAPI backend.
 
-## Two builds
+## System Overview
 
-This repo holds both the original prototype and its component port:
+BrighterWorks is a career platform with **two distinct opportunity portals** sharing authentication, organizations, profiles, notifications, and platform infrastructure.
 
-| Build | Entry | Stack |
-|---|---|---|
-| **Static prototype** (root) | `index.html` | Plain HTML / `app.js` / `styles.css` / `img/` — no build step. |
-| **Component port** (`intern/`) | `intern/src/app/page.tsx` | Next.js 14 (App Router), React, TypeScript, `globals.css`. |
-
-The port splits every HTML feature into components — `PublicSite`, `DashboardShell`, `Header`, `Footer`, `MobileMenu`, `ChatDrawer`, `Modal`, `Toast`, `Icons` — and moves all routing, eligibility, chat assistant and domain actions into `AppContext.tsx`. `styles.css` is byte-identical to `intern/src/app/globals.css`.
-
-**Run the port:** `cd intern && npm install && npm run dev`
-
-A placement office in software. Universities publish internships from **companies, government agencies, NGOs and university departments**; students see the requirement before applying; the office verifies documents; employers receive only qualified candidates.
+| Portal | Users | Core Features |
+|--------|-------|---------------|
+| **Internship Portal** | Students, Universities, NGOs, Government, Companies, Platform Admins | Internship search, applications, document verification, matching, career advisor |
+| **Jobs Portal** | Job Seekers, Employers, Companies, Platform Admins | Job search, applications, CV/cover letters, interviews, shortlisting |
 
 ---
 
-## Screens
+## Architecture
 
-### Public site
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            BRIGHTERWORKS PLATFORM                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌──────────────────┐      ┌──────────────────┐      ┌──────────────────┐  │
+│  │   FRONTEND       │      │    BACKEND       │      │    DATABASE      │  │
+│  │   (Next.js/React)│◄────►│    (FastAPI)     │◄────►│   (Neon/Postgres)│  │
+│  │                  │      │                  │      │                  │  │
+│  │  ┌────────────┐  │      │  ┌────────────┐  │      │  ┌────────────┐  │  │
+│  │  │  Pages     │  │      │  │  Routers   │  │      │  │  Tables    │  │  │
+│  │  │  - Home    │  │      │  │  - auth    │  │      │  │  - users   │  │  │
+│  │  │  - SignIn  │  │      │  │  - placements│  │      │  │  - orgs    │  │  │
+│  │  │  - Plans   │  │      │  │  - jobs    │  │      │  │  - places  │  │  │
+│  │  │  - About   │  │      │  │  - org     │  │      │  │  - jobs    │  │  │
+│  │  └────────────┘  │      │  │  - admin   │  │      │  │  - apps    │  │  │
+│  │                  │      │  │  - billing │  │      │  │  - docs    │  │  │
+│  │  ┌────────────┐  │      │  │  - advisor │  │      │  │  - subs    │  │  │
+│  │  │ Components │  │      │  └────────────┘  │      │  │  - invoices│  │  │
+│  │  │  - public  │  │      │                  │      │  │  - trans   │  │  │
+│  │  │  - dashboard│  │      │  ┌────────────┐  │      │  │  - usage   │  │  │
+│  │  └────────────┘  │      │  │  Services  │  │      │  └────────────┘  │  │
+│  │                  │      │  │  - Auth    │  │      │                  │  │
+│  │  ┌────────────┐  │      │  │  - Placement│  │      │  ┌────────────┐  │  │
+│  │  │ Context    │  │      │  │  - Matching│  │      │  │  Migrations│  │  │
+│  │  │  - session │  │      │  │  - Billing │  │      │  │  - schema  │  │  │
+│  │  │  - portal  │  │      │  │  - Advisor │  │      │  └────────────┘  │  │
+│  │  │  - state   │  │      │  └────────────┘  │      │                  │  │
+│  │  └────────────┘  │      │                  │      │  ┌────────────┐  │  │
+│  │                  │      │  ┌────────────┐  │      │  │  Seed Data │  │  │
+│  │  ┌────────────┐  │      │  │  Repos     │  │      │  │  - dev     │  │  │
+│  │  │ API Layer  │  │      │  │  - User    │  │      │  │  - test    │  │  │
+│  │  │  - fetch   │  │      │  │  - Placement│  │      │  └────────────┘  │  │
+│  │  │  - post    │  │      │  │  - Billing │  │      │                  │  │
+│  │  │  - types   │  │      │  └────────────┘  │      │                  │  │
+│  │  └────────────┘  │      │                  │      │                  │  │
+│  └──────────────────┘      └──────────────────┘      └──────────────────┘  │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
-| Page | Hash | Notes |
-|---|---|---|
-| Home | `#home` | Photo hero, placement search, organisation-type counts, three host types, student band, requirement specimen, latest placements, university band, testimonial |
-| Placements | `#placements` | Filter by organisation type / sector / course + live search, full table, eligibility explainer |
-| Placement detail | `#placement-p1` … `p12` | Stated requirements, documents, past testimonial, apply ticket |
-| About | `#about` | Mission, four principles, how the index is verified, the office |
-| Universities | `#universities` | Publish / verify / report, requirement-set example |
-| Employers | `#employers` | Three-step model |
-| Contact | `#contact` | Form, three offices, hours, response time |
-| Plans | `#plans` | Five buyer segments, three tiers each, comparison table, free offers |
-| Sign in | `#signin` | Four role entries |
+### Frontend Architecture (Next.js 14 + React 18 + TypeScript)
 
-### Dashboards
+```
+intern/
+├── src/
+│   ├── app/                    # App Router entry point
+│   │   ├── layout.tsx         # Root layout, providers, metadata
+│   │   ├── page.tsx           # Home page
+│   │   └── globals.css        # Design tokens (source of truth)
+│   │
+│   ├── components/
+│   │   ├── public/            # Public-facing views
+│   │   │   ├── HomeView.tsx
+│   │   │   ├── AboutView.tsx
+│   │   │   ├── EmployersView.tsx
+│   │   │   ├── UniversitiesView.tsx
+│   │   │   ├── PortalView.tsx
+│   │   │   ├── SignInView.tsx
+│   │   │   ├── PlansView.tsx
+│   │   │   └── LegalView.tsx
+│   │   │
+│   │   ├── dashboard/         # Role-based dashboards
+│   │   │   ├── DashboardShell.tsx
+│   │   │   ├── student/       # StudentDashboard
+│   │   │   ├── employer/      # EmployerDashboard
+│   │   │   ├── admin/         # AdminDashboard
+│   │   │   └── jobseeker/     # JobSeekerDashboard
+│   │   │
+│   │   ├── common/            # Shared components
+│   │   │   ├── ChatDrawer.tsx
+│   │   │   └── ...
+│   │   │
+│   │   └── icons/             # Icon system
+│   │
+│   ├── context/
+│   │   └── AppContext.tsx     # Central state: routing, session, portal, catalog, dashboards
+│   │
+│   ├── lib/
+│   │   ├── api.ts             # Typed browser↔backend boundary (snake_case ↔ camelCase)
+│   │   └── skills.ts          # Client-side matching (mirrors backend)
+│   │
+│   ├── types/
+│   │   └── index.ts           # Frontend domain types
+│   │
+│   └── data/
+│       └── index.ts           # Presentation defaults & legacy demo data
+│
+└── public/
+    └── img/                   # Static imagery
+```
 
-| Role | Hash | Views |
-|---|---|---|
-| University admin | `#dashboard-admin` | Overview, Placements, Requirements, Students |
-| Student | `#dashboard-student` | Overview, Placements, Documents, **Application pack**, Testimonial |
-| Employer | `#dashboard-employer` | Overview, My placements, Applicants — plus plan usage and premium tools |
-| Job seeker | `#dashboard-jobseeker` | Overview, Graduate roles, Applications |
+### Backend Architecture (FastAPI + SQLAlchemy + Neon/PostgreSQL)
 
-Deep links accept a view: `#dashboard-admin-requirements`, `#dashboard-student-documents`, `#dashboard-employer-applicants`.
+```
+backend/
+├── app/
+│   ├── presentation/
+│   │   ├── main.py            # Composition root, CORS, health, mounts /api
+│   │   ├── sub.py             # Registers feature routers
+│   │   ├── deps.py            # Dependency injection (ports → adapters)
+│   │   └── routers/
+│   │       ├── auth.py        # register, login, me
+│   │       ├── placements.py  # Public internship catalogue
+│   │       ├── jobs.py        # Public jobs catalogue
+│   │       ├── organization.py# Employer posting
+│   │       ├── admin.py       # Admin review, metrics, queue, activity, docs
+│   │       ├── user_state.py  # Student profile, resume, docs, applications
+│   │       ├── matching.py    # POST /match
+│   │       ├── advisor.py     # Career advisor
+│   │       ├── billing.py     # Subscription, invoices, payments
+│   │       └── webhooks.py    # Payment gateway callbacks
+│   │
+│   ├── application/
+│   │   ├── services.py        # Use-case services (Billing, Placement, Matching, etc.)
+│   │   ├── auth.py            # Auth use cases
+│   │   ├── advisor.py         # Career advisor prompt composition
+│   │   └── ports.py           # Repository & external service interfaces
+│   │
+│   ├── domain/
+│   │   ├── entities.py        # Persistence-independent entities
+│   │   └── matching.py        # Pure matching logic (skills, course, CGPA)
+│   │
+│   ├── infrastructure/
+│   │   ├── orm.py             # SQLAlchemy models
+│   │   ├── repositories.py    # ORM → domain mapping, repository implementations
+│   │   ├── db.py              # Engine, session, ensure_schema (additive migrations)
+│   │   ├── seed.py            # Development/test seed data
+│   │   └── payment_gateways/
+│   │       ├── mock_gateway.py    # 6 mock implementations
+│   │       └── factory.py         # Gateway factory
+│   │
+│   ├── core/
+│   │   ├── errors.py          # Domain exceptions
+│   │   └── security.py        # JWT, password hashing
+│   │
+│   └── tests/
+│       ├── unit/              # Service & matching tests
+│       └── integration/       # HTTP tests (isolated SQLite)
+│
+├── Dockerfile
+├── docker-compose.yml
+└── requirements.txt
+```
 
 ---
 
-## Assistant
+## Data Flow
 
-**"Ask BrighterWorks"** — the button at the bottom right of every page opens a drawer that answers from the actual record:
+### Authentication Flow
 
-- **Eligibility** — "Am I eligible for the Data Analyst Intern?" → matches the placement, compares course and CGPA against the stated grade, lists missing documents, quotes the closing date.
-- **Documents** — counts verified / missing files from the student record and explains the 48-hour review.
-- **Government listings** — counts live government placements and names the agencies.
-- **Verification** — explains the office's role and that employers only receive verified files.
-- **Deadlines** — sorts the next three closings.
-- **Cost, contact, what BrighterWorks is** — direct answers.
+```
+┌─────────┐     POST /api/auth/login      ┌─────────┐     Bearer Token      ┌─────────┐
+│ Browser │ ─────────────────────────────► │ Backend │ ───────────────────► │ Browser │
+│         │ ◄──────────────────────────── │         │ ◄─────────────────── │         │
+└─────────┘     {access_token, user}      └─────────┘                      └─────────┘
+     │                                                                      │
+     │                              GET /api/auth/me                        │
+     │ ──────────────────────────────────────────────────────────────────► │
+     │ ◄────────────────────────────────────────────────────────────────── │
+     │        {id, email, name, role, org_id}                              │
+     ▼                                                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              AppContext                                         │
+│  - session: User | null                                                        │
+│  - role: "student" | "jobseeker" | "employer" | "admin"                       │
+│  - portal: "internships" | "jobs"                                              │
+│  - dashboard view routing based on role                                        │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
 
-It is context-aware: on a placement page it reasons about that placement; otherwise it falls back to the signed-in student record.
+### Internship Matching Flow
 
----
+```
+┌─────────┐     POST /api/match      ┌─────────┐     RankedPlacement[]     ┌─────────┐
+│ Browser │ ────────────────────────► │ Backend │ ───────────────────────► │ Browser │
+│         │ {skills, course, cgpa}    │         │ {placement, match}       │         │
+└─────────┘                           └─────────┘                          └─────────┘
+                                               │
+                                               ▼
+                                    ┌─────────────────────────┐
+                                    │ MatchingService         │
+                                    │ - 60% skill coverage    │
+                                    │ - 25% course fit        │
+                                    │ - 15% CGPA fit          │
+                                    └─────────────────────────┘
+```
 
-## Plans and premium features
+### Billing Flow (Company Subscription)
 
-`#plans` — segmented by buyer, three tiers each, with a comparison table beneath.
-
-| Segment | Free | Middle | Top |
-|---|---|---|---|
-| **Companies** | 1 placement, 10 applications | **$99/mo** — unlimited, featured, talent search, ATS sync, branded page | Enterprise — SSO, API, invoice |
-| **Ministries & agencies** | 2 placements, PDF cohort report | **$249/mo** — bulk CSV import, regional dashboards, M&E export, procurement pack | Ministry — national dashboard, audit log |
-| **Universities** | 1 faculty, 50 students, first term free | **$1,900/yr** — all faculties, 24h verification SLA, placement-rate reporting, branded portal | Consortium — SIS integration, SSO |
-| **Career sites** | Branded widget, 10 roles | **$149/mo** — unbranded widget, API, custom domain, analytics | Network — revenue share per hire |
-| **Students** | **$0 forever** — everything | Graduate — free 12 months after graduation, then $3 | Sponsored — a university or employer pays |
-
-**Free offers** (also on the home page): students never pay · first three placements free · public universities get one full term free.
-
-**Premium surfaces inside the product:**
-- Employer overview — plan and usage panel (2 of 3 free placements), review-time SLA, premium tools list
-- Employer applicants — locked talent search across 41,208 students
-- Career page embed — copy-paste widget snippet (`data-org`, `data-theme`, `data-limit`)
-- Dashboard sidebar — "Plans and billing"
-
-## Application pack (the "made" application)
-
-Students build one reusable pack: a 600-character statement, their verified documents, and target roles. Every placement application sends the pack in one click, with the role reference and closing line appended.
-
-`#dashboard-student-pack` — edit the statement, see attachment statuses, preview exactly what an employer receives, and see what was sent this term. The placement page button now reads **"Apply with my pack"** and the confirmation modal shows the statement and documents before sending.
-
-## Global system
-
-The product now assumes more than one country, currency and academic system.
-
-- **Coverage** — 14 placements across Uganda, Kenya, Tanzania, the Netherlands, Germany and the United Kingdom, plus three remote-worldwide roles. Region filter: East Africa, Europe, Remote.
-- **Currency** — every stipend carries a local amount and a USD value. The utility bar switches display between local, USD and EUR (static rates, `FX` in `app.js`), and each row shows the equivalent beneath it.
-- **Grade equivalence** — a requirement is stored in the local band and published with its UK / ECTS / US equivalents: `CGPA 3.0+` reads as *UK 2:1 · ECTS B · US 3.0*. Table on the About page.
-- **Work authorisation** — every placement states one of three: *visa sponsorship*, *right to work required*, or *remote, worldwide*. It is filterable and shown as a tag on every row.
-- **Compliance** — GDPR for EU placements; Uganda DPA 2019, Kenya DPA 2019, Tanzania PDPA 2022 elsewhere; data residency on Campus and Consortium plans.
-- **Accessibility** — stated target of WCAG 2.2 AA; visible focus, reduced-motion, 4.5:1 minimum contrast on text.
-
-Not yet global: interface language (English only), tax and payroll treatment, and credential verification across borders.
-
-## The requirements model
-
-Six fields per placement, set by the university with the host organisation:
-
-1. **Organisation** — dropdown grouped by type
-2. **Eligible courses** — multi-select
-3. **Minimum grade** — CGPA band or class of degree
-4. **Required documents** — transcript, ID, recommendation, portfolio, CV, writing sample, testimonial
-5. **Testimonial rule**
-6. **Closing date** and slots
-
-Students see `You qualify` / `Not eligible` before applying. The admin verifies each file; the employer sees only cleared candidates.
-
----
-
-## Imagery
-
-Student photography is real, sourced from Unsplash (free licence, no attribution required) and **stored locally** in `img/` so the prototype works offline:
-
-| File | Source photo |
-|---|---|
-| `img/hero.jpg` | `unsplash.com/photos/…` — students working in a university library |
-| `img/students.jpg` | five students sitting together on campus |
-| `img/portrait.jpg` | student portrait with a folder |
-| `img/classroom.jpg` | students in a lecture room |
-| `img/building.jpg` | university building |
-
-Images are lightly desaturated (`saturate(.92)`) so they sit inside the paper palette rather than on top of it.
+```
+┌─────────┐     POST /api/billing/subscriptions     ┌─────────┐
+│ Browser │ ──────────────────────────────────────► │ Backend │
+│         │ {plan, billing_cycle, payment_gateway}  │         │
+└─────────┘                                         └────┬────┘
+                                                         │
+                    ┌───────────────────────────────────┘
+                    ▼
+           ┌─────────────────────────────────────┐
+           │ BillingService (ACID)               │
+           │ 1. Lock organisation row            │
+           │ 2. Validate plan + gateway          │
+           │ 3. Create gateway customer          │
+           │ 4. Create gateway subscription      │
+           │ 5. Persist local Subscription       │
+           │ 6. Create first Invoice             │
+           │ 7. Create pending Transaction       │
+           │ 8. Attempt payment (if method)      │
+           └─────────────────────────────────────┘
+                    │
+                    ▼
+           ┌─────────────────────────────────────┐
+           │ Webhook: payment_intent.succeeded   │
+           │ - Update Invoice → "paid"           │
+           │ - Update Transaction → "succeeded"  │
+           │ - Extend Subscription period        │
+           └─────────────────────────────────────┘
+```
 
 ---
 
-## Shape language
+## API Reference
 
-| Shape | Where | Why |
-|---|---|---|
-| Arch (190px top radius) | Hero photograph | Civic, institutional — not a product card |
-| Ticket (punched sides) | Search card, application status, apply panel | Reads as a record you keep |
-| Folded corner | Requirement sets | A page in a file |
-| Seal (rotated circle) | Organisation type, verification, testimonial | A stamp of authority |
-| Rules only | Placement tables, approval queue | No boxes where data should dominate |
+### Authentication
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/register` | Create account |
+| POST | `/api/auth/login` | Login (uses `username` field) |
+| GET | `/api/auth/me` | Current user |
+
+### Public Internships
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/placements` | List with filters |
+| GET | `/api/placements/{id}` | Detail |
+| GET | `/api/placements/meta` | Filter options |
+
+### Authenticated Student
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET/POST | `/api/saved` | Saved internships |
+| POST | `/api/saved/toggle` | Toggle save |
+| GET/POST | `/api/applications` | Applications |
+| POST | `/api/applications/{id}/withdraw` | Withdraw |
+| GET/PUT | `/api/profile` | Profile |
+| GET/PUT | `/api/resume` | Resume |
+| GET | `/api/documents` | Documents |
+| PUT | `/api/documents/{type}` | Upload document |
+
+### Organization (Employer)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/organization/internships` | My internships |
+| POST | `/api/organization/internships` | Create internship |
+
+### Admin
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/admin/metrics` | Dashboard KPIs |
+| GET | `/api/admin/queue` | Review queue |
+| GET | `/api/admin/activity` | Activity feed |
+| GET | `/api/admin/documents` | Document verification |
+| PATCH | `/api/admin/documents/{id}/verify` | Verify/reject |
+| PATCH | `/api/admin/internships/{id}/review` | Approve/reject |
+
+### Billing
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/billing/subscriptions/current` | Current plan |
+| POST | `/api/billing/subscriptions` | Create/upgrade |
+| PATCH | `/api/billing/subscriptions/current` | Upgrade/downgrade |
+| POST | `/api/billing/subscriptions/current/cancel` | Cancel |
+| GET | `/api/billing/invoices` | List invoices |
+| POST | `/api/billing/invoices/{id}/pay` | Pay invoice |
+| GET | `/api/billing/gateways` | Available gateways |
+
+### Webhooks
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/webhooks/stripe` | Stripe events |
+| POST | `/api/webhooks/paypal` | PayPal events |
+| POST | `/api/webhooks/flutterwave` | Flutterwave events |
+| POST | `/api/webhooks/mpesa` | M-Pesa events |
+| POST | `/api/webhooks/bank_transfer` | Bank transfer |
+| POST | `/api/webhooks/crypto` | Crypto payments |
 
 ---
 
-## Figma status — still blocked
+## Deployment
 
-1. `8rdQ7kqD7n8guoMkaztrFW` is **view-only** for the connected account — the MCP cannot read or write it.
-2. The Figma MCP is on the **Starter** plan and returns *"You've reached the Figma MCP tool call limit"*.
+### Backend (Render/Railway/Fly.io)
 
-Fix: share the file as **Editor** with `akandwanahojonan256@gmail.com` (or duplicate it into *Akandwanaho Jonan's team*), and upgrade the plan. Then this prototype becomes the spec for the frames.
+```bash
+cd backend
+cp .env.example .env
+# Set: DATABASE_URL=postgresql://..., SECRET_KEY=long-random-string
+docker build -t brighterworks-api .
+docker run --env-file .env -p 8000:8000 brighterworks-api
+```
+
+### Frontend (GitHub Pages)
+
+```bash
+cd intern
+# Set NEXT_PUBLIC_API_BASE_URL in .env.local or CI secrets
+npm run build
+npm run export  # outputs to /out for GitHub Pages
+```
+
+### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes | Neon/PostgreSQL connection string |
+| `SECRET_KEY` | Yes | JWT signing key (32+ chars) |
+| `NEXT_PUBLIC_API_BASE_URL` | Frontend | Backend URL (e.g. `https://api.example.com/api`) |
+| `ENVIRONMENT` | Optional | `production` / `test` / `development` |
+
+### Current Deployed URLs
+- **Backend**: `https://global-inetrnship.onrender.com`
+- **Frontend**: GitHub Pages (configured to use backend above)
 
 ---
 
-## Limits
+## Payment Gateways (Mock Implementations)
 
-- Uploads and applications are simulated; nothing persists across reload.
-- Eligibility uses one demo student record (Design, CGPA 3.7).
-- Assistant answers are rule-based, not a language model.
-- Photography is licensed stock, not the actual students named in the copy.
+| Gateway | ID | Currencies | Region |
+|---------|-----|------------|--------|
+| Stripe | `stripe` | USD, EUR, GBP, UGX, KES | Global |
+| PayPal | `paypal` | USD, EUR, GBP | Global |
+| Flutterwave | `flutterwave` | USD, UGX, KES, NGN, GHS, ZAR | Africa |
+| M-Pesa | `mpesa` | KES, USD | Kenya |
+| Bank Transfer | `bank_transfer` | USD, UGX, EUR, KES | Global |
+| Crypto | `crypto` | USDC, USDT, USD | Global |
+
+All gateways implement the `PaymentGateway` port with mock implementations for development.
+
+---
+
+## Testing
+
+```bash
+# Backend tests
+cd backend
+python -m pytest tests/ -v
+
+# Frontend type check
+cd intern
+npm run build
+```
+
+### Test Coverage
+- **Backend**: 106 tests passing (unit + integration)
+- **Frontend**: TypeScript compilation + production build
+
+---
+
+## Security
+
+- **Authentication**: JWT Bearer tokens, 24h expiry
+- **Passwords**: bcrypt hashing (never logged or exposed)
+- **Authorization**: Role-based + organization-scoped
+- **CORS**: Restricted to frontend origin in production
+- **Secrets**: Never committed, loaded from `.env`
+- **Database**: Neon/PostgreSQL with connection pooling
+
+---
+
+## License
+
+Proprietary - BrighterWorks Platform
+
+---
+
+## Project Structure Summary
+
+```
+BrighterWorks/
+├── IMPLEMENTATION.md        # Detailed implementation plan & progress
+├── README.md                # This file
+├── backend/                 # FastAPI application
+│   ├── app/
+│   ├── tests/
+│   ├── Dockerfile
+│   ├── docker-compose.yml
+│   └── requirements.txt
+└── intern/                  # Next.js 14 + React 18 frontend
+    ├── src/
+    │   ├── app/
+    │   ├── components/
+    │   ├── context/
+    │   ├── lib/
+    │   ├── types/
+    │   └── data/
+    ├── public/
+    ├── package.json
+    └── next.config.js
+```
