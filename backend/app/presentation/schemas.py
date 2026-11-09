@@ -351,6 +351,12 @@ class AdminDashboardMetrics(BaseModel):
     pending_documents: int
     students_placed: int
     placement_record_complete: int  # percentage
+    total_users: int
+    users_by_role: dict[str, int]
+    total_organizations: int
+    total_applications: int
+    total_revenue_cents: int
+    verification_rate: float  # percentage
 
 
 class AdminActivityItem(BaseModel):

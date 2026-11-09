@@ -52,11 +52,40 @@ def get_admin_metrics(
     students_placed = session.query(ApplicationORM).filter(ApplicationORM.status == "Accepted").count()
     total_students = session.query(UserORM).filter(UserORM.role == "student").count()
     placement_record_complete = int((students_placed / total_students * 100)) if total_students > 0 else 0
+    
+    # Additional KPIs
+    total_users = session.query(UserORM).count()
+    users_by_role = {}
+    for role in ["student", "jobseeker", "employer", "admin", "employee"]:
+        count = session.query(UserORM).filter(UserORM.role == role).count()
+        users_by_role[role] = count
+    
+    total_organizations = session.query(OrganizationORM).count()
+    total_applications = session.query(ApplicationORM).count()
+    
+    # Revenue from successful payments
+    from app.infrastructure.orm import TransactionORM
+    total_revenue_cents = session.query(func.sum(TransactionORM.amount_cents)).filter(
+        TransactionORM.type == "payment",
+        TransactionORM.status == "succeeded"
+    ).scalar() or 0
+    
+    # Verification rate
+    verified_docs = session.query(StudentDocumentORM).filter(StudentDocumentORM.status == "verified").count()
+    total_docs = session.query(StudentDocumentORM).count()
+    verification_rate = (verified_docs / total_docs * 100) if total_docs > 0 else 0.0
+    
     return AdminDashboardMetrics(
         open_placements=open_placements,
         pending_documents=pending_documents,
         students_placed=students_placed,
         placement_record_complete=placement_record_complete,
+        total_users=total_users,
+        users_by_role=users_by_role,
+        total_organizations=total_organizations,
+        total_applications=total_applications,
+        total_revenue_cents=total_revenue_cents,
+        verification_rate=round(verification_rate, 1),
     )
 
 

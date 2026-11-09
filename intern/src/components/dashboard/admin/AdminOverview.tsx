@@ -13,6 +13,12 @@ export function AdminOverview() {
     pending_documents: number;
     students_placed: number;
     placement_record_complete: number;
+    total_users: number;
+    users_by_role: Record<string, number>;
+    total_organizations: number;
+    total_applications: number;
+    total_revenue_cents: number;
+    verification_rate: number;
   } | null>(null);
   const [queue, setQueue] = useState<AdminQueueItem[]>([]);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
@@ -98,6 +104,27 @@ export function AdminOverview() {
           <b>{metrics?.placement_record_complete ?? 94}%</b>
           <span className="lbl">placement record complete</span>
         </div>
+        <div className="kpi">
+          <span className="delta">{metrics?.total_users ?? 0}</span>
+          <b>{metrics?.total_users ?? 0}</b>
+          <span className="lbl">total users</span>
+        </div>
+        <div className="kpi">
+          <b>{metrics?.total_organizations ?? 0}</b>
+          <span className="lbl">organizations</span>
+        </div>
+        <div className="kpi">
+          <b>{metrics?.total_applications ?? 0}</b>
+          <span className="lbl">applications</span>
+        </div>
+        <div className="kpi">
+          <b>${(metrics?.total_revenue_cents ?? 0) / 100}</b>
+          <span className="lbl">revenue</span>
+        </div>
+        <div className="kpi">
+          <b>{metrics?.verification_rate ?? 0}%</b>
+          <span className="lbl">verification rate</span>
+        </div>
       </div>
 
       <div className="dsplit">
@@ -170,6 +197,26 @@ export function AdminOverview() {
         </div>
 
         <div style={{ display: "grid", gap: "14px" }}>
+          <div className="panel">
+            <div className="ph">
+              <span className="lbl">Users by role</span>
+            </div>
+            <div className="pb bars">
+              {Object.entries(metrics?.users_by_role || {}).map(([role, count]) => (
+                <div key={role} className="bar-row">
+                  <span>{role.charAt(0).toUpperCase() + role.slice(1)}</span>
+                  <div className="bar-track">
+                    <div
+                      className="bar-fill"
+                      style={{ width: `${metrics?.total_users ? (count / metrics.total_users) * 100 : 0}%` }}
+                    ></div>
+                  </div>
+                  <b>{count}</b>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="panel">
             <div className="ph">
               <span className="lbl">Placements by organisation type</span>

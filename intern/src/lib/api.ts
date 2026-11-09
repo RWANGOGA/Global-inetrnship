@@ -811,6 +811,12 @@ export interface AdminDashboardMetrics {
   pending_documents: number;
   students_placed: number;
   placement_record_complete: number;
+  total_users: number;
+  users_by_role: Record<string, number>;
+  total_organizations: number;
+  total_applications: number;
+  total_revenue_cents: number;
+  verification_rate: number;
 }
 
 export interface AdminQueueItemRead {
