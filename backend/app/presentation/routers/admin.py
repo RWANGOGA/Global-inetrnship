@@ -10,6 +10,7 @@ from app.domain.entities import User
 from app.infrastructure.db import get_session
 from app.infrastructure.orm import (
     ApplicationORM,
+    OrganisationORM,
     PlacementORM,
     JobORM,
     StudentDocumentORM,
@@ -28,6 +29,11 @@ from app.presentation.schemas import (
     JobPostingListResponse,
     JobReviewRequest,
     JobRead,
+    OrganizationRead,
+    OrganizationListResponse,
+    OrganizationDetailResponse,
+    OrganizationSanctionRequest,
+    OrganizationSanctionResponse,
     StudentDocumentRead,
     StudentDocumentVerifyRequest,
     StudentDocumentVerifyResponse,
@@ -60,7 +66,7 @@ def get_admin_metrics(
         count = session.query(UserORM).filter(UserORM.role == role).count()
         users_by_role[role] = count
     
-    total_organizations = session.query(OrganizationORM).count()
+    total_organizations = session.query(OrganisationORM).count()
     total_applications = session.query(ApplicationORM).count()
     
     # Revenue from successful payments
@@ -358,3 +364,267 @@ def list_testimonials(
         else:
             documents = service.list_public_testimonials(limit=limit)
     return [StudentDocumentRead.model_validate(d, from_attributes=True) for d in documents[:limit]]
+
+
+# ---------------- Organization Management ------------------------------------
+
+@router.get("/organizations", response_model=OrganizationListResponse)
+def list_organizations(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    status: str = Query("all", description="Filter by status: active, inactive, all"),
+    org_type: str = Query(None, description="Filter by type: Company, Government, NGO, University"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+) -> OrganizationListResponse:
+    _require_admin(current_user)
+    
+    query = session.query(OrganisationORM)
+    
+    if status != "all":
+        if status == "active":
+            query = query.filter(OrganisationORM.is_active == True)
+        elif status == "inactive":
+            query = query.filter(OrganisationORM.is_active == False)
+    
+    if org_type:
+        query = query.filter(OrganisationORM.type == org_type)
+    
+    total = query.count()
+    
+    offset = (page - 1) * page_size
+    orgs = query.offset(offset).limit(page_size).all()
+    
+    items = []
+    for org in orgs:
+        # Calculate stats for each org
+        active_placements = session.query(PlacementORM).filter(
+            PlacementORM.org_id == org.id,
+            PlacementORM.review_status == "approved",
+            PlacementORM.status == "Open"
+        ).count()
+        
+        total_hired = session.query(ApplicationORM).filter(
+            ApplicationORM.placement_id.in_(
+                session.query(PlacementORM.id).filter(PlacementORM.org_id == org.id)
+            ),
+            ApplicationORM.status == "Accepted"
+        ).count()
+        
+        active_postings = session.query(PlacementORM).filter(
+            PlacementORM.org_id == org.id,
+            PlacementORM.review_status == "approved",
+            PlacementORM.status == "Open"
+        ).count()
+        
+        # Revenue from this org
+        from app.infrastructure.orm import TransactionORM
+        total_revenue = session.query(func.sum(TransactionORM.amount_cents)).filter(
+            TransactionORM.org_id == org.id,
+            TransactionORM.type == "payment",
+            TransactionORM.status == "succeeded"
+        ).scalar() or 0
+        
+        # Compliance score based on document verification rate
+        total_docs = session.query(StudentDocumentORM).join(ApplicationORM, StudentDocumentORM.user_id == ApplicationORM.user_id).join(PlacementORM, ApplicationORM.placement_id == PlacementORM.id).filter(
+            PlacementORM.org_id == org.id
+        ).count()
+        verified_docs = session.query(StudentDocumentORM).join(ApplicationORM, StudentDocumentORM.user_id == ApplicationORM.user_id).join(PlacementORM, ApplicationORM.placement_id == PlacementORM.id).filter(
+            PlacementORM.org_id == org.id,
+            StudentDocumentORM.status == "verified"
+        ).count()
+        compliance_score = int((verified_docs / total_docs * 100)) if total_docs > 0 else 100
+        
+        # Subscription info
+        from app.infrastructure.orm import SubscriptionORM
+        sub = session.query(SubscriptionORM).filter(SubscriptionORM.org_id == org.id).first()
+        subscription = {
+            "plan": sub.plan if sub else "Free",
+            "billing": sub.billing if sub else "",
+            "seats": sub.seats if sub else 1,
+            "status": sub.status if sub else "active",
+        }
+        
+        items.append(OrganizationRead(
+            id=org.id,
+            name=org.name,
+            type=org.type,
+            sector=org.sector,
+            loc=org.loc,
+            seal=org.seal,
+            about=org.about,
+            billing_email=org.billing_email,
+            tax_id=org.tax_id,
+            billing_address=org.billing_address or {},
+            created_at=org.created_at if hasattr(org, 'created_at') else "",
+            is_active=org.is_active,
+        ))
+    
+    return OrganizationListResponse(total=total, items=items)
+
+
+@router.get("/organizations/{org_id}", response_model=OrganizationDetailResponse)
+def get_organization_detail(
+    org_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> OrganizationDetailResponse:
+    _require_admin(current_user)
+    
+    org = session.query(OrganisationORM).filter_by(id=org_id).first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    # Calculate stats
+    active_placements = session.query(PlacementORM).filter(
+        PlacementORM.org_id == org.id,
+        PlacementORM.review_status == "approved",
+        PlacementORM.status == "Open"
+    ).count()
+    
+    total_hired = session.query(ApplicationORM).filter(
+        ApplicationORM.placement_id.in_(
+            session.query(PlacementORM.id).filter(PlacementORM.org_id == org.id)
+        ),
+        ApplicationORM.status == "Accepted"
+    ).count()
+    
+    active_postings = session.query(PlacementORM).filter(
+        PlacementORM.org_id == org.id,
+        PlacementORM.review_status == "approved",
+        PlacementORM.status == "Open"
+    ).count()
+    
+    from app.infrastructure.orm import TransactionORM
+    total_revenue = session.query(func.sum(TransactionORM.amount_cents)).filter(
+        TransactionORM.org_id == org.id,
+        TransactionORM.type == "payment",
+        TransactionORM.status == "succeeded"
+    ).scalar() or 0
+    
+    active_postings_count = session.query(PlacementORM).filter(
+        PlacementORM.org_id == org.id,
+        PlacementORM.review_status == "approved",
+        PlacementORM.status == "Open"
+    ).count()
+    
+    # Compliance score
+    total_docs = session.query(StudentDocumentORM).join(ApplicationORM, StudentDocumentORM.user_id == ApplicationORM.user_id).join(PlacementORM, ApplicationORM.placement_id == PlacementORM.id).filter(
+        PlacementORM.org_id == org.id
+    ).count()
+    verified_docs = session.query(StudentDocumentORM).join(ApplicationORM, StudentDocumentORM.user_id == ApplicationORM.user_id).join(PlacementORM, ApplicationORM.placement_id == PlacementORM.id).filter(
+        PlacementORM.org_id == org.id,
+        StudentDocumentORM.status == "verified"
+    ).count()
+    compliance_score = int((verified_docs / total_docs * 100)) if total_docs > 0 else 100
+    
+    # Subscription info
+    from app.infrastructure.orm import SubscriptionORM
+    sub = session.query(SubscriptionORM).filter(SubscriptionORM.org_id == org.id).first()
+    subscription = {
+        "plan": sub.plan if sub else "Free",
+        "billing": sub.billing if sub else "",
+        "seats": sub.seats if sub else 1,
+        "status": sub.status if sub else "active",
+    }
+    
+    total_revenue = session.query(func.sum(TransactionORM.amount_cents)).filter(
+        TransactionORM.org_id == org.id,
+        TransactionORM.type == "payment",
+        TransactionORM.status == "succeeded"
+    ).scalar() or 0
+    
+    # Compliance score
+    total_docs = session.query(StudentDocumentORM).join(ApplicationORM, StudentDocumentORM.user_id == ApplicationORM.user_id).join(PlacementORM, ApplicationORM.placement_id == PlacementORM.id).filter(
+        PlacementORM.org_id == org.id
+    ).count()
+    verified_docs = session.query(StudentDocumentORM).join(ApplicationORM, StudentDocumentORM.user_id == ApplicationORM.user_id).join(PlacementORM, ApplicationORM.placement_id == PlacementORM.id).filter(
+        PlacementORM.org_id == org.id,
+        StudentDocumentORM.status == "verified"
+    ).count()
+    compliance_score = int((verified_docs / total_docs * 100)) if total_docs > 0 else 100
+    
+    org_read = OrganizationRead(
+        id=org.id,
+        name=org.name,
+        type=org.type,
+        sector=org.sector,
+        loc=org.loc,
+        seal=org.seal,
+        about=org.about,
+        billing_email=org.billing_email,
+        tax_id=org.tax_id,
+        billing_address=org.billing_address or {},
+        created_at=org.created_at if hasattr(org, 'created_at') else "",
+        is_active=org.is_active,
+    )
+    
+    return OrganizationDetailResponse(
+        organization=org_read,
+        stats={},
+        active_placements=active_placements,
+        total_hired=total_hired,
+        total_revenue_cents=total_revenue,
+        compliance_score=compliance_score,
+        active_postings=active_postings,
+        subscription=subscription,
+        billing_email=org.billing_email,
+        tax_id=org.tax_id,
+    )
+
+
+@router.patch("/organizations/{org_id}/sanction", response_model=OrganizationSanctionResponse)
+def sanction_organization(
+    org_id: str,
+    payload: OrganizationSanctionRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> OrganizationSanctionResponse:
+    _require_admin(current_user)
+    
+    org = session.query(OrganisationORM).filter_by(id=org_id).first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    action = payload.action.strip().lower()
+    reason = payload.reason.strip()
+    
+    if not reason:
+        raise HTTPException(status_code=422, detail="Reason is required")
+    
+    if action == "suspend":
+        org.is_active = False
+        message = f"Organization suspended: {reason}"
+    elif action == "unsuspend":
+        org.is_active = True
+        message = f"Organization unsuspended"
+    elif action == "sanction":
+        org.is_active = False
+        message = f"Organization sanctioned: {reason}"
+    else:
+        raise HTTPException(status_code=422, detail="Invalid action. Must be: suspend, unsuspend, or sanction")
+    
+    session.commit()
+    session.refresh(org)
+    
+    org_read = OrganizationRead(
+        id=org.id,
+        name=org.name,
+        type=org.type,
+        sector=org.sector,
+        loc=org.loc,
+        seal=org.seal,
+        about=org.about,
+        billing_email=org.billing_email,
+        tax_id=org.tax_id,
+        billing_address=org.billing_address or {},
+        created_at=org.created_at if hasattr(org, 'created_at') else "",
+        is_active=org.is_active,
+    )
+    
+    return OrganizationSanctionResponse(
+        organization=org_read,
+        action=action,
+        reason=reason,
+        message=message,
+    )

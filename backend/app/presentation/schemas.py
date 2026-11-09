@@ -418,3 +418,52 @@ class AuthResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserRead
+
+
+# ---------------- Organization Management ------------------------------------
+
+class OrganizationRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    name: str
+    type: str
+    sector: str
+    loc: str
+    seal: str
+    about: str
+    billing_email: Optional[str] = None
+    tax_id: Optional[str] = None
+    billing_address: dict = {}
+    created_at: str
+    is_active: bool = True
+
+
+class OrganizationListResponse(BaseModel):
+    total: int
+    items: list[OrganizationRead]
+
+
+class OrganizationDetailResponse(BaseModel):
+    organization: OrganizationRead
+    stats: dict
+    active_placements: int
+    total_hired: int
+    total_revenue_cents: int
+    compliance_score: int
+    active_postings: int
+    subscription: dict
+    billing_email: Optional[str] = None
+    tax_id: Optional[str] = None
+
+
+class OrganizationSanctionRequest(BaseModel):
+    action: str  # "suspend" | "unsuspend" | "sanction"
+    reason: str
+
+
+class OrganizationSanctionResponse(BaseModel):
+    organization: OrganizationRead
+    action: str
+    reason: str
+    message: str

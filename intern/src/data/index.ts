@@ -354,6 +354,7 @@ admin: [
     ["students", "Students", "04"],
     ["documents", "Documents", "04"],
     ["testimonial", "Testimonial", "05"],
+    ["organizations", "Organizations", "06"],
   ],
   employee: [
     ["overview", "Overview", "01"],

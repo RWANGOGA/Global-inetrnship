@@ -852,6 +852,106 @@ export async function fetchAdminActivity(): Promise<AdminActivityItem[]> {
   return getJson<AdminActivityItem[]>("/admin/activity");
 }
 
+export interface OrganizationRead {
+  id: string;
+  name: string;
+  type: string;
+  sector: string;
+  loc: string;
+  seal: string;
+  about: string;
+  billing_email: string | null;
+  tax_id: string | null;
+  billing_address: Record<string, any>;
+  created_at: string;
+  is_active: boolean;
+}
+
+export interface OrganizationListResponse {
+  total: number;
+  items: OrganizationRead[];
+}
+
+export interface OrganizationDetailResponse {
+  organization: OrganizationRead;
+  stats: Record<string, any>;
+  active_placements: number;
+  total_hired: number;
+  total_revenue_cents: number;
+  compliance_score: number;
+  active_postings: number;
+  subscription: {
+    plan: string;
+    billing: string;
+    seats: number;
+    status: string;
+  };
+  billing_email?: string;
+  tax_id?: string;
+}
+
+export interface OrganizationSanctionRequest {
+  action: "suspend" | "unsuspend" | "sanction";
+  reason: string;
+}
+
+export interface OrganizationSanctionResponse {
+  organization: OrganizationRead;
+  action: string;
+  reason: string;
+  message: string;
+}
+
+export interface OrganizationListResponse {
+  total: number;
+  items: OrganizationRead[];
+}
+
+// ---- Admin dashboard ------------------------------------------------------
+
+export interface AdminDashboardMetrics {
+  open_placements: number;
+  pending_documents: number;
+  students_placed: number;
+  placement_record_complete: number;
+  total_users: number;
+  users_by_role: Record<string, number>;
+  total_organizations: number;
+  total_applications: number;
+  total_revenue_cents: number;
+  verification_rate: number;
+}
+
+// ---- Organization Management ----------------------------------------------
+
+export async function fetchOrganizationList(params?: {
+  status?: string;
+  orgType?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<OrganizationListResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.status) searchParams.append("status", params.status);
+  if (params?.orgType) searchParams.append("org_type", params.orgType);
+  if (params?.page) searchParams.append("page", String(params.page));
+  if (params?.pageSize) searchParams.append("page_size", String(params.pageSize));
+  const query = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  return getJson<OrganizationListResponse>(`/admin/organizations${query}`);
+}
+
+export async function fetchOrganizationDetail(
+  orgId: string
+): Promise<any> {
+  return getJson<any>(`/admin/organizations/${orgId}`);
+}
+
+export async function sanctionOrganization(
+  orgId: string,
+  payload: { action: "suspend" | "unsuspend" | "sanction"; reason: string }
+): Promise<any> {
+  return patchJson<any>(`/admin/organizations/${orgId}/sanction`, payload);
+}
+
 // ---- Employer dashboard ---------------------------------------------------
 
 export async function fetchOrganizationApplicants(

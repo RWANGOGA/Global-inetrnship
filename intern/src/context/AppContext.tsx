@@ -62,6 +62,9 @@ import {
   uploadStudentDocument,
   withdrawApplicationApi,
   updateStudentProfile,
+  fetchOrganizationList,
+  fetchOrganizationDetail,
+  sanctionOrganization,
   type ApiUser,
   type CatalogMeta,
   type SubscriptionDto,
@@ -74,6 +77,11 @@ import {
   type InvoiceResponse,
   type TransactionResponse,
   type GatewayOption,
+  type OrganizationRead,
+  type OrganizationDetailResponse,
+  type OrganizationListResponse,
+  type OrganizationSanctionRequest,
+  type OrganizationSanctionResponse,
 } from "../lib/api";
 
 // Placement-fee model. Free host organisations (seed org "o4") publish up to

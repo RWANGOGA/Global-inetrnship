@@ -198,7 +198,63 @@ export type DashboardView =
   | "testimonial"
   | "roles"
   | "apps"
-  | "applicants";
+  | "applicants"
+  | "organizations";
+
+export interface OrganizationRead {
+  id: string;
+  name: string;
+  type: string;
+  sector: string;
+  loc: string;
+  seal: string;
+  about: string;
+  billing_email?: string | null;
+  tax_id?: string | null;
+  billing_address: Record<string, unknown>;
+  created_at: string;
+  is_active: boolean;
+}
+
+export interface OrganizationDetailResponse {
+  organization: OrganizationRead;
+  stats: Record<string, unknown>;
+  active_placements: number;
+  total_hired: number;
+  total_revenue_cents: number;
+  compliance_score: number;
+  active_postings: number;
+  subscription: {
+    plan: string;
+    billing: string;
+    seats: number;
+    status: string;
+  };
+  billing_email?: string;
+  tax_id?: string;
+}
+
+export interface OrganizationListResponse {
+  total: number;
+  items: OrganizationRead[];
+}
+
+export interface OrganizationSanctionRequest {
+  action: "suspend" | "unsuspend" | "sanction";
+  reason: string;
+}
+
+export interface OrganizationSanctionResponse {
+  organization: OrganizationRead;
+  action: string;
+  reason: string;
+  message: string;
+}
+
+export interface OrganizationListResponse {
+  total: number;
+  items: OrganizationRead[];
+}
 
 export interface ChatMessage {
   id: string;
