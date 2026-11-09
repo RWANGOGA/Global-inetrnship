@@ -508,7 +508,129 @@ The **Portal Foundation**, **Live Internship Catalogue**, **Live Internship Cand
 
 The current delivery target is **Feature 5: Internship Institution and Host Dashboards** — building university, NGO, government, and employer-specific dashboards with role/organization authorization.
 
-Acceptance criteria for completed features:
+### Feature 5: Internship Institution and Host Dashboards
+- Build university dashboard.
+- Build NGO dashboard.
+- Build government dashboard.
+- Build employer/company internship dashboard.
+- Add role and organisation authorization.
+- Replace hardcoded queues, counts, and activity with backend data.
+- Commit and push.
+
+### Feature 12: Skills-to-Opportunity Matching Platform (Internship Portal Enhancement)
+
+*Goal: Shift from eligibility/verification focus to skills-to-opportunity matching. Job Portal remains unchanged.*
+
+#### 12.1 Student Skills Profiling from Projects & Assessments
+- **Skills Quiz**: Add a short skills assessment quiz (10-15 questions) covering technical, soft, and domain skills
+- **"Skills from my Projects" Input**: Free-text project description input with NLP extraction (extends existing `extractSkills` in `lib/skills.ts`)
+- **Course-based Skills**: Auto-suggest skills from enrolled courses (map courses → typical skills)
+- **Skill Confidence Levels**: Students rate proficiency (Beginner/Intermediate/Advanced) per skill
+- **Backend**: Extend `StudentProfile` entity with `skills_confidence: Dict[str, int]` and `skills_source: Dict[str, str]` (quiz/project/course/quiz)
+- **API**: `POST /api/profile/skills-assessment` to submit quiz results; `PUT /api/profile/skills` to update skills with confidence
+- **Frontend**: New "Skills Assessment" tab in student dashboard with quiz UI and project text input
+
+#### 12.2 Gigs & Entry-Level Tech Roles in Internship Portal
+- **New Opportunity Type**: Add `opportunity_type` field to `Placement` entity: `internship` | `gig` | `entry_level`
+- **Gig Fields**: `duration_hours`, `budget_range`, `milestones`, `remote_ok`, `skills_required[]`
+- **Entry-Level Fields**: `salary_range`, `probation_period`, `training_included`, `career_path`
+- **Catalogue Filters**: Add "Type" filter (Internship / Gig / Entry-Level) to public catalogue
+- **Employer Posting**: Extended form with type selector; conditional fields per type
+- **Matching**: Extend `match_placement` to weight skills differently per type (gigs: 80% skills, 20% availability; entry-level: 50% skills, 30% course, 20% CGPA)
+- **Frontend**: Type tabs in catalogue; type badges on cards; dedicated gig/entry-level detail views
+
+#### 12.3 Advisor Chatbot Skill Guidance
+- **Enhanced Prompt**: Extend `compose_prompt` in `advisor.py` to include:
+  - Student's current skills with confidence levels
+  - Top 3 skill gaps blocking best matches
+  - Recommended next skills to learn (with estimated match score improvement)
+  - Suggested projects/courses to build those skills
+- **Action Buttons**: Chat responses include "Add Skill", "Start Quiz", "View Course" actions
+- **Proactive Nudges**: On dashboard load, show "Your top match needs Python — add it now?" banner
+- **Frontend**: ChatDrawer enhancements with action buttons; skill suggestion chips in chat
+
+#### 12.4 Placement-Fee Business Model (Employer Pays on Hire)
+- **New Billing Event**: `placement_fee` charged when application status → `Accepted`
+- **Fee Structure**: Configurable per org type (Company: 15% of first-month stipend/salary; Gov/NGO: 10%; University: 5%)
+- **Subscription Changes**: 
+  - Free tier: 3 free postings, then placement-fee only
+  - Pro tier ($30/mo): Unlimited postings, reduced placement fee (50% off), priority review
+  - Enterprise: Custom fee structure, dedicated manager
+- **Backend**: New `PlacementFee` entity; webhook on application status change; invoice generation on hire
+- **Employer Dashboard**: Show "Estimated placement fee: $X" when posting; fee summary in billing
+- **Admin**: Fee collection report; org fee config
+
+#### 12.5 Student Premium Tier
+- **Free Tier**: Basic matching, 3 applications/month, basic skill gap summary
+- **Premium Tier ($15/mo or $150/yr)**:
+  - Priority matching (top of employer search results)
+  - Unlimited applications
+  - Detailed skill-gap report (per opportunity: missing skills, learning resources, time estimates)
+  - CV review by career advisor (1/month)
+  - Early access to new opportunities (24h head start)
+  - Interview prep kit (common questions, STAR framework)
+- **Backend**: `StudentSubscription` entity; feature flags in matching service
+- **Frontend**: Upgrade banner in student dashboard; premium badges on opportunities
+
+#### 12.6 Real Statistics & Revenue Model Documentation
+- **Replace Mock Data**: Audit all dashboard stats (KPIs, testimonials, conversion rates)
+- **Assumed Figures Label**: Add "Assumed (based on X)" badges where real data unavailable
+- **Revenue Model Doc**: Create `REVENUE_MODEL.md` with:
+  - TAM/SAM/SOM for Ugandan + East African market
+  - Placement fee projections (conservative/base/aggressive)
+  - Cost structure (infra, team, marketing, verification)
+  - Break-even analysis
+  - Unit economics (CAC, LTV, payback period)
+- **Worked Example**: "100 employers × 2 hires/yr × $200 fee = $40k/yr revenue"
+- **Cost Example**: "Verification: $5/application × 500 apps/mo = $2,500/mo"
+
+---
+
+## 13. Implementation Sequence
+
+| Phase | Features | Est. Effort | Dependencies |
+|-------|----------|-------------|--------------|
+| 1 | Skills Profiling (12.1) | 2 weeks | — |
+| 2 | Gigs & Entry-Level Types (12.2) | 1.5 weeks | 12.1 (matching) |
+| 3 | Advisor Enhancement (12.3) | 1 week | 12.1 |
+| 4 | Placement-Fee Model (12.4) | 2 weeks | Billing service |
+| 5 | Student Premium (12.5) | 1.5 weeks | 12.4, 12.1 |
+| 6 | Statistics & Docs (12.6) | 1 week | All above |
+
+---
+
+## 14. Technical Notes
+
+### Database Changes
+- `StudentProfile`: add `skills_confidence`, `skills_source`
+- `Placement`: add `opportunity_type`, gig/entry-level fields
+- New: `PlacementFee`, `StudentSubscription`, `SkillsAssessment`
+- `BillingService`: add placement fee invoicing
+
+### API Additions
+- `POST /api/profile/skills-assessment`
+- `GET /api/placements?type=gig|entry_level`
+- `POST /api/advisor/skill-guidance`
+- `POST /api/billing/student/subscribe`
+- Webhook: `application.accepted` → placement fee invoice
+
+### Frontend Components
+- `SkillsQuiz.tsx` - assessment component
+- `ProjectSkillsExtractor.tsx` - project text input
+- `OpportunityTypeTabs.tsx` - catalogue filters
+- `PremiumUpgradeBanner.tsx` - student dashboard
+- Enhanced `ChatDrawer.tsx` with action buttons
+
+---
+
+## 15. Jobs Portal — No Changes
+
+The Jobs Portal (Features 6-8) remains on its current delivery track:
+- Separate domain entities, tables, and workflows
+- No shared opportunity model with internships
+- Own employer portal, candidate workflows, and billing
+
+This ensures clear separation of concerns and allows parallel development.
 
 - The global header shows Internship and Jobs as the two main opportunity portals.
 - Job-specific links are removed from the global header.
