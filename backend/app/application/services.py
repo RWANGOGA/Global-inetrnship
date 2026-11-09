@@ -2,7 +2,7 @@
 from __future__ import annotations
 from contextlib import nullcontext
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 from uuid import uuid4
 
@@ -219,9 +219,7 @@ class BillingService:
         self._student_usage = student_usage_repo
 
     def _transaction(self):
-        """Context manager for transactions - uses session if available, otherwise no-op."""
-        if self._session:
-            return self._session.begin_nested()
+        """Context manager for transactions - no-op, let caller manage transaction."""
         from contextlib import nullcontext
         return nullcontext()
 
@@ -405,21 +403,22 @@ class BillingService:
             return subscription
 
         with self._transaction():
-            gateway = self._gateways.get(subscription.payment_gateway)
-            if subscription.gateway_subscription_id:
+            # Only cancel gateway subscription if we have a gateway
+            if subscription.payment_gateway and subscription.gateway_subscription_id:
+                gateway = self._gateways.get(subscription.payment_gateway)
                 gateway.cancel_subscription(subscription.gateway_subscription_id, at_period_end=True)
             
             # Create new subscription with updated fields (frozen dataclass)
             updated = Subscription(
                 org_id=subscription.org_id,
-                plan=subscription.plan,
-                billing=subscription.billing,
-                seats=subscription.seats,
-                since=subscription.since,
-                status="active",
+                plan="Free",  # Immediately revert to Free
+                billing="",
+                seats=1,
+                since="",
+                status="cancelled",
                 current_period_start=subscription.current_period_start,
                 current_period_end=subscription.current_period_end,
-                cancel_at_period_end=True,
+                cancel_at_period_end=False,
                 trial_end=subscription.trial_end,
                 payment_gateway=subscription.payment_gateway,
                 gateway_customer_id=subscription.gateway_customer_id,
@@ -753,16 +752,10 @@ class BillingService:
 
     def _generate_invoice_number(self) -> str:
         """Generate unique invoice number: INV-YYYY-NNNNN"""
-        if self._session:
-            from sqlalchemy import func
-            from app.infrastructure.orm import InvoiceORM
-            year = datetime.utcnow().year
-            count = self._session.query(func.count(InvoiceORM.id)).filter(
-                InvoiceORM.invoice_number.like(f"INV-{year}-%")
-            ).scalar() or 0
-            return f"INV-{year}-{count + 1:05d}"
-        # For testing without session, generate a simple unique number
-        return f"INV-{datetime.utcnow().year}-{uuid4().hex[:5]}"
+        # Use timestamp + random suffix for uniqueness without DB query
+        year = datetime.utcnow().year
+        unique_suffix = uuid4().hex[:8].upper()
+        return f"INV-{year}-{unique_suffix}"
 
 
 class StudentProfileService:

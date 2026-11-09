@@ -29,7 +29,6 @@ import {
 } from "../data";
 import { matchPlacement, setSkillTables } from "../lib/skills";
 import {
-  activateSubscriptionApi,
   applyApi,
   askAdvisor,
   cancelSubscriptionApi,
@@ -47,10 +46,13 @@ import {
   fetchRecommendedInternships,
   fetchOrganizationInternships,
   fetchOrganizationApplicants,
+  fetchSubscription,
+  createSubscriptionApi,
+  updateSubscriptionApi,
+  resumeSubscriptionApi,
   MatchResponse,
   fetchMe,
   fetchSaved,
-  fetchSubscription,
   isApiEnabled,
   loginApi,
   registerApi,
@@ -69,6 +71,9 @@ import {
   type StudentDocumentDto,
   type AdvisorResponse,
   type AdvisorAction,
+  type InvoiceResponse,
+  type TransactionResponse,
+  type GatewayOption,
 } from "../lib/api";
 
 // Placement-fee model. Free host organisations (seed org "o4") publish up to
@@ -90,11 +95,44 @@ const EMPTY_META: CatalogMeta = {
 
 // Maps the backend subscription DTO onto the UI's Subscription shape.
 function toLocalSubscription(s: SubscriptionDto): Subscription {
+  const validBillingCycles = ["monthly", "annual", ""] as const;
+  const validGateways = [
+    "stripe",
+    "paypal",
+    "flutterwave",
+    "mpesa",
+    "bank_transfer",
+    "crypto",
+    "",
+  ] as const;
+  const validStatuses = ["active", "trialing", "past_due", "cancelled", ""] as const;
+
+  const billing_cycle = validBillingCycles.includes(
+    s.billing_cycle as typeof validBillingCycles[number]
+  )
+    ? (s.billing_cycle as "monthly" | "annual" | "")
+    : "";
+
+  const payment_gateway = validGateways.includes(
+    s.payment_gateway as typeof validGateways[number]
+  )
+    ? (s.payment_gateway as Subscription["payment_gateway"])
+    : "";
+
+  const status = validStatuses.includes(s.status as typeof validStatuses[number])
+    ? (s.status as "active" | "trialing" | "past_due" | "cancelled" | "")
+    : "";
+
   return {
     plan: s.plan,
-    billing: s.billing === "Invoice" ? "Invoice" : s.billing === "Card" ? "Card" : "",
+    billing_cycle,
+    payment_gateway,
     seats: s.seats,
     since: s.since,
+    status,
+    current_period_start: s.current_period_start,
+    current_period_end: s.current_period_end,
+    cancel_at_period_end: s.cancel_at_period_end,
   };
 }
 
@@ -213,7 +251,8 @@ interface AppContextType {
   employerLiveCount: number;
   activatePlan: (
     plan: string,
-    billing: "Card" | "Invoice",
+    billing_cycle: "monthly" | "annual",
+    payment_gateway: string,
     seats: number
   ) => void;
   cancelPlan: () => void;
@@ -287,9 +326,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // keeps the plan; in Phase 2 the FastAPI backend owns this record.
   const [subscription, setSubscription] = useState<Subscription>({
     plan: "Free",
-    billing: "",
+    billing_cycle: "",
+    payment_gateway: "",
     seats: 1,
     since: "",
+    status: "",
+    current_period_start: null,
+    current_period_end: null,
+    cancel_at_period_end: false,
   });
 
   // Bookmarked placements. Persisted so the shortlist survives reloads and is
@@ -1258,18 +1302,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (p) => p.orgId === session?.org_id
   ).length;
 
+  const validGateways = [
+    "stripe",
+    "paypal",
+    "flutterwave",
+    "mpesa",
+    "bank_transfer",
+    "crypto",
+    "",
+  ] as const;
+
   const activatePlan = useCallback(
-    (plan: string, billing: "Card" | "Invoice", seats: number) => {
+    (plan: string, billing_cycle: "monthly" | "annual", payment_gateway: string, seats: number) => {
+      const now = new Date().toISOString();
+      const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      const gateway = validGateways.includes(
+        payment_gateway as typeof validGateways[number]
+      )
+        ? (payment_gateway as Subscription["payment_gateway"])
+        : "";
       const optimistic: Subscription = {
         plan,
-        billing,
+        billing_cycle,
+        payment_gateway: gateway,
         seats: Math.max(1, seats),
-        since: new Date().toISOString().slice(0, 10),
+        since: now.slice(0, 10),
+        status: "active",
+        current_period_start: now,
+        current_period_end: periodEnd,
+        cancel_at_period_end: false,
       };
       setSubscription(optimistic);
-      toast(`${plan} plan active · placement fee applied`);
+      toast(`${plan} plan active (${billing_cycle}) · placement fee applied`);
       if (!isApiEnabled) return;
-      activateSubscriptionApi(plan, billing, Math.max(1, seats))
+      createSubscriptionApi(plan, billing_cycle, payment_gateway)
         .then((s) => setSubscription(toLocalSubscription(s)))
         .catch(() => {
           /* server unreachable — keep the optimistic plan for this session */
@@ -1279,7 +1345,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const cancelPlan = useCallback(() => {
-    setSubscription({ plan: "Free", billing: "", seats: 1, since: "" });
+    setSubscription({
+      plan: "Free",
+      billing_cycle: "",
+      payment_gateway: "",
+      seats: 1,
+      since: "",
+      status: "active",
+      current_period_start: null,
+      current_period_end: null,
+      cancel_at_period_end: false,
+    });
     toast("Moved to Free · posting capped at 3 placements");
     if (!isApiEnabled) return;
     cancelSubscriptionApi()
@@ -1668,7 +1744,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         </div>,
         "Unlock unlimited postings",
         () => {
-          activatePlan("Growth", "Card", 3);
+          activatePlan("Pro", "monthly", "stripe", 3);
           openNewPlacementForm();
         }
       );
@@ -1868,12 +1944,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
         <div className="form">
           <div className="row2">
             <div className="field">
-              <label>Organisation</label>
-              <input id="planOrg" placeholder="Lumen Labs" />
+              <label>Billing cycle</label>
+              <select id="planBillingCycle" defaultValue="monthly">
+                <option value="monthly">Monthly ($30/mo)</option>
+                <option value="annual">Annual ($300/yr - save 17%)</option>
+              </select>
             </div>
             <div className="field">
-              <label>Work email</label>
-              <input id="planEmail" placeholder="you@organisation.org" />
+              <label>Payment method</label>
+              <select id="planPaymentGateway" defaultValue="stripe">
+                <option value="stripe">Stripe (Cards)</option>
+                <option value="paypal">PayPal</option>
+                <option value="flutterwave">Flutterwave (Africa)</option>
+                <option value="mpesa">M-Pesa (Mobile Money)</option>
+                <option value="bank_transfer">Bank Transfer</option>
+                <option value="crypto">Crypto (USDC/USDT)</option>
+              </select>
             </div>
           </div>
           <div className="row2">
@@ -1882,11 +1968,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
               <input id="planSeats" type="number" min={1} defaultValue={3} />
             </div>
             <div className="field">
-              <label>Billing</label>
-              <select id="planBilling" defaultValue="Card">
-                <option value="Card">Card</option>
-                <option value="Invoice">Invoice</option>
-              </select>
+              <label>Organisation</label>
+              <input id="planOrg" placeholder="Lumen Labs" />
             </div>
           </div>
           <div style={{ fontSize: "11.5px", color: "var(--muted)", lineHeight: 1.6 }}>
@@ -1898,12 +1981,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
           const seats = Number(
             (document.getElementById("planSeats") as HTMLInputElement | null)?.value
           );
-          const billing = (document.getElementById(
-            "planBilling"
-          ) as HTMLSelectElement | null)?.value === "Invoice"
-            ? "Invoice"
-            : "Card";
-          activatePlan(tier, billing, Number.isFinite(seats) ? seats : 1);
+          const billing_cycle = (
+            document.getElementById("planBillingCycle") as HTMLSelectElement | null
+          )?.value as "monthly" | "annual";
+          const payment_gateway = (
+            (document.getElementById("planPaymentGateway") as HTMLSelectElement | null)?.value
+          ) ?? "stripe";
+          activatePlan(tier, billing_cycle, payment_gateway, Number.isFinite(seats) ? seats : 1);
         }
       );
     },

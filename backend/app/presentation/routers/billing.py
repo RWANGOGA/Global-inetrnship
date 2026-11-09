@@ -130,14 +130,19 @@ def create_subscription(
 
 @router.get("/subscriptions/current", response_model=SubscriptionRead)
 def get_current_subscription(
+    org_id: str | None = Query(None),
     service: BillingService = Depends(get_billing_service),
     current_user: User = Depends(get_current_user),
 ) -> SubscriptionRead:
     """Get the current organisation's subscription."""
-    if current_user.role != "employer" or not current_user.org_id:
-        raise HTTPException(status_code=403, detail="Only employers can view subscriptions")
+    # Admin can specify org_id, employer uses their own org_id
+    if current_user.role == "admin" and org_id:
+        subscription = service.get_subscription(org_id)
+    elif current_user.role == "employer" and current_user.org_id:
+        subscription = service.get_subscription(current_user.org_id)
+    else:
+        raise HTTPException(status_code=403, detail="Only employers and admins can view subscriptions")
     
-    subscription = service.get_subscription(current_user.org_id)
     return _to_subscription_read(subscription)
 
 
@@ -410,9 +415,17 @@ def void_invoice_admin(
 # ---- Helper ----
 
 def _to_subscription_read(sub: Subscription) -> SubscriptionRead:
+    since_str = ""
+    if sub.since:
+        if hasattr(sub.since, 'isoformat'):
+            since_str = sub.since.isoformat()
+        else:
+            since_str = str(sub.since)
     return SubscriptionRead(
         plan=sub.plan,
         billing=sub.billing,
         seats=sub.seats,
-        since=sub.since.isoformat() if sub.since else "",
+        since=since_str,
+        org_id=sub.org_id if hasattr(sub, 'org_id') else "",
+        is_premium=sub.plan != "Free",
     )

@@ -14,7 +14,7 @@ PASSWORD = "password123"
 
 
 def _login(client, email: str) -> dict:
-    resp = client.post("/auth/login", json={"email": email, "password": PASSWORD})
+    resp = client.post("/auth/login", json={"username": email, "password": PASSWORD})
     assert resp.status_code == 200, resp.text
     return {"Authorization": f"Bearer {resp.json()['access_token']}"}
 
@@ -31,7 +31,7 @@ def test_user_state_requires_a_token(client):
     assert client.post("/saved/toggle", json={"placement_id": "p1"}).status_code == 401
     assert client.post("/applications", json={"placement_id": "p1"}).status_code == 401
     assert client.get("/applications").status_code == 401
-    assert client.get("/subscription").status_code == 401
+    assert client.get("/billing/subscriptions/current").status_code == 401
 
 
 # ---- Saved -----------------------------------------------------------------
@@ -298,36 +298,36 @@ def test_documents_enforce_type_and_student_authorization(client):
 
 def test_subscription_derives_org_from_the_employer_token(client):
     h = _login(client, EMPLOYER)  # org o4
-    default = client.get("/subscription", headers=h).json()
+    default = client.get("/billing/subscriptions/current", headers=h).json()
     assert default["org_id"] == "o4"
     assert default["plan"] == "Free"
     assert default["is_premium"] is False
 
     activated = client.post(
-        "/subscription/activate",
-        json={"plan": "Growth", "billing": "Card", "seats": 3},
+        "/billing/subscriptions",
+        json={"plan": "Pro", "billing_cycle": "monthly", "payment_gateway": "stripe"},
         headers=h,
     ).json()
-    assert activated["plan"] == "Growth"
+    assert activated["plan"] == "Pro"
     assert activated["is_premium"] is True
-    assert activated["seats"] == 3
+    assert activated["seats"] == 1
     assert activated["since"]
 
     # persists across reads (keyed by the token's org, no org_id sent)
-    assert client.get("/subscription", headers=h).json()["plan"] == "Growth"
+    assert client.get("/billing/subscriptions/current", headers=h).json()["plan"] == "Pro"
 
-    cancelled = client.post("/subscription/cancel", json={}, headers=h).json()
+    cancelled = client.post("/billing/subscriptions/current/cancel", json={}, headers=h).json()
     assert cancelled["plan"] == "Free"
     assert cancelled["is_premium"] is False
 
 
 def test_student_cannot_access_subscription(client):
     h = _login(client, STUDENT)
-    assert client.get("/subscription", headers=h).status_code == 403
+    assert client.get("/billing/subscriptions/current", headers=h).status_code == 403
 
 
 def test_admin_may_target_an_org_explicitly(client):
     h = _login(client, ADMIN)
-    resp = client.get("/subscription?org_id=o5", headers=h)
+    resp = client.get("/billing/subscriptions/current?org_id=o5", headers=h)
     assert resp.status_code == 200
     assert resp.json()["org_id"] == "o5"

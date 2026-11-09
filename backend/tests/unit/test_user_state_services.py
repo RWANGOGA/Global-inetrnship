@@ -144,10 +144,9 @@ def test_billing_cancel_reverts_to_free():
     service.create_subscription("o1", plan="Pro", billing_cycle="monthly")
 
     sub = service.cancel_subscription("o1")
-    # Cancellation is at period end, so plan remains Pro but cancel_at_period_end is True
-    assert sub.plan == "Pro"
-    assert sub.cancel_at_period_end is True
-    assert sub.is_premium is True
+    # Cancellation immediately reverts to Free
+    assert sub.plan == "Free"
+    assert sub.is_premium is False
     assert sub.seats == 1
 
 

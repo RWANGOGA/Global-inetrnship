@@ -141,10 +141,15 @@ export type Portal = "internships" | "jobs";
 // institution plan. Persisted to localStorage so it survives reloads; the
 // backend will own it in Phase 2.
 export interface Subscription {
-  plan: string; // e.g. "Growth", or "Free"
-  billing: "Card" | "Invoice" | "";
+  plan: string; // "Free" | "Pro" | "Enterprise"
+  billing_cycle: "monthly" | "annual" | "";
+  payment_gateway: "stripe" | "paypal" | "flutterwave" | "mpesa" | "bank_transfer" | "crypto" | "";
   seats: number;
   since: string; // ISO date the paid plan started, "" for free
+  status: "active" | "trialing" | "past_due" | "cancelled" | "";
+  current_period_start: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
 }
 
 

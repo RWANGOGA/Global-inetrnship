@@ -7,7 +7,7 @@ PASSWORD = "password123"
 
 
 def _login(client, email: str) -> dict:
-    resp = client.post("/auth/login", json={"email": email, "password": PASSWORD})
+    resp = client.post("/auth/login", json={"username": email, "password": PASSWORD})
     assert resp.status_code == 200, resp.text
     return {"Authorization": f"Bearer {resp.json()['access_token']}"}
 

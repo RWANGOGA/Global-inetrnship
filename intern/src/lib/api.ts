@@ -598,32 +598,124 @@ export async function fetchRecommendedInternships(
 export interface SubscriptionDto {
   org_id: string;
   plan: string;
-  billing: string;
+  billing_cycle: string;
+  payment_gateway: string;
   seats: number;
   since: string;
+  status: string;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
   is_premium: boolean;
 }
 
-// GET /subscription -> the authenticated org's live plan (defaults to Free).
-// The org is derived from the token, so no org_id is sent.
+// GET /billing/subscriptions/current -> the authenticated org's live plan (defaults to Free).
 export async function fetchSubscription(): Promise<SubscriptionDto> {
-  return getJson<SubscriptionDto>("/subscription");
+  return getJson<SubscriptionDto>("/billing/subscriptions/current");
 }
 
-export async function activateSubscriptionApi(
+export async function createSubscriptionApi(
   plan: string,
-  billing: string,
-  seats: number
+  billing_cycle: "monthly" | "annual",
+  payment_gateway: string,
+  payment_method_id?: string
 ): Promise<SubscriptionDto> {
-  return postJson<SubscriptionDto>("/subscription/activate", {
+  return postJson<SubscriptionDto>("/billing/subscriptions", {
     plan,
-    billing,
-    seats,
+    billing_cycle,
+    payment_gateway,
+    payment_method_id,
+  });
+}
+
+export async function updateSubscriptionApi(
+  plan?: string,
+  billing_cycle?: "monthly" | "annual"
+): Promise<SubscriptionDto> {
+  return patchJson<SubscriptionDto>("/billing/subscriptions/current", {
+    plan,
+    billing_cycle,
   });
 }
 
 export async function cancelSubscriptionApi(): Promise<SubscriptionDto> {
-  return postJson<SubscriptionDto>("/subscription/cancel", {});
+  return postJson<SubscriptionDto>("/billing/subscriptions/current/cancel", {});
+}
+
+export async function resumeSubscriptionApi(): Promise<SubscriptionDto> {
+  return postJson<SubscriptionDto>("/billing/subscriptions/current/resume", {});
+}
+
+export async function fetchInvoices(
+  status?: string
+): Promise<InvoiceResponse[]> {
+  const params = status ? `?status=${status}` : "";
+  return getJson<InvoiceResponse[]>(`/billing/invoices${params}`);
+}
+
+export async function fetchTransactions(
+  status?: string
+): Promise<TransactionResponse[]> {
+  const params = status ? `?status=${status}` : "";
+  return getJson<TransactionResponse[]>(`/billing/transactions${params}`);
+}
+
+export async function payInvoiceApi(
+  invoice_id: string,
+  payment_method_id: string
+): Promise<TransactionResponse> {
+  return postJson<TransactionResponse>(`/billing/invoices/${invoice_id}/pay`, {
+    payment_method_id,
+  });
+}
+
+export async function fetchGateways(): Promise<GatewayOption[]> {
+  return getJson<GatewayOption[]>("/billing/gateways");
+}
+
+export interface GatewayOption {
+  id: string;
+  name: string;
+  currencies: string[];
+}
+
+export interface InvoiceResponse {
+  id: string;
+  org_id: string;
+  subscription_id: string | null;
+  amount_cents: number;
+  currency: string;
+  status: string;
+  invoice_number: string;
+  description: string | null;
+  line_items: Record<string, unknown>[];
+  metadata: Record<string, unknown>;
+  due_date: string | null;
+  paid_at: string | null;
+  payment_gateway: string | null;
+  gateway_invoice_id: string | null;
+  gateway_payment_intent_id: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface TransactionResponse {
+  id: string;
+  org_id: string;
+  invoice_id: string | null;
+  subscription_id: string | null;
+  amount_cents: number;
+  currency: string;
+  type: string;
+  status: string;
+  payment_gateway: string;
+  gateway_transaction_id: string | null;
+  gateway_response: Record<string, unknown>;
+  description: string | null;
+  metadata: Record<string, unknown>;
+  idempotency_key: string | null;
+  created_at: string | null;
+  processed_at: string | null;
 }
 
 // ---- AI advisor ------------------------------------------------------------

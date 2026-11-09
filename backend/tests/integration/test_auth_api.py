@@ -48,7 +48,7 @@ def test_register_cannot_create_an_admin_account(client):
 
 
 def test_login_seeded_demo_account(client):
-    res = client.post("/auth/login", json={"email": DEMO_EMAIL, "password": DEMO_PASSWORD})
+    res = client.post("/auth/login", json={"username": DEMO_EMAIL, "password": DEMO_PASSWORD})
     assert res.status_code == 200
     body = res.json()
     assert body["user"]["role"] == "student"
@@ -56,13 +56,13 @@ def test_login_seeded_demo_account(client):
 
 
 def test_login_wrong_password_unauthorized(client):
-    res = client.post("/auth/login", json={"email": DEMO_EMAIL, "password": "nope"})
+    res = client.post("/auth/login", json={"username": DEMO_EMAIL, "password": "nope"})
     assert res.status_code == 401
 
 
 def test_me_returns_current_user(client):
     token = client.post(
-        "/auth/login", json={"email": DEMO_EMAIL, "password": DEMO_PASSWORD}
+        "/auth/login", json={"username": DEMO_EMAIL, "password": DEMO_PASSWORD}
     ).json()["access_token"]
     res = client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
     assert res.status_code == 200

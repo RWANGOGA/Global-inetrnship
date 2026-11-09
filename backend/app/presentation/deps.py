@@ -4,7 +4,7 @@ This is where the abstraction (port) is bound to a concrete adapter. Tests can
 override ``get_session`` to point the same wiring at SQLite; production binds
 it to Postgres — no use case changes.
 """
-from fastapi import Depends
+from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -114,15 +114,15 @@ def get_auth_service(session: Session = Depends(get_session)) -> AuthService:
 def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     service: AuthService = Depends(get_auth_service),
-) -> User | None:
-    """Resolve the caller from a valid Bearer token, or return None if not authenticated."""
+) -> User:
+    """Resolve the caller from a valid Bearer token, or raise 401 if not authenticated."""
     if credentials is None or credentials.scheme.lower() != "bearer":
-        return None
+        raise HTTPException(status_code=401, detail="Not authenticated")
     try:
         payload = decode_access_token(credentials.credentials)
     except Exception as exc:  # jwt.InvalidTokenError and friends
-        return None
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
     try:
         return service.get(payload["sub"])
-    except UserNotFound:
-        return None
+    except UserNotFound as exc:
+        raise HTTPException(status_code=401, detail="Account no longer exists") from exc
