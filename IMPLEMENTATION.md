@@ -621,6 +621,75 @@ The current delivery target is **Feature 5: Internship Institution and Host Dash
   - `GET /api/testimonials?status=verified&limit=10` → returns verified public testimonials
   - Response: `{ items: Testimonial[] }` with student name, course, university, org, role, text, date, verification status
 
+#### 12.8 Multi-Role Testimonials (Students, Employers, Employees, Admins)
+
+*Goal: Extend testimonials beyond students to all platform users — employers sharing hiring experiences, employees sharing workplace insights, admins sharing platform governance insights.*
+
+- **Testimonial Types**: Extend `StudentDocument` → `Testimonial` entity with `author_role: "student" | "employer" | "employee" | "admin"` and `author_id`
+- **Employer Testimonials**: "We hired 3 interns from BrighterWorks — verified skills, ready to contribute from day one"
+- **Employee Testimonials**: "The platform matched me with a role that fits my skills perfectly — transparent requirements, no surprises"
+- **Admin Testimonials**: "Platform integrity maintained — 99.2% verification accuracy, zero fraudulent placements this term"
+- **Submission**: Each role has dedicated testimonial form in their dashboard (`EmployerTestimonial.tsx`, `EmployeeTestimonial.tsx`, `AdminTestimonial.tsx`)
+- **Verification**: Same admin workflow — pending → verified/rejected
+- **Display**: Home page carousel filters by role tabs (Students | Employers | Employees | Admins)
+
+#### 12.9 Comprehensive Admin Dashboard (Amazon-Style System Operations)
+
+*Goal: Give platform admins (system owners) complete visibility and control — not just university admins.*
+
+- **System Overview KPIs**: Total users (by role), active placements, organizations, applications, revenue, verification rates
+- **Organization Management**: List all orgs with type, status, active postings, hired candidates, revenue contribution, compliance score
+- **User Management**: 
+  - Students: enrollment, applications, placements, documents, skill profiles, premium status
+  - Employers: postings, applicants, hires, billing, subscription tier, compliance history
+  - Employees: profiles, work history, skill assessments, testimonials
+  - Admins: activity logs, permissions, audit trail
+- **Compliance & Safety**: Flag non-compliant users (fake documents, no-shows, policy violations), bulk actions
+- **Revenue Analytics**: Placement fees collected, subscription revenue, overdue invoices, fee projections
+- **Audit Logs**: Every admin action, user state change, document verification, payment, role change — immutable, searchable
+- **System Health**: API latency, error rates, database size, verification queue depth, notification delivery rates
+
+#### 12.10 Soft-Delete & Data Retention (Amazon-Style Account Management)
+
+*Goal: Never truly delete user data — soft delete with full retention for compliance, fraud prevention, and smart re-registration.*
+
+- **Soft Delete Pattern**: 
+  - `User` entity adds `deleted_at: datetime | null`, `deletion_reason: str`, `deleted_by: str`
+  - `is_active: bool` computed property (false when `deleted_at` is set)
+  - All queries default to `WHERE deleted_at IS NULL`; admin queries can include deleted
+- **Data Retention on Deletion**:
+  - Preserve: email, phone, hashed password, card tokens (PCI-compliant vault), verification documents, activity logs, testimonials, applications, payments
+  - Anonymize: name → "Deleted User", profile fields → null (but keep IDs for referential integrity)
+  - Retain: card tokens, phone, email for fraud prevention & smart re-registration
+- **Smart Re-Registration**: 
+  - If user registers with same email/phone → detect soft-deleted account
+  - Offer: "Welcome back! Restore your profile?" → one-click restore with all history
+  - Pre-fill: card details (tokenized), verified documents, skill profile, application history
+- **Admin Controls**:
+  - Soft delete user (with reason, logged in audit)
+  - Restore user (full history)
+  - Permanent purge (GDPR/legal request only, requires super-admin + audit)
+  - View deleted users list with filters
+
+#### 12.11 Admin Enforcement & Compliance Actions
+
+*Goal: Platform admins can enforce compliance, revoke access, and maintain platform integrity.*
+
+- **Non-Compliance Triggers**: 
+  - Document fraud (fake transcripts, IDs)
+  - No-show for confirmed placements
+  - Policy violations (spam, harassment, fake reviews)
+  - Payment defaults (employers)
+  - Repeated violations (3-strike system)
+- **Enforcement Actions** (logged in audit, reversible by super-admin):
+  - **Warning**: Email + in-app notification, logged
+  - **Suspension**: Temporary account lock (1-30 days), preserve all data
+  - **Revocation**: Permanent soft delete, preserve all data for audit
+  - **Organization Sanction**: Suspend org's posting privileges, flag all org users
+- **Appeal Process**: User can appeal → admin review → decision logged
+- **Bulk Operations**: Select multiple users/orgs → apply action with single audit entry
+- **Compliance Dashboard**: Real-time view of flagged accounts, pending appeals, action history
+
 ---
 
 ## 13. Implementation Sequence
@@ -634,6 +703,10 @@ The current delivery target is **Feature 5: Internship Institution and Host Dash
 | 5 | Student Premium (12.5) | 1.5 weeks | 12.4, 12.1 |
 | 6 | Statistics & Docs (12.6) | 1 week | All above |
 | 7 | Testimonial Carousel (12.7) | 1 week | 12.1, Admin docs |
+| 8 | Multi-Role Testimonials (12.8) | 1.5 weeks | 12.7 |
+| 9 | Comprehensive Admin Dashboard (12.9) | 2 weeks | 12.1, 12.4 |
+| 10 | Soft-Delete & Data Retention (12.10) | 2 weeks | 12.9 |
+| 11 | Admin Enforcement & Compliance (12.11) | 1.5 weeks | 12.9, 12.10 |
 
 ---
 
@@ -643,7 +716,8 @@ The current delivery target is **Feature 5: Internship Institution and Host Dash
 - `StudentProfile`: add `skills_confidence`, `skills_source`
 - `Placement`: add `opportunity_type`, gig/entry-level fields
 - `StudentDocument`: add `is_public` flag for testimonials
-- New: `PlacementFee`, `StudentSubscription`, `SkillsAssessment`
+- `User`: add `deleted_at`, `deletion_reason`, `deleted_by`, `is_active` (soft delete)
+- New: `PlacementFee`, `StudentSubscription`, `SkillsAssessment`, `Testimonial` (author_role, author_id), `AuditLog`
 - `BillingService`: add placement fee invoicing
 
 ### API Additions
@@ -652,6 +726,15 @@ The current delivery target is **Feature 5: Internship Institution and Host Dash
 - `POST /api/advisor/skill-guidance`
 - `POST /api/billing/student/subscribe`
 - `GET /api/testimonials?status=verified&limit=10`
+- `GET /api/admin/stats` — system KPIs
+- `GET /api/admin/organizations` — org management
+- `GET /api/admin/users` — user management with filters
+- `GET /api/admin/audit-logs` — immutable audit trail
+- `POST /api/admin/users/{id}/suspend` — suspend user
+- `POST /api/admin/users/{id}/revoke` — soft delete user
+- `POST /api/admin/users/{id}/restore` — restore soft-deleted user
+- `POST /api/admin/organizations/{id}/sanction` — sanction organization
+- `POST /api/admin/compliance/bulk-action` — bulk enforcement actions
 - Webhook: `application.accepted` → placement fee invoice
 
 ### Frontend Components
@@ -660,6 +743,13 @@ The current delivery target is **Feature 5: Internship Institution and Host Dash
 - `OpportunityTypeTabs.tsx` - catalogue filters
 - `PremiumUpgradeBanner.tsx` - student dashboard
 - `TestimonialCarousel.tsx` - home page vertical ticker
+- `EmployerTestimonial.tsx` - employer testimonial submission
+- `EmployeeTestimonial.tsx` - employee testimonial submission
+- `AdminTestimonial.tsx` - admin testimonial submission
+- `AdminDashboard.tsx` - comprehensive admin dashboard with KPIs, org management, user management
+- `ComplianceDashboard.tsx` - flagged accounts, appeals, enforcement actions
+- `DeletedUsersView.tsx` - soft-deleted users list with restore/purge
+- `AuditLogViewer.tsx` - searchable audit trail
 - Enhanced `ChatDrawer.tsx` with action buttons
 
 ---
