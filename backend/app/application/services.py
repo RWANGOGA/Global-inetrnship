@@ -936,3 +936,9 @@ class StudentDocumentService:
         all_docs = self._repo.list_all(status="verified")
         public_testimonials = [d for d in all_docs if d.document_type == "testimonial" and d.is_public]
         return public_testimonials[:limit]
+
+    def list_public_testimonials_by_role(self, role: str, limit: int = 10) -> list[StudentDocument]:
+        """Get verified public testimonials filtered by author role."""
+        all_docs = self._repo.list_all(status="verified")
+        public_testimonials = [d for d in all_docs if d.document_type == "testimonial" and d.is_public and d.author_role == role]
+        return public_testimonials[:limit]

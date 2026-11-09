@@ -1,7 +1,7 @@
 """Platform administrator internship review workflow."""
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -309,6 +309,7 @@ def toggle_document_public(
 def list_testimonials(
     status: str = "verified",
     limit: int = 10,
+    role: str = Query(None, description="Filter by author role: student, employer, employee, admin"),
     service: StudentDocumentService = Depends(get_student_document_service),
     current_user: User = Depends(get_current_user),
 ) -> list[StudentDocumentRead]:
@@ -316,11 +317,15 @@ def list_testimonials(
     
     Public endpoint - no authentication required for the home page.
     Only returns verified testimonials with is_public=True.
+    Supports optional role filter.
     """
     if current_user and current_user.role == "admin":
         # Admin can see all testimonials with any status
         documents = service.list_all(status=status if status != "all" else None)
     else:
         # Public endpoint - only verified and public testimonials
-        documents = service.list_public_testimonials(limit=limit)
+        if role:
+            documents = service.list_public_testimonials_by_role(role=role, limit=limit)
+        else:
+            documents = service.list_public_testimonials(limit=limit)
     return [StudentDocumentRead.model_validate(d, from_attributes=True) for d in documents[:limit]]
