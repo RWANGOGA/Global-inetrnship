@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useApp } from "../../../context/AppContext";
-import { ApiError, fetchAllStudentDocuments, verifyStudentDocument, isApiEnabled } from "../../../lib/api";
+import { ApiError, fetchAllStudentDocuments, verifyStudentDocument, isApiEnabled, toggleDocumentPublic } from "../../../lib/api";
 import { StudentDocument } from "../../../types";
 
 export function AdminDocuments() {
@@ -14,6 +14,7 @@ export function AdminDocuments() {
   const [actionId, setActionId] = useState("");
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  const [togglingPublic, setTogglingPublic] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isApiEnabled || session?.role !== "admin") {
@@ -66,6 +67,25 @@ export function AdminDocuments() {
     }
   }
 
+  async function togglePublic(documentId: string, currentPublic: boolean) {
+    setTogglingPublic(documentId);
+    try {
+      await toggleDocumentPublic(documentId, !currentPublic);
+      setDocuments((items) =>
+        items.map((doc) =>
+          doc.id === documentId ? { ...doc, is_public: !currentPublic } : doc
+        )
+      );
+      toast(`Document set to ${!currentPublic ? "public" : "private"}`);
+    } catch (cause) {
+      setError(
+        cause instanceof ApiError ? cause.message : "Unable to update document"
+      );
+    } finally {
+      setTogglingPublic("");
+    }
+  }
+
   const statusCounts = {
     pending: documents.filter((d) => d.status === "pending").length,
     verified: documents.filter((d) => d.status === "verified").length,
@@ -112,6 +132,7 @@ export function AdminDocuments() {
                 <th>Size</th>
                 <th>Uploaded</th>
                 <th>Status</th>
+                <th>Public</th>
                 <th></th>
               </tr>
             </thead>
@@ -128,7 +149,7 @@ export function AdminDocuments() {
                 </tr>
               ) : !documents || documents.length === 0 ? (
                 <tr>
-                  <td colSpan={7}>No documents found for this filter.</td>
+                  <td colSpan={8}>No documents found for this filter.</td>
                 </tr>
               ) : (
                 (documents || []).map((doc) => (
@@ -158,6 +179,15 @@ export function AdminDocuments() {
                         {doc.status}
                       </span>
                     </td>
+                    <td className="num">
+                      <span
+                        className={`tg ${
+                          doc.is_public ? "green" : "muted"
+                        }`}
+                      >
+                        {doc.is_public ? "Yes" : "No"}
+                      </span>
+                    </td>
                     <td className="act">
                       {doc.status === "pending" && (
                         <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
@@ -178,6 +208,16 @@ export function AdminDocuments() {
                             Reject
                           </button>
                         </div>
+                      )}
+                      {doc.status === "verified" && (
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          disabled={togglingPublic === doc.id}
+                          onClick={() => togglePublic(doc.id, doc.is_public)}
+                        >
+                          {doc.is_public ? "Make Private" : "Make Public"}
+                        </button>
                       )}
                       {doc.status !== "pending" && (
                         <span className="muted" style={{ fontSize: "11px" }}>

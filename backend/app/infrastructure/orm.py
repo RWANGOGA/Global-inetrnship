@@ -138,6 +138,7 @@ class StudentDocumentORM(Base):
     status: Mapped[str] = mapped_column(String, default="pending")
     rejection_reason: Mapped[str] = mapped_column(Text, default="")
     uploaded_at: Mapped[str] = mapped_column(String, default="")
+    is_public: Mapped[bool] = mapped_column(default=False)
 
 
 class SubscriptionORM(Base):

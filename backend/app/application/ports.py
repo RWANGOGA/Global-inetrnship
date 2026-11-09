@@ -126,6 +126,9 @@ class StudentDocumentRepository(ABC):
     @abstractmethod
     def save(self, document: StudentDocument) -> StudentDocument: ...
 
+    @abstractmethod
+    def list_public_testimonials(self, limit: int = 10) -> list[StudentDocument]: ...
+
 
 class SubscriptionRepository(ABC):
     """Host organisations' billing state."""

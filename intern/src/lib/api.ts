@@ -457,6 +457,7 @@ export async function uploadResume(file: File): Promise<ResumeDto> {
 
 export interface StudentDocumentDto {
   id: string;
+  user_id: string;
   document_type: string;
   filename: string;
   content_type: string;
@@ -464,6 +465,7 @@ export interface StudentDocumentDto {
   status: string;
   rejection_reason: string;
   uploaded_at: string;
+  is_public: boolean;
 }
 
 export async function fetchStudentDocuments(): Promise<StudentDocumentDto[]> {
@@ -483,6 +485,22 @@ export async function uploadStudentDocument(
     body,
   });
   if (!res.ok) await readError(res, `/documents/${documentType}`);
+  return (await res.json()) as StudentDocumentDto;
+}
+
+export async function toggleDocumentPublic(
+  documentId: string,
+  isPublic: boolean
+): Promise<StudentDocumentDto> {
+  const res = await fetch(`${API_BASE}/admin/documents/${documentId}/public`, {
+    method: "PATCH",
+    headers: {
+      ...authHeader(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ is_public: isPublic }),
+  });
+  if (!res.ok) await readError(res, `/admin/documents/${documentId}/public`);
   return (await res.json()) as StudentDocumentDto;
 }
 
@@ -765,6 +783,7 @@ export interface StudentDocumentRead {
   status: string;
   rejection_reason: string;
   uploaded_at: string;
+  is_public: boolean;
 }
 
 export async function fetchAllStudentDocuments(

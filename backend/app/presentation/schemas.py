@@ -288,7 +288,10 @@ class ResumeRead(BaseModel):
 
 
 class StudentDocumentRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
+    user_id: str
     document_type: str
     filename: str
     content_type: str
@@ -296,6 +299,7 @@ class StudentDocumentRead(BaseModel):
     status: str
     rejection_reason: str
     uploaded_at: str
+    is_public: bool = False
 
 
 class StudentDocumentsResponse(BaseModel):
@@ -319,6 +323,7 @@ class StudentDocumentVerifyResponse(BaseModel):
     status: str
     rejection_reason: str
     uploaded_at: str
+    is_public: bool = False
 
 
 # ---------------- Admin dashboard --------------------------------------------

@@ -95,6 +95,7 @@ export interface StudentDocument {
   status: string;
   rejection_reason: string;
   uploaded_at: string;
+  is_public: boolean;
 }
 
 export interface AdminQueueItem {

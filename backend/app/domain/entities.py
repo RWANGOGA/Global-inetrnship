@@ -106,6 +106,7 @@ class StudentDocument:
     status: str = "pending"
     rejection_reason: str = ""
     uploaded_at: str = ""
+    is_public: bool = False
 
 
 @dataclass(frozen=True)
@@ -251,6 +252,7 @@ class StudentDocument:
     status: str = "pending"
     rejection_reason: str = ""
     uploaded_at: str = ""
+    is_public: bool = False
 
 
 @dataclass(frozen=True)

@@ -898,5 +898,32 @@ class StudentDocumentService:
             content=content,
             status="pending",
             uploaded_at=datetime.now(timezone.utc).isoformat(),
+            is_public=document_type == "testimonial",  # Testimonials are public by default
         )
         return self._repo.save(document)
+
+    def set_document_public(self, document_id: str, is_public: bool) -> StudentDocument | None:
+        """Set the is_public flag on a document (admin only)."""
+        document = self._repo.get_by_id(document_id)
+        if document is None:
+            return None
+        document = StudentDocument(
+            id=document.id,
+            user_id=document.user_id,
+            document_type=document.document_type,
+            filename=document.filename,
+            content_type=document.content_type,
+            size_bytes=document.size_bytes,
+            content=document.content,
+            status=document.status,
+            rejection_reason=document.rejection_reason,
+            uploaded_at=document.uploaded_at,
+            is_public=is_public,
+        )
+        return self._repo.save(document)
+
+    def list_public_testimonials(self, limit: int = 10) -> list[StudentDocument]:
+        """Get verified public testimonials for the home page carousel."""
+        all_docs = self._repo.list_all(status="verified")
+        public_testimonials = [d for d in all_docs if d.document_type == "testimonial" and d.is_public]
+        return public_testimonials[:limit]

@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useApp } from "../../context/AppContext";
 import { Icon } from "../icons/Icons";
 import { PlacementCard } from "./PlacementCard";
+import { TestimonialCarousel } from "./TestimonialCarousel";
 
 export function HomeView() {
   const {
@@ -253,6 +254,9 @@ export function HomeView() {
           </div>
         </div>
       </section>
+
+      {/* Testimonial Carousel */}
+      <TestimonialCarousel testimonials={[]} />
 
       <section className="sec" style={{ paddingTop: 0 }}>
         <div className="wrap">

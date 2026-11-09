@@ -288,3 +288,39 @@ def verify_document(
     if document is None:
         raise HTTPException(status_code=404, detail="Document not found")
     return StudentDocumentVerifyResponse.model_validate(document, from_attributes=True)
+
+
+@router.patch("/documents/{document_id}/public", response_model=StudentDocumentVerifyResponse)
+def toggle_document_public(
+    document_id: str,
+    payload: dict,
+    service: StudentDocumentService = Depends(get_student_document_service),
+    current_user: User = Depends(get_current_user),
+) -> StudentDocumentVerifyResponse:
+    _require_admin(current_user)
+    is_public = payload.get("is_public", False)
+    document = service.set_document_public(document_id, is_public)
+    if document is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return StudentDocumentVerifyResponse.model_validate(document, from_attributes=True)
+
+
+@router.get("/testimonials", response_model=list[StudentDocumentRead])
+def list_testimonials(
+    status: str = "verified",
+    limit: int = 10,
+    service: StudentDocumentService = Depends(get_student_document_service),
+    current_user: User = Depends(get_current_user),
+) -> list[StudentDocumentRead]:
+    """Get verified testimonials for the home page carousel.
+    
+    Public endpoint - no authentication required for the home page.
+    Only returns verified testimonials with is_public=True.
+    """
+    if current_user and current_user.role == "admin":
+        # Admin can see all testimonials with any status
+        documents = service.list_all(status=status if status != "all" else None)
+    else:
+        # Public endpoint - only verified and public testimonials
+        documents = service.list_public_testimonials(limit=limit)
+    return [StudentDocumentRead.model_validate(d, from_attributes=True) for d in documents[:limit]]

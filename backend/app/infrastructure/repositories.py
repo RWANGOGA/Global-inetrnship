@@ -624,6 +624,7 @@ class SqlAlchemyStudentDocumentRepository(StudentDocumentRepository):
             status=row.status,
             rejection_reason=row.rejection_reason or "",
             uploaded_at=row.uploaded_at or "",
+            is_public=row.is_public or False,
         )
 
     def list_for_user(self, user_id: str) -> list[StudentDocument]:
@@ -646,6 +647,15 @@ class SqlAlchemyStudentDocumentRepository(StudentDocumentRepository):
         rows = query.order_by(StudentDocumentORM.uploaded_at.desc()).all()
         return [self._to_domain(row) for row in rows]
 
+    def list_public_testimonials(self, limit: int = 10) -> list[StudentDocument]:
+        query = self._session.query(StudentDocumentORM).filter(
+            StudentDocumentORM.document_type == "testimonial",
+            StudentDocumentORM.status == "verified",
+            StudentDocumentORM.is_public == True
+        ).order_by(StudentDocumentORM.uploaded_at.desc()).limit(limit)
+        rows = query.all()
+        return [self._to_domain(row) for row in rows]
+
     def save(self, document: StudentDocument) -> StudentDocument:
         row = self._session.query(StudentDocumentORM).filter_by(id=document.id).first()
         if row is None:
@@ -660,6 +670,7 @@ class SqlAlchemyStudentDocumentRepository(StudentDocumentRepository):
         row.status = document.status
         row.rejection_reason = document.rejection_reason
         row.uploaded_at = document.uploaded_at
+        row.is_public = getattr(document, 'is_public', False)
         self._session.commit()
         return document
 
