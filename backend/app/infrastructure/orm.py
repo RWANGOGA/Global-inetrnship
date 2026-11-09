@@ -139,6 +139,8 @@ class StudentDocumentORM(Base):
     rejection_reason: Mapped[str] = mapped_column(Text, default="")
     uploaded_at: Mapped[str] = mapped_column(String, default="")
     is_public: Mapped[bool] = mapped_column(default=False)
+    author_role: Mapped[str] = mapped_column(String, default="student")  # student, employer, employee, admin
+    author_id: Mapped[str] = mapped_column(String, index=True)  # references user.id or org.id
 
 
 class SubscriptionORM(Base):

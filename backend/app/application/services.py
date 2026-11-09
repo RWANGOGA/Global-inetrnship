@@ -877,6 +877,7 @@ class StudentDocumentService:
         filename: str,
         content_type: str,
         content: bytes,
+        author_role: str = "student",
     ) -> StudentDocument:
         if document_type not in self.ALLOWED_TYPES:
             raise ValueError("Unsupported document type")
@@ -888,6 +889,12 @@ class StudentDocumentService:
             ),
             None,
         )
+        # Determine author_id based on role
+        author_id = user_id
+        if author_role in ("employer", "employee"):
+            # For employer/employee, author_id could be org_id or user_id
+            # We'll use user_id for now, can be enhanced later
+            author_id = user_id
         document = StudentDocument(
             id=existing.id if existing else uuid4().hex,
             user_id=user_id,
@@ -899,6 +906,8 @@ class StudentDocumentService:
             status="pending",
             uploaded_at=datetime.now(timezone.utc).isoformat(),
             is_public=document_type == "testimonial",  # Testimonials are public by default
+            author_role=author_role,
+            author_id=author_id,
         )
         return self._repo.save(document)
 

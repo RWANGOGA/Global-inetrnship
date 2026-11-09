@@ -107,7 +107,8 @@ class StudentDocument:
     rejection_reason: str = ""
     uploaded_at: str = ""
     is_public: bool = False
-
+    author_role: str = "student"  # student, employer, employee, admin
+    author_id: str = ""  # references user.id or org.id
 
 @dataclass(frozen=True)
 class Application:
@@ -238,21 +239,6 @@ class Resume:
     size_bytes: int
     content: bytes
     uploaded_at: str
-
-
-@dataclass(frozen=True)
-class StudentDocument:
-    id: str
-    user_id: str
-    document_type: str
-    filename: str
-    content_type: str
-    size_bytes: int
-    content: bytes
-    status: str = "pending"
-    rejection_reason: str = ""
-    uploaded_at: str = ""
-    is_public: bool = False
 
 
 @dataclass(frozen=True)

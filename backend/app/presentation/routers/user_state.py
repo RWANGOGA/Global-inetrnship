@@ -326,8 +326,13 @@ async def upload_document(
     service: StudentDocumentService = Depends(get_student_document_service),
     current_user: User = Depends(get_current_user),
 ) -> StudentDocumentRead:
-    if current_user.role != "student":
-        raise HTTPException(status_code=403, detail="Only students have documents")
+    # Allow all roles to upload testimonials, but only students for other document types
+    if document_type == "testimonial":
+        if current_user.role not in ("student", "employer", "employee", "admin"):
+            raise HTTPException(status_code=403, detail="Only students, employers, employees, and admins can submit testimonials")
+    else:
+        if current_user.role != "student":
+            raise HTTPException(status_code=403, detail="Only students have documents")
     if document_type not in StudentDocumentService.ALLOWED_TYPES:
         raise HTTPException(status_code=400, detail="Unsupported document type")
     if file.content_type not in (
@@ -350,6 +355,7 @@ async def upload_document(
             filename=file.filename or document_type,
             content_type=file.content_type,
             content=content,
+            author_role=current_user.role,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

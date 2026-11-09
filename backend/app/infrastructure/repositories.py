@@ -625,6 +625,8 @@ class SqlAlchemyStudentDocumentRepository(StudentDocumentRepository):
             rejection_reason=row.rejection_reason or "",
             uploaded_at=row.uploaded_at or "",
             is_public=row.is_public or False,
+            author_role=row.author_role or "student",
+            author_id=row.author_id or "",
         )
 
     def list_for_user(self, user_id: str) -> list[StudentDocument]:
@@ -671,6 +673,8 @@ class SqlAlchemyStudentDocumentRepository(StudentDocumentRepository):
         row.rejection_reason = document.rejection_reason
         row.uploaded_at = document.uploaded_at
         row.is_public = getattr(document, 'is_public', False)
+        row.author_role = getattr(document, 'author_role', 'student')
+        row.author_id = getattr(document, 'author_id', '')
         self._session.commit()
         return document
 

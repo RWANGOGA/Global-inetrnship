@@ -345,13 +345,19 @@ export const NAV: Record<UserRole, [string, string, string][]> = {
     ["overview", "Overview", "01"],
     ["placements", "My placements", "02"],
     ["applicants", "Applicants", "03"],
+    ["testimonial", "Testimonial", "04"],
   ],
-  admin: [
+admin: [
     ["overview", "Overview", "01"],
     ["placements", "Placements", "02"],
     ["requirements", "Requirements", "03"],
     ["students", "Students", "04"],
-    ["documents", "Documents", "05"],
+    ["documents", "Documents", "04"],
+    ["testimonial", "Testimonial", "05"],
+  ],
+  employee: [
+    ["overview", "Overview", "01"],
+    ["testimonial", "Testimonial", "02"],
   ],
 };
 
@@ -360,4 +366,5 @@ export const ROLE_META: Record<UserRole, [string, string, string, string]> = {
   jobseeker: ["Job seeker", "Brian Ssekandi", "BS", "Graduate"],
   employer: ["Employer", "Lumen Labs", "LL", "Host organisation"],
   admin: ["University admin", "Makerere University", "MU", "Placement office"],
+  employee: ["Employee", "James Okello", "JO", "Staff member"],
 };

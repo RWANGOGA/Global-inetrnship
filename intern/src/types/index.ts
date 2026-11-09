@@ -96,6 +96,7 @@ export interface StudentDocument {
   rejection_reason: string;
   uploaded_at: string;
   is_public: boolean;
+  author_role?: "student" | "employer" | "employee" | "admin";
 }
 
 export interface AdminQueueItem {
@@ -137,7 +138,7 @@ export interface ApplicationPack {
   targets: string[];
 }
 
-export type UserRole = "student" | "jobseeker" | "employer" | "admin";
+export type UserRole = "student" | "jobseeker" | "employer" | "admin" | "employee";
 export type Portal = "internships" | "jobs";
 
 // A host organisation's live billing state. Free accounts publish up to

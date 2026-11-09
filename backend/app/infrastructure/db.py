@@ -118,6 +118,10 @@ def ensure_schema() -> None:
         doc_columns = {c["name"] for c in inspector.get_columns("student_documents")}
         if "is_public" not in doc_columns:
             statements.append("ALTER TABLE student_documents ADD COLUMN is_public BOOLEAN DEFAULT FALSE")
+        if "author_role" not in doc_columns:
+            statements.append("ALTER TABLE student_documents ADD COLUMN author_role VARCHAR DEFAULT 'student'")
+        if "author_id" not in doc_columns:
+            statements.append("ALTER TABLE student_documents ADD COLUMN author_id VARCHAR")
     # New tables - create if not exists (handled by create_all, but we check here for completeness)
     new_tables = ["invoices", "transactions", "student_usage", "payment_gateways"]
     for table in new_tables:

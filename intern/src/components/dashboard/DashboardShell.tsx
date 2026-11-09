@@ -12,6 +12,7 @@ import { AdminPlacements } from "./admin/AdminPlacements";
 import { AdminRequirements } from "./admin/AdminRequirements";
 import { AdminStudents } from "./admin/AdminStudents";
 import { AdminDocuments } from "./admin/AdminDocuments";
+import { AdminTestimonial } from "./admin/AdminTestimonial";
 
 import { StudentOverview } from "./student/StudentOverview";
 import { StudentApplications } from "./student/StudentApplications";
@@ -24,6 +25,9 @@ import { StudentTestimonial } from "./student/StudentTestimonial";
 import { EmployerOverview } from "./employer/EmployerOverview";
 import { EmployerPlacements } from "./employer/EmployerPlacements";
 import { EmployerApplicants } from "./employer/EmployerApplicants";
+import { EmployerTestimonial } from "./employer/EmployerTestimonial";
+
+import { EmployeeTestimonial } from "./employee/EmployeeTestimonial";
 
 import { JobSeekerOverview } from "./jobseeker/JobSeekerOverview";
 import { JobSeekerRoles } from "./jobseeker/JobSeekerRoles";
@@ -89,6 +93,8 @@ export function DashboardShell() {
           return <AdminStudents />;
         case "documents":
           return <AdminDocuments />;
+        case "testimonial":
+          return <AdminTestimonial />;
         default:
           return <AdminOverview />;
       }
@@ -119,8 +125,19 @@ export function DashboardShell() {
           return <EmployerPlacements />;
         case "applicants":
           return <EmployerApplicants />;
+        case "testimonial":
+          return <EmployerTestimonial />;
         default:
           return <EmployerOverview />;
+      }
+    } else if (role === "employee") {
+      switch (dash) {
+        case "overview":
+          return <EmployeeTestimonial />;
+        case "testimonial":
+          return <EmployeeTestimonial />;
+        default:
+          return <EmployeeTestimonial />;
       }
     } else {
       switch (dash) {
