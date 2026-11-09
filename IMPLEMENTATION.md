@@ -584,6 +584,43 @@ The current delivery target is **Feature 5: Internship Institution and Host Dash
 - **Worked Example**: "100 employers × 2 hires/yr × $200 fee = $40k/yr revenue"
 - **Cost Example**: "Verification: $5/application × 500 apps/mo = $2,500/mo"
 
+#### 12.7 Student Testimonial Carousel (Home Page)
+
+*Goal: Showcase verified student success stories on the home page with a vertical scrolling carousel.*
+
+- **Student Submission** (already exists in `StudentTestimonial.tsx`):
+  - Student writes testimonial with supervisor name, role, project, and testimonial text
+  - Submitted as a document (`type: "testimonial"`) via `uploadDocumentFile`
+  - Status: `pending` → admin reviews → `verified` or `rejected`
+
+- **Admin Verification** (uses existing `AdminDocuments.tsx`):
+  - Admin sees pending testimonials in document verification queue
+  - Approve/reject with reason
+  - Only `verified` testimonials appear on home page
+
+- **Home Page Carousel** (new component `TestimonialCarousel.tsx`):
+  - Vertical scrolling ticker (CSS animation, pauses on hover)
+  - Shows: student name, course, university, placement org, role, testimonial text, verification badge
+  - Auto-scroll: 5s per testimonial, pauses on hover/focus
+  - Responsive: 1 column mobile, 2 column tablet, 3 column desktop (if space allows)
+  - Fallback: If < 3 verified testimonials, show static grid instead of carousel
+  - "Read more" link → placement detail page
+
+- **Backend Changes**:
+  - `GET /api/testimonials?status=verified&limit=10` — public endpoint for carousel
+  - `StudentDocument` already stores testimonials; add `is_public` flag to control home page display
+  - Admin can toggle `is_public` per testimonial
+
+- **Frontend Changes**:
+  - New `TestimonialCarousel.tsx` in `components/public/`
+  - Integrate into `HomeView.tsx` (after "Students" section, before "Latest" section)
+  - CSS keyframes for smooth vertical scroll
+  - Accessibility: `prefers-reduced-motion` disables auto-scroll; keyboard navigable
+
+- **API Endpoint**:
+  - `GET /api/testimonials?status=verified&limit=10` → returns verified public testimonials
+  - Response: `{ items: Testimonial[] }` with student name, course, university, org, role, text, date, verification status
+
 ---
 
 ## 13. Implementation Sequence
@@ -596,6 +633,7 @@ The current delivery target is **Feature 5: Internship Institution and Host Dash
 | 4 | Placement-Fee Model (12.4) | 2 weeks | Billing service |
 | 5 | Student Premium (12.5) | 1.5 weeks | 12.4, 12.1 |
 | 6 | Statistics & Docs (12.6) | 1 week | All above |
+| 7 | Testimonial Carousel (12.7) | 1 week | 12.1, Admin docs |
 
 ---
 
@@ -604,6 +642,7 @@ The current delivery target is **Feature 5: Internship Institution and Host Dash
 ### Database Changes
 - `StudentProfile`: add `skills_confidence`, `skills_source`
 - `Placement`: add `opportunity_type`, gig/entry-level fields
+- `StudentDocument`: add `is_public` flag for testimonials
 - New: `PlacementFee`, `StudentSubscription`, `SkillsAssessment`
 - `BillingService`: add placement fee invoicing
 
@@ -612,6 +651,7 @@ The current delivery target is **Feature 5: Internship Institution and Host Dash
 - `GET /api/placements?type=gig|entry_level`
 - `POST /api/advisor/skill-guidance`
 - `POST /api/billing/student/subscribe`
+- `GET /api/testimonials?status=verified&limit=10`
 - Webhook: `application.accepted` → placement fee invoice
 
 ### Frontend Components
@@ -619,6 +659,7 @@ The current delivery target is **Feature 5: Internship Institution and Host Dash
 - `ProjectSkillsExtractor.tsx` - project text input
 - `OpportunityTypeTabs.tsx` - catalogue filters
 - `PremiumUpgradeBanner.tsx` - student dashboard
+- `TestimonialCarousel.tsx` - home page vertical ticker
 - Enhanced `ChatDrawer.tsx` with action buttons
 
 ---
