@@ -2,14 +2,21 @@
 module and into the database. Idempotent per table: orgs/placements are only
 inserted when empty, and demo accounts only when the users table is empty, so
 repeated startup (and the test harness) is safe.
+
+SENSITIVE DATA (passwords, real emails) are loaded from environment variables.
+This file only contains non-sensitive demo data for development.
 """
+import os
 from datetime import date
 from uuid import uuid4
+import os
 
 from sqlalchemy.orm import Session
 
 from app.core.security import hash_password
 from app.infrastructure.orm import JobORM, OrganisationORM, PlacementORM, UserORM
+
+# --- Non-sensitive demo data (safe for public repo) ---
 
 ORGS: list[dict] = [
     {"id": "o1", "name": "Ministry of ICT and National Guidance", "type": "Government", "sector": "Public sector", "loc": "Kampala", "seal": "MIC", "about": "National ministry responsible for digital government services, ICT policy and public-sector innovation."},
@@ -46,18 +53,18 @@ JOBS: list[dict] = [
     {"id": "j4", "title": "Monitoring and Evaluation Officer", "org_id": "o9", "loc": "Kampala", "mode": "On-site", "employment_type": "Full time", "salary": "UGX 2,400,000 / month", "closes_at": "2026-12-08", "summary": "Support evidence-led programmes that improve livelihoods.", "requirements": ["Monitoring & Evaluation", "Report Writing"], "status": "Open"},
 ]
 
+# --- Sensitive data loaded from environment variables ---
 
-# Demo accounts so the app is usable the moment the backend boots. These are
-# throwaway local credentials (never production), which is exactly the point:
-# identity now comes from real accounts + real tokens, not hardcoded constants.
-DEMO_PASSWORD = "password123"
-ADMIN_PASSWORD = "Yesu1@Lord"
+DEMO_PASSWORD = os.getenv("DEMO_PASSWORD", "password123")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "changeme")
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@example.com")
+
 DEMO_USERS: list[dict] = [
     {"email": "amina@makerere.ac.ug", "name": "Amina Nakato", "role": "student"},
     {"email": "brian@example.com", "name": "Brian Ssekandi", "role": "jobseeker"},
     {"email": "hiring@lumenlabs.example", "name": "Lumen Labs", "role": "employer", "org_id": "o4"},
     {"email": "office@makerere.ac.ug", "name": "Makerere University", "role": "admin"},
-    {"email": "akandwanahojonanrwangoga@gmail.com", "name": "Admin User", "role": "admin", "password": ADMIN_PASSWORD},
+    {"email": ADMIN_EMAIL, "name": "Admin User", "role": "admin", "password": ADMIN_PASSWORD},
 ]
 
 
