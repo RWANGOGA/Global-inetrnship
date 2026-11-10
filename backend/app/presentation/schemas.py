@@ -467,3 +467,47 @@ class OrganizationSanctionResponse(BaseModel):
     action: str
     reason: str
     message: str
+
+
+# ---------------- User Management ------------------------------------
+
+class UserRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    email: str
+    name: str
+    role: str
+    org_id: Optional[str] = None
+    created_at: str
+    is_active: bool = True
+
+
+class UserListResponse(BaseModel):
+    total: int
+    items: list[UserRead]
+
+
+class UserDetailResponse(BaseModel):
+    user: UserRead
+    stats: dict
+    applications_count: int
+    documents_count: int
+    testimonials_count: int
+    applications: list
+    documents: list
+    testimonials: list
+    subscription: Optional[dict] = None
+
+
+class UserActionRequest(BaseModel):
+    action: str  # "suspend" | "activate" | "change_role"
+    reason: str
+    new_role: Optional[str] = None
+
+
+class UserActionResponse(BaseModel):
+    user: UserRead
+    action: str
+    reason: str
+    message: str

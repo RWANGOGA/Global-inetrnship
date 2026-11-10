@@ -1022,3 +1022,157 @@ export async function fetchMe(): Promise<ApiUser | null> {
     return null;
   }
 }
+
+// ---- User Management ------------------------------------------------------
+
+export interface UserRead {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  org_id: string | null;
+  created_at: string;
+  is_active: boolean;
+}
+
+export interface UserListResponse {
+  total: number;
+  items: UserRead[];
+}
+
+export interface UserDetailResponse {
+  user: UserRead;
+  stats: Record<string, number>;
+  applications_count: number;
+  documents_count: number;
+  testimonials_count: number;
+  applications: Array<{
+    id: string;
+    placement_id: string;
+    placement_title: string;
+    organization: string;
+    status: string;
+    created_at: string;
+  }>;
+  documents: Array<{
+    id: string;
+    document_type: string;
+    filename: string;
+    status: string;
+    uploaded_at: string;
+  }>;
+  testimonials: Array<{
+    id: string;
+    filename: string;
+    status: string;
+    uploaded_at: string;
+  }>;
+  subscription: {
+    plan: string;
+    billing: string;
+    seats: number;
+    status: string;
+  } | null;
+}
+
+export interface UserActionRequest {
+  action: "suspend" | "activate" | "change_role";
+  reason: string;
+  new_role?: string;
+}
+
+export interface UserActionResponse {
+  user: UserRead;
+  action: string;
+  reason: string;
+  message: string;
+}
+
+export interface UserListResponse {
+  total: number;
+  items: UserRead[];
+}
+
+export interface UserDetailResponse {
+  user: UserRead;
+  stats: Record<string, number>;
+  applications_count: number;
+  documents_count: number;
+  testimonials_count: number;
+  applications: Array<{
+    id: string;
+    placement_id: string;
+    placement_title: string;
+    organization: string;
+    status: string;
+    created_at: string;
+  }>;
+  documents: Array<{
+    id: string;
+    document_type: string;
+    filename: string;
+    status: string;
+    uploaded_at: string;
+  }>;
+  testimonials: Array<{
+    id: string;
+    filename: string;
+    status: string;
+    uploaded_at: string;
+  }>;
+  subscription: {
+    plan: string;
+    billing: string;
+    seats: number;
+    status: string;
+  } | null;
+}
+
+export interface UserActionRequest {
+  action: "suspend" | "activate" | "change_role";
+  reason: string;
+  new_role?: string;
+}
+
+export interface UserActionResponse {
+  user: UserRead;
+  action: string;
+  reason: string;
+  message: string;
+}
+
+export interface UserListResponse {
+  total: number;
+  items: UserRead[];
+}
+
+export async function fetchUserList(params?: {
+  role?: string;
+  status?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<UserListResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.role) searchParams.append("role", params.role);
+  if (params?.status) searchParams.append("status", params.status);
+  if (params?.search) searchParams.append("search", params.search);
+  if (params?.page) searchParams.append("page", String(params.page));
+  if (params?.pageSize) searchParams.append("page_size", String(params.pageSize));
+  const query = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  return getJson<UserListResponse>(`/admin/users${query}`);
+}
+
+export async function fetchUserDetail(
+  userId: string
+): Promise<UserDetailResponse> {
+  return getJson<UserDetailResponse>(`/admin/users/${userId}`);
+}
+
+export async function userAction(
+  userId: string,
+  payload:  { action: "suspend" | "activate" | "change_role"; reason: string; new_role?: string 
+}
+): Promise<UserActionResponse> {
+  return patchJson<UserActionResponse>(`/admin/users/${userId}/action`, payload);
+}

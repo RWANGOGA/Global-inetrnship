@@ -34,6 +34,11 @@ from app.presentation.schemas import (
     OrganizationDetailResponse,
     OrganizationSanctionRequest,
     OrganizationSanctionResponse,
+    UserRead,
+    UserListResponse,
+    UserDetailResponse,
+    UserActionRequest,
+    UserActionResponse,
     StudentDocumentRead,
     StudentDocumentVerifyRequest,
     StudentDocumentVerifyResponse,
@@ -624,6 +629,207 @@ def sanction_organization(
     
     return OrganizationSanctionResponse(
         organization=org_read,
+        action=action,
+        reason=reason,
+        message=message,
+    )
+
+
+# ---------------- User Management ------------------------------------
+
+@router.get("/users", response_model=UserListResponse)
+def list_users(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    role: str = Query(None, description="Filter by role: student, employer, employee, admin, jobseeker"),
+    status: str = Query("all", description="Filter by status: active, inactive, all"),
+    search: str = Query(None, description="Search by name or email"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+) -> UserListResponse:
+    _require_admin(current_user)
+    
+    query = session.query(UserORM)
+    
+    if role:
+        query = query.filter(UserORM.role == role)
+    
+    if status != "all":
+        if status == "active":
+            query = query.filter(UserORM.is_active == True)
+        elif status == "inactive":
+            query = query.filter(UserORM.is_active == False)
+    
+    if search:
+        query = query.filter(
+            (UserORM.name.ilike(f"%{search}%")) | (UserORM.email.ilike(f"%{search}%"))
+        )
+    
+    total = query.count()
+    
+    offset = (page - 1) * page_size
+    users = query.offset(offset).limit(page_size).all()
+    
+    items = []
+    for u in users:
+        items.append(UserRead(
+            id=u.id,
+            email=u.email,
+            name=u.name,
+            role=u.role,
+            org_id=u.org_id,
+            created_at=u.created_at,
+            is_active=u.is_active,
+        ))
+    
+    return UserListResponse(total=total, items=items)
+
+
+@router.get("/users/{user_id}", response_model=UserDetailResponse)
+def get_user_detail(
+    user_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> UserDetailResponse:
+    _require_admin(current_user)
+    
+    user = session.query(UserORM).filter_by(id=user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Get applications
+    from app.infrastructure.orm import ApplicationORM, PlacementORM, StudentDocumentORM
+    applications = session.query(ApplicationORM).filter_by(user_id=user_id).all()
+    
+    # Get documents
+    documents = session.query(StudentDocumentORM).filter_by(user_id=user_id).all()
+    
+    # Get testimonials
+    testimonials = session.query(StudentDocumentORM).filter_by(
+        user_id=user_id, document_type="testimonial", status="verified"
+    ).all()
+    
+    # Get applications for detail
+    app_items = []
+    for app in applications:
+        placement = session.query(PlacementORM).filter_by(id=app.placement_id).first()
+        org = session.query(OrganisationORM).filter_by(id=placement.org_id).first() if placement else None
+        app_items.append({
+            "id": app.id,
+            "placement_id": app.placement_id,
+            "placement_title": placement.title if placement else "Unknown",
+            "organization": org.name if org else "Unknown",
+            "status": app.status,
+            "created_at": app.created_at,
+        })
+    
+    doc_items = []
+    for doc in documents:
+        doc_items.append({
+            "id": doc.id,
+            "document_type": doc.document_type,
+            "filename": doc.filename,
+            "status": doc.status,
+            "uploaded_at": doc.uploaded_at,
+        })
+    
+    testimonial_items = []
+    for t in testimonials:
+        testimonial_items.append({
+            "id": t.id,
+            "filename": t.filename,
+            "status": t.status,
+            "uploaded_at": t.uploaded_at,
+        })
+    
+    # Subscription info
+    from app.infrastructure.orm import SubscriptionORM
+    sub = session.query(SubscriptionORM).filter(SubscriptionORM.org_id == user.org_id).first() if user.org_id else None
+    subscription = {
+        "plan": sub.plan if sub else "Free",
+        "billing": sub.billing if sub else "",
+        "seats": sub.seats if sub else 1,
+        "status": sub.status if sub else "active",
+    } if sub else None
+    
+    return UserDetailResponse(
+        user=UserRead(
+            id=user.id,
+            email=user.email,
+            name=user.name,
+            role=user.role,
+            org_id=user.org_id,
+            created_at=user.created_at,
+            is_active=user.is_active,
+        ),
+        stats={
+            "applications": len(applications),
+            "documents": len(documents),
+            "testimonials": len(testimonials),
+        },
+        applications_count=len(applications),
+        documents_count=len(documents),
+        testimonials_count=len(testimonials),
+        applications=app_items,
+        documents=doc_items,
+        testimonials=testimonial_items,
+        subscription=subscription,
+    )
+
+
+@router.patch("/users/{user_id}/action", response_model=UserActionResponse)
+def user_action(
+    user_id: str,
+    payload: UserActionRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> UserActionResponse:
+    _require_admin(current_user)
+    
+    user = session.query(UserORM).filter_by(id=user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    action = payload.action.strip().lower()
+    reason = payload.reason.strip()
+    
+    if not reason:
+        raise HTTPException(status_code=422, detail="Reason is required")
+    
+    if action == "suspend":
+        if not user.is_active:
+            raise HTTPException(status_code=409, detail="User already suspended")
+        user.is_active = False
+        message = f"User suspended: {reason}"
+    elif action == "activate":
+        if user.is_active:
+            raise HTTPException(status_code=409, detail="User already active")
+        user.is_active = True
+        message = f"User activated"
+    elif action == "change_role":
+        new_role = payload.new_role
+        if not new_role or new_role not in ("student", "employer", "employee", "admin", "jobseeker"):
+            raise HTTPException(status_code=422, detail="Invalid role")
+        user.role = new_role
+        message = f"User role changed to {new_role}"
+    else:
+        raise HTTPException(status_code=422, detail="Invalid action. Must be: suspend, activate, or change_role")
+    
+    session.commit()
+    session.refresh(user)
+    
+    user_read = UserRead(
+        id=user.id,
+        email=user.email,
+        name=user.name,
+        role=user.role,
+        org_id=user.org_id,
+        created_at=user.created_at,
+        is_active=user.is_active,
+    )
+    
+    return UserActionResponse(
+        user=user_read,
         action=action,
         reason=reason,
         message=message,

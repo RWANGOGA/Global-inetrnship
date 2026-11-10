@@ -199,7 +199,8 @@ export type DashboardView =
   | "roles"
   | "apps"
   | "applicants"
-  | "organizations";
+  | "organizations"
+  | "users";
 
 export interface OrganizationRead {
   id: string;
