@@ -7,7 +7,7 @@
 //
 // The backend speaks snake_case; the UI types are camelCase. This module is the
 // single translation boundary, so components never learn about either shape.
-import { Job, Org, Placement } from "../types";
+import { Job, Org, Placement, ApplicationDto, JobApplicationDto } from "../types";
 
 export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(
   /\/+$/,
@@ -286,26 +286,64 @@ export async function createOrganizationJob(input: JobPostingInput): Promise<Job
 
 // ---- Job Applications ------------------------------------------------------
 
-export interface JobApplicationDto {
-  id: string;
-  user_id: string;
-  job_id: string;
-  status: string;
-  statement: string;
-  created_at: string;
-  updated_at: string | null;
-}
-
 export interface JobApplicationListResponse {
   total: number;
   items: JobApplicationDto[];
 }
 
+export interface JobApplicationInput {
+  statement: string;
+  cover_letter: string;
+  cv_url: string;
+  github_url: string;
+  linkedin_url: string;
+  portfolio_url: string;
+  academic_papers: string[];
+  reference_1_name: string;
+  reference_1_email: string;
+  reference_1_phone: string;
+  reference_1_relationship: string;
+  reference_2_name: string;
+  reference_2_email: string;
+  reference_2_phone: string;
+  reference_2_relationship: string;
+  document_ids: string[];
+}
+
 export async function applyToJob(
   jobId: string,
-  statement: string
+  input: JobApplicationInput
 ): Promise<JobApplicationDto> {
-  return postJson<JobApplicationDto>(`/jobs/${jobId}/apply`, { statement });
+  return postJson<JobApplicationDto>(`/jobs/${jobId}/apply`, input);
+}
+
+export interface ApplicationInput {
+  statement: string;
+  cover_letter: string;
+  cv_url: string;
+  github_url: string;
+  linkedin_url: string;
+  portfolio_url: string;
+  academic_papers: string[];
+  reference_1_name: string;
+  reference_1_email: string;
+  reference_1_phone: string;
+  reference_1_relationship: string;
+  reference_2_name: string;
+  reference_2_email: string;
+  reference_2_phone: string;
+  reference_2_relationship: string;
+  document_ids: string[];
+}
+
+export async function applyToPlacement(
+  placementId: string,
+  input: ApplicationInput
+): Promise<ApplicationDto> {
+  return postJson<ApplicationDto>("/applications", {
+    placement_id: placementId,
+    ...input,
+  });
 }
 
 export async function fetchMyJobApplications(): Promise<JobApplicationListResponse> {
@@ -325,6 +363,73 @@ export async function updateJobApplicationStatus(
 
 export async function withdrawJobApplication(applicationId: string): Promise<JobApplicationDto> {
   return postJson<JobApplicationDto>(`/jobs/applications/${applicationId}/withdraw`, {});
+}
+
+// ---- CSV Exports -----------------------------------------------------------
+
+export async function exportPlacementsCsv(): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/admin/export/placements.csv`, {
+    headers: { Accept: "text/csv", ...authHeader() },
+  });
+  if (!res.ok) throw new Error("Failed to export placements");
+  return res.blob();
+}
+
+export async function exportJobsCsv(): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/admin/export/jobs.csv`, {
+    headers: { Accept: "text/csv", ...authHeader() },
+  });
+  if (!res.ok) throw new Error("Failed to export jobs");
+  return res.blob();
+}
+
+export async function exportPlacementApplicantsCsv(placementId: string): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/admin/export/placement/${placementId}/applicants.csv`, {
+    headers: { Accept: "text/csv", ...authHeader() },
+  });
+  if (!res.ok) throw new Error("Failed to export placement applicants");
+  return res.blob();
+}
+
+export async function exportJobApplicantsCsv(jobId: string): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/admin/export/job/${jobId}/applicants.csv`, {
+    headers: { Accept: "text/csv", ...authHeader() },
+  });
+  if (!res.ok) throw new Error("Failed to export job applicants");
+  return res.blob();
+}
+
+// Employer exports
+export async function exportOrgPlacementsCsv(): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/organization/export/placements.csv`, {
+    headers: { Accept: "text/csv", ...authHeader() },
+  });
+  if (!res.ok) throw new Error("Failed to export placements");
+  return res.blob();
+}
+
+export async function exportOrgJobsCsv(): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/organization/export/jobs.csv`, {
+    headers: { Accept: "text/csv", ...authHeader() },
+  });
+  if (!res.ok) throw new Error("Failed to export jobs");
+  return res.blob();
+}
+
+export async function exportOrgPlacementApplicantsCsv(placementId: string): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/organization/export/placement/${placementId}/applicants.csv`, {
+    headers: { Accept: "text/csv", ...authHeader() },
+  });
+  if (!res.ok) throw new Error("Failed to export placement applicants");
+  return res.blob();
+}
+
+export async function exportOrgJobApplicantsCsv(jobId: string): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/organization/export/job/${jobId}/applicants.csv`, {
+    headers: { Accept: "text/csv", ...authHeader() },
+  });
+  if (!res.ok) throw new Error("Failed to export job applicants");
+  return res.blob();
 }
 
 export interface InternshipPostingInput {
@@ -499,15 +604,6 @@ export async function toggleSavedApi(
 }
 
 // ---- Applications ----------------------------------------------------------
-
-export interface ApplicationDto {
-  id: string;
-  user_id: string;
-  placement_id: string;
-  status: string;
-  statement: string;
-  created_at: string;
-}
 
 export interface StudentProfileDto {
   user_id: string;

@@ -8,6 +8,10 @@ import {
   fetchInternshipReviewQueue,
   isApiEnabled,
   reviewInternship,
+  exportPlacementsCsv,
+  exportJobsCsv,
+  exportPlacementApplicantsCsv,
+  exportJobApplicantsCsv,
 } from "../../../lib/api";
 import { Placement } from "../../../types";
 
@@ -31,6 +35,35 @@ export function AdminPlacements() {
     search: "",
   });
   const [showFilters, setShowFilters] = React.useState(false);
+
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportPlacements = async () => {
+    try {
+      const blob = await exportPlacementsCsv();
+      downloadBlob(blob, "all_placements.csv");
+      toast("Placements exported!");
+    } catch {
+      toast("Failed to export placements");
+    }
+  };
+
+  const handleExportJobs = async () => {
+    try {
+      const blob = await exportJobsCsv();
+      downloadBlob(blob, "all_jobs.csv");
+      toast("Jobs exported!");
+    } catch {
+      toast("Failed to export jobs");
+    }
+  };
 
   React.useEffect(() => {
     if (!isApiEnabled || session?.role !== "admin") {
@@ -146,6 +179,20 @@ export function AdminPlacements() {
           </p>
         </div>
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={handleExportPlacements}
+          >
+            Export Placements CSV
+          </button>
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={handleExportJobs}
+          >
+            Export Jobs CSV
+          </button>
           <button
             type="button"
             className={`btn btn-sm ${showFilters ? "btn-blue" : ""}`}

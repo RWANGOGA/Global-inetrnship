@@ -210,6 +210,25 @@ export interface ApplicationDto {
   status: string;
   statement: string;
   created_at: string;
+  updated_at: string;
+  // Rich application data
+  cv_url: string | null;
+  cover_letter: string;
+  github_url: string | null;
+  linkedin_url: string | null;
+  portfolio_url: string | null;
+  academic_papers: string[];
+  // References
+  reference_1_name: string;
+  reference_1_email: string;
+  reference_1_phone: string;
+  reference_1_relationship: string;
+  reference_2_name: string;
+  reference_2_email: string;
+  reference_2_phone: string;
+  reference_2_relationship: string;
+  // Document IDs
+  document_ids: string[];
 }
 
 export interface JobApplicationDto {
@@ -220,6 +239,24 @@ export interface JobApplicationDto {
   statement: string;
   created_at: string;
   updated_at: string | null;
+  // Rich application data
+  cv_url: string | null;
+  cover_letter: string;
+  github_url: string | null;
+  linkedin_url: string | null;
+  portfolio_url: string | null;
+  academic_papers: string[];
+  // References
+  reference_1_name: string;
+  reference_1_email: string;
+  reference_1_phone: string;
+  reference_1_relationship: string;
+  reference_2_name: string;
+  reference_2_email: string;
+  reference_2_phone: string;
+  reference_2_relationship: string;
+  // Document IDs
+  document_ids: string[];
 }
 
 export type DashboardView =

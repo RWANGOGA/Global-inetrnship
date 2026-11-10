@@ -107,6 +107,25 @@ class ApplicationORM(Base):
     status: Mapped[str] = mapped_column(String, default="Submitted")
     statement: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[str] = mapped_column(String, default="")
+    updated_at: Mapped[str] = mapped_column(String, default="")
+    # Rich application data
+    cv_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    cover_letter: Mapped[str] = mapped_column(Text, default="")
+    github_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    linkedin_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    portfolio_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    academic_papers: Mapped[list] = mapped_column(JSON, default=list)
+    # References
+    reference_1_name: Mapped[str] = mapped_column(String, default="")
+    reference_1_email: Mapped[str] = mapped_column(String, default="")
+    reference_1_phone: Mapped[str] = mapped_column(String, default="")
+    reference_1_relationship: Mapped[str] = mapped_column(String, default="")
+    reference_2_name: Mapped[str] = mapped_column(String, default="")
+    reference_2_email: Mapped[str] = mapped_column(String, default="")
+    reference_2_phone: Mapped[str] = mapped_column(String, default="")
+    reference_2_relationship: Mapped[str] = mapped_column(String, default="")
+    # Document IDs
+    document_ids: Mapped[list] = mapped_column(JSON, default=list)
 
 
 class JobApplicationORM(Base):
@@ -119,6 +138,24 @@ class JobApplicationORM(Base):
     statement: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[str] = mapped_column(String, default="")
     updated_at: Mapped[str] = mapped_column(String, default="")
+    # Rich application data
+    cv_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    cover_letter: Mapped[str] = mapped_column(Text, default="")
+    github_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    linkedin_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    portfolio_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    academic_papers: Mapped[list] = mapped_column(JSON, default=list)
+    # References
+    reference_1_name: Mapped[str] = mapped_column(String, default="")
+    reference_1_email: Mapped[str] = mapped_column(String, default="")
+    reference_1_phone: Mapped[str] = mapped_column(String, default="")
+    reference_1_relationship: Mapped[str] = mapped_column(String, default="")
+    reference_2_name: Mapped[str] = mapped_column(String, default="")
+    reference_2_email: Mapped[str] = mapped_column(String, default="")
+    reference_2_phone: Mapped[str] = mapped_column(String, default="")
+    reference_2_relationship: Mapped[str] = mapped_column(String, default="")
+    # Document IDs
+    document_ids: Mapped[list] = mapped_column(JSON, default=list)
 
 
 class StudentProfileORM(Base):

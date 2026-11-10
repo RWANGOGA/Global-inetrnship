@@ -71,7 +71,6 @@ import {
   type ApiUser,
   type CatalogMeta,
   type SubscriptionDto,
-  type ApplicationDto,
   type MatchDto,
   type ResumeDto,
   type StudentDocumentDto,
@@ -91,6 +90,7 @@ import {
   type UserActionRequest,
   type UserActionResponse,
 } from "../lib/api";
+import type { ApplicationDto, JobApplicationDto } from "../types";
 
 // Placement-fee model. Free host organisations (seed org "o4") publish up to
 // this many placements, then the fee applies. Mirrors the site's "first three

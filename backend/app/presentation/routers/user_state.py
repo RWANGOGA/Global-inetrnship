@@ -157,6 +157,21 @@ def apply(
             user_id=current_user.id,
             placement_id=payload.placement_id,
             statement=payload.statement,
+            cover_letter=payload.cover_letter,
+            cv_url=payload.cv_url,
+            github_url=payload.github_url,
+            linkedin_url=payload.linkedin_url,
+            portfolio_url=payload.portfolio_url,
+            academic_papers=payload.academic_papers,
+            reference_1_name=payload.reference_1_name,
+            reference_1_email=payload.reference_1_email,
+            reference_1_phone=payload.reference_1_phone,
+            reference_1_relationship=payload.reference_1_relationship,
+            reference_2_name=payload.reference_2_name,
+            reference_2_email=payload.reference_2_email,
+            reference_2_phone=payload.reference_2_phone,
+            reference_2_relationship=payload.reference_2_relationship,
+            document_ids=payload.document_ids,
         )
     except PlacementNotFound as exc:
         raise HTTPException(status_code=404, detail=f"Placement {exc} not found")

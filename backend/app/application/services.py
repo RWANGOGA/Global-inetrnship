@@ -146,7 +146,28 @@ class ApplicationService:
         self._placements = placements
         self._apps = apps
 
-    def apply(self, *, user_id: str, placement_id: str, statement: str = "") -> Application:
+    def apply(
+        self,
+        *,
+        user_id: str,
+        placement_id: str,
+        statement: str = "",
+        cover_letter: str = "",
+        cv_url: str | None = None,
+        github_url: str | None = None,
+        linkedin_url: str | None = None,
+        portfolio_url: str | None = None,
+        academic_papers: list | None = None,
+        reference_1_name: str = "",
+        reference_1_email: str = "",
+        reference_1_phone: str = "",
+        reference_1_relationship: str = "",
+        reference_2_name: str = "",
+        reference_2_email: str = "",
+        reference_2_phone: str = "",
+        reference_2_relationship: str = "",
+        document_ids: list | None = None,
+    ) -> Application:
         placement = self._placements.get(placement_id)
         if placement is None:
             raise PlacementNotFound(placement_id)
@@ -157,13 +178,30 @@ class ApplicationService:
         if existing is not None:
             return existing  # idempotent: no duplicate applications
 
+        now = date.today().isoformat()
         application = Application(
             id=uuid4().hex,
             user_id=user_id,
             placement_id=placement_id,
             status="Submitted",
             statement=statement,
-            created_at=date.today().isoformat(),
+            cover_letter=cover_letter,
+            cv_url=cv_url,
+            github_url=github_url,
+            linkedin_url=linkedin_url,
+            portfolio_url=portfolio_url,
+            academic_papers=academic_papers or [],
+            reference_1_name=reference_1_name,
+            reference_1_email=reference_1_email,
+            reference_1_phone=reference_1_phone,
+            reference_1_relationship=reference_1_relationship,
+            reference_2_name=reference_2_name,
+            reference_2_email=reference_2_email,
+            reference_2_phone=reference_2_phone,
+            reference_2_relationship=reference_2_relationship,
+            document_ids=document_ids or [],
+            created_at=now,
+            updated_at=now,
         )
         return self._apps.add(application)
 

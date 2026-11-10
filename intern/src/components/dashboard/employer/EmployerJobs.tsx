@@ -7,6 +7,10 @@ import {
   fetchOrganizationJobs,
   createOrganizationJob,
   isApiEnabled,
+  exportOrgJobsCsv,
+  exportOrgPlacementsCsv,
+  exportOrgPlacementApplicantsCsv,
+  exportOrgJobApplicantsCsv,
 } from "../../../lib/api";
 import { Job, JobPostingInput } from "../../../types";
 
@@ -27,6 +31,35 @@ export function EmployerJobs() {
     summary: "",
     requirements: [],
   });
+
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportJobs = async () => {
+    try {
+      const blob = await exportOrgJobsCsv();
+      downloadBlob(blob, "my_jobs.csv");
+      toast("Jobs exported!");
+    } catch {
+      toast("Failed to export jobs");
+    }
+  };
+
+  const handleExportPlacements = async () => {
+    try {
+      const blob = await exportOrgPlacementsCsv();
+      downloadBlob(blob, "my_placements.csv");
+      toast("Placements exported!");
+    } catch {
+      toast("Failed to export placements");
+    }
+  };
 
   useEffect(() => {
     if (!isApiEnabled || session?.role !== "employer") {
@@ -103,13 +136,29 @@ export function EmployerJobs() {
           <h2>My job postings</h2>
           <p>Full-time & graduate roles for verified employers</p>
         </div>
-        <button
-          type="button"
-          className="btn btn-sm btn-blue"
-          onClick={() => setShowCreate(true)}
-        >
-          Post a job
-        </button>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={handleExportJobs}
+          >
+            Export Jobs CSV
+          </button>
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={handleExportPlacements}
+          >
+            Export Placements CSV
+          </button>
+          <button
+            type="button"
+            className="btn btn-sm btn-blue"
+            onClick={() => setShowCreate(true)}
+          >
+            Post a job
+          </button>
+        </div>
       </div>
 
       {showCreate && (

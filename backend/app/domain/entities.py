@@ -138,6 +138,25 @@ class Application:
     status: str = "Submitted"
     statement: str = ""
     created_at: str = ""
+    updated_at: str = ""
+    # Rich application data
+    cv_url: Optional[str] = None
+    cover_letter: str = ""
+    github_url: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    portfolio_url: Optional[str] = None
+    academic_papers: list = field(default_factory=list)
+    # References
+    reference_1_name: str = ""
+    reference_1_email: str = ""
+    reference_1_phone: str = ""
+    reference_1_relationship: str = ""
+    reference_2_name: str = ""
+    reference_2_email: str = ""
+    reference_2_phone: str = ""
+    reference_2_relationship: str = ""
+    # Document IDs (referencing StudentDocument)
+    document_ids: list = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -151,6 +170,24 @@ class JobApplication:
     statement: str = ""
     created_at: str = ""
     updated_at: str = ""
+    # Rich application data
+    cv_url: Optional[str] = None
+    cover_letter: str = ""
+    github_url: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    portfolio_url: Optional[str] = None
+    academic_papers: list = field(default_factory=list)
+    # References
+    reference_1_name: str = ""
+    reference_1_email: str = ""
+    reference_1_phone: str = ""
+    reference_1_relationship: str = ""
+    reference_2_name: str = ""
+    reference_2_email: str = ""
+    reference_2_phone: str = ""
+    reference_2_relationship: str = ""
+    # Document IDs (referencing StudentDocument)
+    document_ids: list = field(default_factory=list)
 
 
 @dataclass(frozen=True)

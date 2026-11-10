@@ -100,10 +100,43 @@ class JobApplicationRead(BaseModel):
     statement: str
     created_at: str
     updated_at: str | None = None
+    # Rich application data
+    cv_url: str | None = None
+    cover_letter: str = ""
+    github_url: str | None = None
+    linkedin_url: str | None = None
+    portfolio_url: str | None = None
+    academic_papers: list = []
+    # References
+    reference_1_name: str = ""
+    reference_1_email: str = ""
+    reference_1_phone: str = ""
+    reference_1_relationship: str = ""
+    reference_2_name: str = ""
+    reference_2_email: str = ""
+    reference_2_phone: str = ""
+    reference_2_relationship: str = ""
+    # Document IDs
+    document_ids: list = []
 
 
 class JobApplicationCreate(BaseModel):
     statement: str = ""
+    cover_letter: str = ""
+    cv_url: str | None = None
+    github_url: str | None = None
+    linkedin_url: str | None = None
+    portfolio_url: str | None = None
+    academic_papers: list = []
+    reference_1_name: str = ""
+    reference_1_email: str = ""
+    reference_1_phone: str = ""
+    reference_1_relationship: str = ""
+    reference_2_name: str = ""
+    reference_2_email: str = ""
+    reference_2_phone: str = ""
+    reference_2_relationship: str = ""
+    document_ids: list = []
 
 
 class JobApplicationListResponse(BaseModel):
@@ -225,11 +258,45 @@ class ApplicationRead(BaseModel):
     status: str
     statement: str
     created_at: str
+    updated_at: str = ""
+    # Rich application data
+    cv_url: str | None = None
+    cover_letter: str = ""
+    github_url: str | None = None
+    linkedin_url: str | None = None
+    portfolio_url: str | None = None
+    academic_papers: list = []
+    # References
+    reference_1_name: str = ""
+    reference_1_email: str = ""
+    reference_1_phone: str = ""
+    reference_1_relationship: str = ""
+    reference_2_name: str = ""
+    reference_2_email: str = ""
+    reference_2_phone: str = ""
+    reference_2_relationship: str = ""
+    # Document IDs
+    document_ids: list = []
 
 
 class ApplyRequest(BaseModel):
     placement_id: str
     statement: str = ""
+    cover_letter: str = ""
+    cv_url: str | None = None
+    github_url: str | None = None
+    linkedin_url: str | None = None
+    portfolio_url: str | None = None
+    academic_papers: list = []
+    reference_1_name: str = ""
+    reference_1_email: str = ""
+    reference_1_phone: str = ""
+    reference_1_relationship: str = ""
+    reference_2_name: str = ""
+    reference_2_email: str = ""
+    reference_2_phone: str = ""
+    reference_2_relationship: str = ""
+    document_ids: list = []
     # R1d: ignored — the applicant is the authenticated user from the token.
     user_id: Optional[str] = None
 

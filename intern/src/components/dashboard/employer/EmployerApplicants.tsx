@@ -10,11 +10,13 @@ import {
   fetchJobApplicants,
   updateJobApplicationStatus,
   isApiEnabled,
+  exportOrgPlacementApplicantsCsv,
+  exportOrgJobApplicantsCsv,
 } from "../../../lib/api";
 import { Placement, ApplicationDto, Job, JobApplicationDto } from "../../../types";
 
 export function EmployerApplicants() {
-  const { session, dashGo } = useApp();
+  const { session, dashGo, toast } = useApp();
   const [placements, setPlacements] = useState<Placement[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [internshipApplicants, setInternshipApplicants] = useState<Record<string, ApplicationDto[]>>({});
@@ -24,6 +26,35 @@ export function EmployerApplicants() {
   const [activeTab, setActiveTab] = useState<"internships" | "jobs">("internships");
   const [selectedId, setSelectedId] = useState<string>("");
   const [updating, setUpdating] = useState<string | null>(null);
+
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportPlacementApplicants = async (id: string) => {
+    try {
+      const blob = await exportOrgPlacementApplicantsCsv(id);
+      downloadBlob(blob, `placement_${id}_applicants.csv`);
+      toast("Applicants exported!");
+    } catch {
+      toast("Failed to export applicants");
+    }
+  };
+
+  const handleExportJobApplicants = async (id: string) => {
+    try {
+      const blob = await exportOrgJobApplicantsCsv(id);
+      downloadBlob(blob, `job_${id}_applicants.csv`);
+      toast("Applicants exported!");
+    } catch {
+      toast("Failed to export applicants");
+    }
+  };
 
   useEffect(() => {
     if (!isApiEnabled || session?.role !== "employer") {
@@ -144,6 +175,24 @@ export function EmployerApplicants() {
           </p>
         </div>
         <div style={{ display: "flex", gap: "8px" }}>
+          {selectedId && activeTab === "internships" && (
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => handleExportPlacementApplicants(selectedId)}
+            >
+              Export Applicants CSV
+            </button>
+          )}
+          {selectedId && activeTab === "jobs" && (
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => handleExportJobApplicants(selectedId)}
+            >
+              Export Applicants CSV
+            </button>
+          )}
           <button
             type="button"
             className={`btn btn-sm ${activeTab === "internships" ? "btn-blue" : ""}`}

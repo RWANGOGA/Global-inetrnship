@@ -3,11 +3,14 @@ from datetime import date
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+import csv
+import io
 
 from app.domain.entities import User
 from app.infrastructure.db import get_session
-from app.infrastructure.orm import OrganisationORM, PlacementORM, JobORM
+from app.infrastructure.orm import OrganisationORM, PlacementORM, JobORM, ApplicationORM, JobApplicationORM, UserORM
 from app.presentation.deps import get_current_user
 from app.presentation.schemas import (
     InternshipPostingCreate,
@@ -174,3 +177,163 @@ def create_organization_job(
     session.commit()
     session.refresh(row)
     return JobRead.model_validate(row, from_attributes=True)
+
+
+# ---------------- CSV Exports (Employer) ------------------------------------
+
+@router.get("/export/placements.csv")
+def export_org_placements_csv(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    org_id = _require_employer(current_user)
+    
+    rows = session.query(PlacementORM).filter(PlacementORM.org_id == org_id).order_by(PlacementORM.published_at.desc()).all()
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "ID", "Title", "Location", "Mode", "Duration", "Stipend", "Deadline", "Slots",
+        "Status", "Applicants", "Review Status", "Published At", "Closes At", "Starts At",
+        "Grade", "Courses", "Requirements", "Documents Required", "About", "Duties",
+        "Opportunity Type"
+    ])
+    
+    for p in rows:
+        writer.writerow([
+            p.id, p.title, p.loc, p.mode, p.duration, p.stipend, p.deadline, p.slots,
+            p.status, p.applicants, p.review_status, p.published_at, p.closes_at, p.starts_at,
+            p.grade, "; ".join(p.courses) if p.courses else "",
+            "; ".join(p.requirements) if p.requirements else "",
+            "; ".join(p.docs) if p.docs else "",
+            p.about, "; ".join(p.duties) if p.duties else "",
+            p.opportunity_type
+        ])
+    
+    output.seek(0)
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode()),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=my_placements.csv"}
+    )
+
+
+@router.get("/export/jobs.csv")
+def export_org_jobs_csv(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    org_id = _require_employer(current_user)
+    
+    rows = session.query(JobORM).filter(JobORM.org_id == org_id).order_by(JobORM.published_at.desc()).all()
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "ID", "Title", "Location", "Mode", "Employment Type", "Salary", "Closes At",
+        "Summary", "Requirements", "Status", "Review Status", "Published At", "Applicants"
+    ])
+    
+    for j in rows:
+        writer.writerow([
+            j.id, j.title, j.loc, j.mode, j.employment_type, j.salary, j.closes_at,
+            j.summary, "; ".join(j.requirements) if j.requirements else "",
+            j.status, j.review_status, j.published_at, j.applicants or 0
+        ])
+    
+    output.seek(0)
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode()),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=my_jobs.csv"}
+    )
+
+
+@router.get("/export/placement/{placement_id}/applicants.csv")
+def export_org_placement_applicants_csv(
+    placement_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    org_id = _require_employer(current_user)
+    
+    placement = session.query(PlacementORM).filter_by(id=placement_id, org_id=org_id).first()
+    if not placement:
+        raise HTTPException(status_code=404, detail="Placement not found or not yours")
+    
+    apps = session.query(ApplicationORM).filter_by(placement_id=placement_id).all()
+    users = {u.id: u for u in session.query(UserORM).filter(UserORM.id.in_([a.user_id for a in apps])).all()}
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Application ID", "User ID", "User Name", "User Email", "Status",
+        "Statement", "Cover Letter", "CV URL", "GitHub", "LinkedIn", "Portfolio",
+        "Academic Papers", "Reference 1 Name", "Reference 1 Email", "Reference 1 Phone", "Reference 1 Relationship",
+        "Reference 2 Name", "Reference 2 Email", "Reference 2 Phone", "Reference 2 Relationship",
+        "Applied At", "Updated At"
+    ])
+    
+    for app in apps:
+        user = users.get(app.user_id)
+        writer.writerow([
+            app.id, app.user_id, user.name if user else "", user.email if user else "",
+            app.status, app.statement, app.cover_letter, app.cv_url or "",
+            app.github_url or "", app.linkedin_url or "", app.portfolio_url or "",
+            "; ".join(app.academic_papers) if app.academic_papers else "",
+            app.reference_1_name, app.reference_1_email, app.reference_1_phone, app.reference_1_relationship,
+            app.reference_2_name, app.reference_2_email, app.reference_2_phone, app.reference_2_relationship,
+            app.created_at, app.updated_at
+        ])
+    
+    output.seek(0)
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode()),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=placement_{placement_id}_applicants.csv"}
+    )
+
+
+@router.get("/export/job/{job_id}/applicants.csv")
+def export_org_job_applicants_csv(
+    job_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    org_id = _require_employer(current_user)
+    
+    job = session.query(JobORM).filter_by(id=job_id, org_id=org_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found or not yours")
+    
+    apps = session.query(JobApplicationORM).filter_by(job_id=job_id).all()
+    users = {u.id: u for u in session.query(UserORM).filter(UserORM.id.in_([a.user_id for a in apps])).all()}
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Application ID", "User ID", "User Name", "User Email", "Status",
+        "Statement", "Cover Letter", "CV URL", "GitHub", "LinkedIn", "Portfolio",
+        "Academic Papers", "Reference 1 Name", "Reference 1 Email", "Reference 1 Phone", "Reference 1 Relationship",
+        "Reference 2 Name", "Reference 2 Email", "Reference 2 Phone", "Reference 2 Relationship",
+        "Applied At", "Updated At"
+    ])
+    
+    for app in apps:
+        user = users.get(app.user_id)
+        writer.writerow([
+            app.id, app.user_id, user.name if user else "", user.email if user else "",
+            app.status, app.statement, app.cover_letter, app.cv_url or "",
+            app.github_url or "", app.linkedin_url or "", app.portfolio_url or "",
+            "; ".join(app.academic_papers) if app.academic_papers else "",
+            app.reference_1_name, app.reference_1_email, app.reference_1_phone, app.reference_1_relationship,
+            app.reference_2_name, app.reference_2_email, app.reference_2_phone, app.reference_2_relationship,
+            app.created_at, app.updated_at
+        ])
+    
+    output.seek(0)
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode()),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=job_{job_id}_applicants.csv"}
+    )

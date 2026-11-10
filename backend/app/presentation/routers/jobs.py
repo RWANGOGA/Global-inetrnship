@@ -64,7 +64,8 @@ def apply_to_job(
     if existing:
         raise HTTPException(status_code=409, detail="Already applied to this job")
 
-    # Create application
+    # Create application with all rich data
+    now = datetime.utcnow().isoformat()
     application = repo.add(
         repo._to_domain(
             JobApplicationORM(
@@ -73,8 +74,23 @@ def apply_to_job(
                 job_id=job_id,
                 status="Submitted",
                 statement=payload.statement,
-                created_at=datetime.utcnow().isoformat(),
-                updated_at=datetime.utcnow().isoformat(),
+                cover_letter=payload.cover_letter,
+                cv_url=payload.cv_url,
+                github_url=payload.github_url,
+                linkedin_url=payload.linkedin_url,
+                portfolio_url=payload.portfolio_url,
+                academic_papers=payload.academic_papers,
+                reference_1_name=payload.reference_1_name,
+                reference_1_email=payload.reference_1_email,
+                reference_1_phone=payload.reference_1_phone,
+                reference_1_relationship=payload.reference_1_relationship,
+                reference_2_name=payload.reference_2_name,
+                reference_2_email=payload.reference_2_email,
+                reference_2_phone=payload.reference_2_phone,
+                reference_2_relationship=payload.reference_2_relationship,
+                document_ids=payload.document_ids,
+                created_at=now,
+                updated_at=now,
             )
         )
     )
