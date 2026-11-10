@@ -12,6 +12,16 @@ export interface Org {
   about: string;
 }
 
+export interface CompanyProfile {
+  id: string;
+  name: string;
+  type: string;
+  sector: string;
+  loc: string;
+  seal: string;
+  about: string;
+}
+
 export interface Placement {
   id: string;
   title: string;

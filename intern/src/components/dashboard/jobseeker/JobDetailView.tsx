@@ -5,6 +5,7 @@ import { useApp } from "../../../context/AppContext";
 import { fetchJobDetail, applyToJob, isApiEnabled, JobApplicationInput, toggleSavedJob } from "../../../lib/api";
 import { Job } from "../../../types";
 import { Icon, IconName } from "../../icons/Icons";
+import { CompanyDetailView } from "./CompanyDetailView";
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
@@ -233,6 +234,7 @@ export function JobDetailView({ jobId, onClose }: JobDetailViewProps) {
   const [error, setError] = React.useState("");
   const [applying, setApplying] = React.useState(false);
   const [showApply, setShowApply] = React.useState(false);
+  const [showCompany, setShowCompany] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
 
   React.useEffect(() => {
@@ -268,6 +270,10 @@ export function JobDetailView({ jobId, onClose }: JobDetailViewProps) {
 
   async function handleApply() {
     setShowApply(true);
+  }
+
+  function handleViewCompany() {
+    setShowCompany(true);
   }
 
   async function submitApply(input: JobApplicationInput) {
@@ -324,7 +330,18 @@ export function JobDetailView({ jobId, onClose }: JobDetailViewProps) {
             {job.status && <StatusBadge status={job.status} />}
           </div>
           <p style={{ color: "var(--ink-2)", fontSize: "15px", margin: 0 }}>
-            {org?.name || "Employer"} · {job.loc} · {job.employmentType}
+            <span
+              onClick={handleViewCompany}
+              style={{
+                color: "var(--blue)",
+                cursor: "pointer",
+                textDecoration: "underline",
+                textDecorationColor: "var(--blue)",
+              }}
+            >
+              {org?.name || "Employer"}
+            </span>
+            · {job.loc} · {job.employmentType}
           </p>
         </div>
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
@@ -426,6 +443,13 @@ export function JobDetailView({ jobId, onClose }: JobDetailViewProps) {
           jobId={jobId}
           onClose={() => setShowApply(false)}
           onSubmit={submitApply}
+        />
+      )}
+
+      {showCompany && (
+        <CompanyDetailView
+          orgId={job.orgId}
+          onClose={() => setShowCompany(false)}
         />
       )}
     </>

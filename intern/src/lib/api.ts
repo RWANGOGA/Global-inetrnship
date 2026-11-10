@@ -7,7 +7,7 @@
 //
 // The backend speaks snake_case; the UI types are camelCase. This module is the
 // single translation boundary, so components never learn about either shape.
-import { Job, Org, Placement, ApplicationDto, JobApplicationDto } from "../types";
+import { Job, Org, Placement, ApplicationDto, JobApplicationDto, CompanyProfile } from "../types";
 
 export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(
   /\/+$/,
@@ -266,6 +266,10 @@ export async function fetchJobs(): Promise<Job[]> {
 export async function fetchJobDetail(jobId: string): Promise<Job> {
   const data = await getJson<ApiJob>(`/jobs/${jobId}`);
   return mapJob(data);
+}
+
+export async function fetchOrganization(orgId: string): Promise<CompanyProfile> {
+  return getJson<CompanyProfile>(`/organization/public/${orgId}`);
 }
 
 export interface JobPostingInput {

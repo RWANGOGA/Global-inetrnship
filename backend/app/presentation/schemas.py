@@ -1,7 +1,8 @@
 """API response schemas (transport concern only)."""
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+from typing import Optional
 
 
 class OrganisationRead(BaseModel):

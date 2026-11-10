@@ -1006,7 +1006,7 @@ The Jobs Portal core is **complete and live**. The implementation includes:
 - Organization job drafts, requirements, publication dates, closing dates, and admin approval
 - Live Jobs catalogue (`GET /api/jobs`, `GET /api/jobs/{id}`, search/location/mode filters)
 - Job detail view with full job information
-- Company/Employer detail view
+- **Company/Employer detail view** (`GET /api/organization/public/{org_id}`, `CompanyDetailView` component)
 - Job-seeker profile, saved jobs (bookmarks), applications, and status tracking
 - Employer applicants view with accept/reject/review actions
 - Employer job posting and management
@@ -1018,6 +1018,7 @@ The Jobs Portal core is **complete and live**. The implementation includes:
 - All backend tests passing (105+ tests)
 
 **In Progress / Remaining:**
+- Saved Jobs Page - Dedicated page showing saved jobs with details
 - Job Alerts (email notifications for new matching jobs)
 - Candidate Profile/CV/Cover Letter management UI
 - Interview/Shortlist workflows for employers

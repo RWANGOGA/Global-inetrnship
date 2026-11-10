@@ -19,6 +19,7 @@ from app.presentation.schemas import (
     JobPostingCreate,
     JobPostingListResponse,
     JobRead,
+    OrganizationRead,
 )
 from app.infrastructure.repositories import SqlAlchemyPlacementRepository
 
@@ -336,4 +337,26 @@ def export_org_job_applicants_csv(
         io.BytesIO(output.getvalue().encode()),
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename=job_{job_id}_applicants.csv"}
+    )
+
+
+# ---- Public Organization Profile -------------------------------------------
+
+@router.get("/public/{org_id}", response_model=OrganizationRead)
+def get_public_organization(
+    org_id: str,
+    session: Session = Depends(get_session),
+) -> OrganizationRead:
+    """Get public organization profile (no auth required)."""
+    org = session.query(OrganisationORM).filter_by(id=org_id).first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    return OrganizationRead(
+        id=org.id,
+        name=org.name,
+        type=org.type,
+        sector=org.sector,
+        loc=org.loc,
+        seal=org.seal,
+        about=org.about,
     )
