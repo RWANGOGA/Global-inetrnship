@@ -14,6 +14,35 @@ import {
   exportOrgJobApplicantsCsv,
 } from "../../../lib/api";
 import { Placement, ApplicationDto, Job, JobApplicationDto } from "../../../types";
+import { Icon } from "../../icons/Icons";
+
+function StatusBadge({ status }: { status: string }) {
+  const colors: Record<string, string> = {
+    Submitted: "blue",
+    "In Review": "amber",
+    Accepted: "green",
+    Rejected: "red",
+    Withdrawn: "ink",
+  };
+  const color = colors[status] || "ink";
+  const classMap: Record<string, string> = {
+    blue: "tg blue",
+    amber: "tg gold",
+    green: "tg green",
+    red: "tg red",
+    ink: "tg dark",
+  };
+  return <span className={classMap[color] || "tg"}>{status}</span>;
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export function EmployerApplicants() {
   const { session, dashGo, toast } = useApp();
@@ -26,15 +55,6 @@ export function EmployerApplicants() {
   const [activeTab, setActiveTab] = useState<"internships" | "jobs">("internships");
   const [selectedId, setSelectedId] = useState<string>("");
   const [updating, setUpdating] = useState<string | null>(null);
-
-  const downloadBlob = (blob: Blob, filename: string) => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
   const handleExportPlacementApplicants = async (id: string) => {
     try {
@@ -73,7 +93,7 @@ export function EmployerApplicants() {
       ]);
       setPlacements(placementsData);
       setJobs(jobsData);
-      
+
       if (placementsData.length > 0) {
         setSelectedId(placementsData[0].id);
         loadInternshipApplicants(placementsData[0].id);
@@ -120,7 +140,6 @@ export function EmployerApplicants() {
     setUpdating(applicationId);
     try {
       await updateJobApplicationStatus(applicationId, status);
-      // Refresh the current list
       if (activeTab === "jobs") {
         loadJobApplicants(selectedId);
       }
@@ -132,8 +151,8 @@ export function EmployerApplicants() {
   }
 
   const currentItems = activeTab === "internships" ? placements : jobs;
-  const currentApplicants = activeTab === "internships" 
-    ? internshipApplicants[selectedId] || [] 
+  const currentApplicants = activeTab === "internships"
+    ? internshipApplicants[selectedId] || []
     : jobApplicants[selectedId] || [];
 
   const totalApplicants = Object.values(
@@ -142,27 +161,6 @@ export function EmployerApplicants() {
   const shortlisted = Object.values(
     activeTab === "internships" ? internshipApplicants : jobApplicants
   ).flat().filter((a) => a.status === "Accepted").length;
-
-  function StatusBadge({ status }: { status: string }) {
-    const colors: Record<string, string> = {
-      Submitted: "blue",
-      "In Review": "amber",
-      Accepted: "green",
-      Rejected: "red",
-      Withdrawn: "ink",
-    };
-    return (
-      <span
-        className="tg"
-        style={{
-          background: `var(--${colors[status] || "ink"}-1)`,
-          color: `var(--${colors[status] || "ink"})`,
-        }}
-      >
-        {status}
-      </span>
-    );
-  }
 
   return (
     <>
@@ -174,14 +172,14 @@ export function EmployerApplicants() {
             {shortlisted} shortlisted
           </p>
         </div>
-        <div style={{ display: "flex", gap: "8px" }}>
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
           {selectedId && activeTab === "internships" && (
             <button
               type="button"
               className="btn btn-sm"
               onClick={() => handleExportPlacementApplicants(selectedId)}
             >
-              Export Applicants CSV
+              <Icon name="download" size={13} /> Export CSV
             </button>
           )}
           {selectedId && activeTab === "jobs" && (
@@ -190,7 +188,7 @@ export function EmployerApplicants() {
               className="btn btn-sm"
               onClick={() => handleExportJobApplicants(selectedId)}
             >
-              Export Applicants CSV
+              <Icon name="download" size={13} /> Export CSV
             </button>
           )}
           <button
@@ -198,34 +196,34 @@ export function EmployerApplicants() {
             className={`btn btn-sm ${activeTab === "internships" ? "btn-blue" : ""}`}
             onClick={() => setActiveTab("internships")}
           >
-            Internships
+            <Icon name="brief" size={13} /> Internships
           </button>
           <button
             type="button"
             className={`btn btn-sm ${activeTab === "jobs" ? "btn-blue" : ""}`}
             onClick={() => setActiveTab("jobs")}
           >
-            Jobs
+            <Icon name="brief" size={13} /> Jobs
           </button>
         </div>
       </div>
 
-      <div className="panel" style={{ marginBottom: "14px" }}>
+      <div className="panel" style={{ marginBottom: "16px" }}>
         <div className="ph">
           <span className="lbl">Select {activeTab === "internships" ? "placement" : "job"}</span>
         </div>
-        <div className="pb">
+        <div className="pb" style={{ padding: "12px 16px" }}>
           <select
             value={selectedId}
             onChange={(e) => handleSelectionChange(e.target.value)}
-            className="field"
-            style={{ maxWidth: "400px" }}
+            className="field-input"
+            style={{ maxWidth: "420px", height: "40px", padding: "0 12px", border: "1px solid var(--rule-2)", borderRadius: "var(--r-sm)", background: "var(--white)", fontSize: "13px" }}
           >
             {currentItems.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.title} ({activeTab === "internships" 
-                  ? (item as Placement).applicants 
-                  : (item as Job).applicants} applicants)
+                {item.title} ({activeTab === "internships"
+                  ? (item as Placement).applicants
+                  : (item as Job).applicants || 0} applicants)
               </option>
             ))}
           </select>
@@ -234,105 +232,107 @@ export function EmployerApplicants() {
 
       <div className="panel">
         <div className="pb" style={{ padding: 0 }}>
-          <table className="dtable">
-            <thead>
-              <tr>
-                <th>Candidate</th>
-                <th>{activeTab === "internships" ? "Course" : "Applied"}</th>
-                <th>{activeTab === "internships" ? "Grade" : "Status"}</th>
-                <th className="hide-xs">Documents</th>
-                <th>Fit</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={6}>Loading...</td></tr>
-              ) : currentItems.length === 0 ? (
+          <div style={{ overflowX: "auto" }}>
+            <table className="dtable">
+              <thead>
                 <tr>
-                  <td colSpan={6}>
-                    No {activeTab === "internships" ? "placements" : "jobs"} posted yet.
-                  </td>
+                  <th>Candidate</th>
+                  <th>{activeTab === "internships" ? "Placement" : "Job"}</th>
+                  <th>Status</th>
+                  <th className="hide-xs">Documents</th>
+                  <th className="hide-xs">Fit</th>
+                  <th></th>
                 </tr>
-              ) : currentApplicants.length === 0 ? (
-                <tr>
-                  <td colSpan={6}>
-                    No applicants for this {activeTab === "internships" ? "placement" : "job"}.
-                  </td>
-                </tr>
-              ) : (
-                currentApplicants.map((app, i) => (
-                  <tr key={app.id}>
-                    <td className="who">
-                      <b>{app.user_id.slice(0, 8)}…</b>
-                      <span>
-                        {activeTab === "internships" ? "Year 3" : app.created_at}
-                      </span>
-                    </td>
-                    <td>
-                      {activeTab === "internships" 
-                        ? (app as ApplicationDto).placement_id 
-                        : app.created_at}
-                    </td>
-                    <td className="num">
-                      {activeTab === "internships" ? "3.7" : (
-                        <StatusBadge status={app.status} />
-                      )}
-                    </td>
-                    <td className="hide-xs">
-                      {activeTab === "internships" ? (
-                        <span className="tg green">3 of 3 verified</span>
-                      ) : (
-                        <span className="tg blue">View CV</span>
-                      )}
-                    </td>
-                    <td className="num">
-                      {activeTab === "internships" ? "93%" : "—"}
-                    </td>
-                    <td className="act">
-                      {activeTab === "jobs" && ["Submitted", "In Review"].includes(app.status) && (
-                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-blue"
-                            disabled={updating === app.id}
-                            onClick={() => handleStatusUpdate(app.id, "Accepted")}
-                          >
-                            Accept
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-sm"
-                            disabled={updating === app.id}
-                            onClick={() => handleStatusUpdate(app.id, "Rejected")}
-                          >
-                            Reject
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-sm"
-                            disabled={updating === app.id}
-                            onClick={() => handleStatusUpdate(app.id, "In Review")}
-                          >
-                            Review
-                          </button>
-                        </div>
-                      )}
-                      {activeTab === "internships" && (
-                        <button
-                          type="button"
-                          className="btn btn-sm"
-                          onClick={() => console.log("Invite", app.id)}
-                        >
-                          Invite
-                        </button>
-                      )}
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={6}>Loading...</td></tr>
+                ) : currentItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={6}>
+                      No {activeTab === "internships" ? "placements" : "jobs"} posted yet.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : currentApplicants.length === 0 ? (
+                  <tr>
+                    <td colSpan={6}>
+                      No applicants for this {activeTab === "internships" ? "placement" : "job"}.
+                    </td>
+                  </tr>
+                ) : (
+                  currentApplicants.map((app, i) => (
+                    <tr key={app.id}>
+                      <td className="who">
+                        <b>{app.user_id.slice(0, 8)}…</b>
+                        <span>{app.created_at.split("T")[0]}</span>
+                      </td>
+                      <td>
+                        {activeTab === "internships"
+                          ? (app as ApplicationDto).placement_id
+                          : (app as JobApplicationDto).job_id}
+                      </td>
+                      <td>
+                        <StatusBadge status={app.status} />
+                      </td>
+                      <td className="hide-xs">
+                        {activeTab === "internships" ? (
+                          <span className="tg green">
+                            <Icon name="check" size={10} /> 3 of 3 verified
+                          </span>
+                        ) : (
+                          <span className="tg blue">
+                            <Icon name="doc" size={10} /> View CV
+                          </span>
+                        )}
+                      </td>
+                      <td className="hide-xs num">
+                        {activeTab === "internships" ? "93%" : "—"}
+                      </td>
+                      <td className="act">
+                        {activeTab === "jobs" && ["Submitted", "In Review"].includes(app.status) && (
+                          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-blue"
+                              disabled={updating === app.id}
+                              onClick={() => handleStatusUpdate(app.id, "Accepted")}
+                            >
+                              <Icon name="check" size={12} /> Accept
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-red"
+                              disabled={updating === app.id}
+                              onClick={() => handleStatusUpdate(app.id, "Rejected")}
+                            >
+                              <Icon name="x" size={12} /> Reject
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-sm"
+                              disabled={updating === app.id}
+                              onClick={() => handleStatusUpdate(app.id, "In Review")}
+                            >
+                              <Icon name="eye" size={12} /> Review
+                            </button>
+                          </div>
+                        )}
+                        {activeTab === "internships" && (
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            onClick={() => console.log("Invite", app.id)}
+                          >
+                            <Icon name="send" size={12} /> Invite
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </>

@@ -9,10 +9,33 @@ import {
   isApiEnabled,
   exportOrgJobsCsv,
   exportOrgPlacementsCsv,
-  exportOrgPlacementApplicantsCsv,
-  exportOrgJobApplicantsCsv,
 } from "../../../lib/api";
 import { Job, JobPostingInput } from "../../../types";
+import { Icon } from "../../icons/Icons";
+
+function StatusBadge({ status }: { status: string }) {
+  const colors: Record<string, string> = {
+    Open: "green",
+    Closing: "amber",
+    Closed: "red",
+  };
+  const color = colors[status] || "ink";
+  const classMap: Record<string, string> = {
+    green: "tg green",
+    amber: "tg gold",
+    red: "tg red",
+  };
+  return <span className={classMap[color] || "tg"}>{status}</span>;
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export function EmployerJobs() {
   const { session, toast } = useApp();
@@ -31,15 +54,6 @@ export function EmployerJobs() {
     summary: "",
     requirements: [],
   });
-
-  const downloadBlob = (blob: Blob, filename: string) => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
   const handleExportJobs = async () => {
     try {
@@ -110,25 +124,6 @@ export function EmployerJobs() {
     }
   }
 
-  function StatusBadge({ status }: { status: string }) {
-    const colors: Record<string, string> = {
-      Open: "green",
-      Closing: "amber",
-      Closed: "red",
-    };
-    return (
-      <span
-        className="tg"
-        style={{
-          background: `var(--${colors[status] || "ink"}-1)`,
-          color: `var(--${colors[status] || "ink"})`,
-        }}
-      >
-        {status}
-      </span>
-    );
-  }
-
   return (
     <>
       <div className="dpane-h">
@@ -136,59 +131,71 @@ export function EmployerJobs() {
           <h2>My job postings</h2>
           <p>Full-time & graduate roles for verified employers</p>
         </div>
-        <div style={{ display: "flex", gap: "8px" }}>
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
           <button
             type="button"
             className="btn btn-sm"
             onClick={handleExportJobs}
           >
-            Export Jobs CSV
+            <Icon name="download" size={13} /> Export Jobs
           </button>
           <button
             type="button"
             className="btn btn-sm"
             onClick={handleExportPlacements}
           >
-            Export Placements CSV
+            <Icon name="download" size={13} /> Export Placements
           </button>
           <button
             type="button"
             className="btn btn-sm btn-blue"
             onClick={() => setShowCreate(true)}
           >
-            Post a job
+            <Icon name="plus" size={13} /> Post a job
           </button>
         </div>
       </div>
 
       {showCreate && (
         <div className="panel" style={{ marginBottom: "16px" }}>
-          <div className="ph"><span className="lbl">Create job posting</span></div>
-          <form onSubmit={handleSubmit} className="pb" style={{ display: "grid", gap: "14px" }}>
-            <div style={{ display: "grid", gap: "10px", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
-              <div>
-                <label className="lbl">Job title</label>
+          <div className="ph">
+            <span className="lbl">Create job posting</span>
+            <button
+              type="button"
+              className="btn btn-sm btn-ghost"
+              onClick={() => setShowCreate(false)}
+              style={{ padding: 0 }}
+            >
+              <Icon name="x" size={15} />
+            </button>
+          </div>
+          <form onSubmit={handleSubmit} className="pb" style={{ display: "grid", gap: "16px", padding: "20px" }}>
+            <div style={{ display: "grid", gap: "14px", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
+              <div className="field">
+                <label className="lbl">Job title <span style={{ color: "var(--red)" }}>*</span></label>
                 <input
                   type="text"
-                  className="field"
+                  className="field-input"
                   value={form.title}
                   onChange={(e) => handleChange("title", e.target.value)}
                   required
+                  placeholder="e.g., Senior Software Engineer"
                 />
               </div>
-              <div>
+              <div className="field">
                 <label className="lbl">Location</label>
                 <input
                   type="text"
-                  className="field"
+                  className="field-input"
                   value={form.loc}
                   onChange={(e) => handleChange("loc", e.target.value)}
+                  placeholder="Kampala, Uganda"
                 />
               </div>
-              <div>
+              <div className="field">
                 <label className="lbl">Work mode</label>
                 <select
-                  className="field"
+                  className="field-input"
                   value={form.mode}
                   onChange={(e) => handleChange("mode", e.target.value)}
                 >
@@ -197,10 +204,10 @@ export function EmployerJobs() {
                   <option value="Remote">Remote</option>
                 </select>
               </div>
-              <div>
+              <div className="field">
                 <label className="lbl">Employment type</label>
                 <select
-                  className="field"
+                  className="field-input"
                   value={form.employment_type}
                   onChange={(e) => handleChange("employment_type", e.target.value)}
                 >
@@ -209,21 +216,21 @@ export function EmployerJobs() {
                   <option value="Contract">Contract</option>
                 </select>
               </div>
-              <div>
+              <div className="field">
                 <label className="lbl">Salary</label>
                 <input
                   type="text"
-                  className="field"
+                  className="field-input"
                   value={form.salary}
                   onChange={(e) => handleChange("salary", e.target.value)}
                   placeholder="e.g. $5,000/month or UGX 2,000,000/month"
                 />
               </div>
-              <div>
-                <label className="lbl">Closes on</label>
+              <div className="field">
+                <label className="lbl">Closes on <span style={{ color: "var(--red)" }}>*</span></label>
                 <input
                   type="date"
-                  className="field"
+                  className="field-input"
                   value={form.closes_at}
                   onChange={(e) => handleChange("closes_at", e.target.value)}
                   required
@@ -231,32 +238,43 @@ export function EmployerJobs() {
                 />
               </div>
             </div>
-            <div>
+            <div className="field">
               <label className="lbl">Summary</label>
               <textarea
-                className="field"
+                className="field-input"
                 rows={3}
                 value={form.summary}
                 onChange={(e) => handleChange("summary", e.target.value)}
                 placeholder="Brief description of the role..."
+                style={{ minHeight: "80px" }}
               />
             </div>
-            <div>
+            <div className="field">
               <label className="lbl">Requirements (one per line)</label>
               <textarea
-                className="field"
+                className="field-input"
                 rows={4}
                 value={form.requirements.join("\n")}
                 onChange={(e) => handleChange("requirements", e.target.value.split("\n").map(s => s.trim()).filter(Boolean))}
                 placeholder="Python&#10;React&#10;3+ years experience"
+                style={{ minHeight: "100px" }}
               />
             </div>
-            <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", borderTop: "1px solid var(--rule)", paddingTop: "16px", marginTop: "8px" }}>
               <button type="button" className="btn btn-sm" onClick={() => setShowCreate(false)}>
-                Cancel
+                <Icon name="x" size={13} /> Cancel
               </button>
               <button type="submit" className="btn btn-sm btn-blue" disabled={creating}>
-                {creating ? "Posting..." : "Post job"}
+                {creating ? (
+                  <>
+                    <div className="spinner" style={{ width: "13px", height: "13px", border: "2px solid currentColor", borderRightColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite", marginRight: "8px" }} />
+                    Posting...
+                  </>
+                ) : (
+                  <>
+                    <Icon name="send" size={13} /> Post job
+                  </>
+                )}
               </button>
             </div>
           </form>
@@ -265,41 +283,81 @@ export function EmployerJobs() {
 
       <div className="panel">
         <div className="pb" style={{ padding: 0 }}>
-          <table className="dtable">
-            <thead>
-              <tr>
-                <th>Role</th>
-                <th>Location</th>
-                <th>Type</th>
-                <th>Pay</th>
-                <th>Closes</th>
-                <th>Status</th>
-                <th>Applicants</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={7}>Loading...</td></tr>
-              ) : jobs.length === 0 ? (
-                <tr><td colSpan={7}>No jobs posted yet. Click "Post a job" to create one.</td></tr>
-              ) : jobs.map((j) => (
-                <tr key={j.id}>
-                  <td className="who">
-                    <b>{j.title}</b>
-                    <span>{j.employmentType}</span>
-                  </td>
-                  <td>{j.loc}</td>
-                  <td>{j.mode}</td>
-                  <td className="num">{j.salary}</td>
-                  <td className="num">{j.closesAt}</td>
-                  <td><StatusBadge status={j.status} /></td>
-                  <td className="num">{j.applicants || 0}</td>
+          <div style={{ overflowX: "auto" }}>
+            <table className="dtable">
+              <thead>
+                <tr>
+                  <th>Role</th>
+                  <th>Location</th>
+                  <th>Type</th>
+                  <th>Pay</th>
+                  <th>Closes</th>
+                  <th>Status</th>
+                  <th>Applicants</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={7}>Loading...</td></tr>
+                ) : jobs.length === 0 ? (
+                  <tr><td colSpan={7} style={{ textAlign: "center", padding: "40px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", color: "var(--muted)" }}>
+                      <span style={{ opacity: 0.3, display: "block" }}>
+                        <Icon name="brief" size={48} />
+                      </span>
+                      <span>No jobs posted yet</span>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-blue"
+                        onClick={() => setShowCreate(true)}
+                      >
+                        <Icon name="plus" size={13} /> Post your first job
+                      </button>
+                    </div>
+                  </td></tr>
+                ) : jobs.map((j) => (
+                  <tr key={j.id}>
+                    <td className="who">
+                      <b>{j.title}</b>
+                      <span>{j.employmentType}</span>
+                    </td>
+                    <td>{j.loc}</td>
+                    <td>{j.mode}</td>
+                    <td className="num">{j.salary}</td>
+                    <td className="num">{j.closesAt}</td>
+                    <td><StatusBadge status={j.status} /></td>
+                    <td className="num">{j.applicants || 0}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
+
+      <style jsx>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        .field-input {
+          border: 1px solid var(--rule-2);
+          border-radius: var(--r-sm);
+          background: var(--white);
+          height: 40px;
+          padding: 0 12px;
+          font-size: 13px;
+          outline: 0;
+          width: 100%;
+        }
+        .field-input:focus {
+          border-color: var(--blue);
+        }
+        .field textarea.field-input {
+          height: 84px;
+          padding: 10px 12px;
+          resize: vertical;
+        }
+      `}</style>
     </>
   );
 }

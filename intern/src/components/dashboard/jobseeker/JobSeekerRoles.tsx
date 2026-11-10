@@ -10,6 +10,7 @@ import {
   JobApplicationInput,
 } from "../../../lib/api";
 import { Job } from "../../../types";
+import { Icon } from "../../icons/Icons";
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
@@ -19,17 +20,15 @@ function StatusBadge({ status }: { status: string }) {
     Rejected: "red",
     Withdrawn: "ink",
   };
-  return (
-    <span
-      className="tg"
-      style={{
-        background: `var(--${colors[status] || "ink"}-1)`,
-        color: `var(--${colors[status] || "ink"})`,
-      }}
-    >
-      {status}
-    </span>
-  );
+  const color = colors[status] || "ink";
+  const classMap: Record<string, string> = {
+    blue: "tg blue",
+    amber: "tg gold",
+    green: "tg green",
+    red: "tg red",
+    ink: "tg dark",
+  };
+  return <span className={classMap[color] || "tg"}>{status}</span>;
 }
 
 function FileUpload({ label, accept, onChange, maxSizeMB = 5 }: { label: string; accept: string; onChange: (file: File | null) => void; maxSizeMB?: number }) {
@@ -51,39 +50,112 @@ function FileUpload({ label, accept, onChange, maxSizeMB = 5 }: { label: string;
     }
   };
 
+  const clearFile = () => {
+    setFileName("");
+    onChange(null);
+  };
+
   return (
-    <div>
+    <div className="field">
       <label className="lbl">{label}</label>
       <input
         type="file"
         accept={accept}
         onChange={handleFileChange}
-        className="field"
-        style={{ display: "none" }}
         id={`file-${label.replace(/\s+/g, "-").toLowerCase()}`}
+        className="file-input"
+        style={{ display: "none" }}
       />
       <button
         type="button"
-        className="btn btn-sm"
+        className={`btn btn-sm ${fileName ? "btn-blue" : ""}`}
         onClick={() => document.getElementById(`file-${label.replace(/\s+/g, "-").toLowerCase()}`)?.click()}
       >
-        {fileName ? `📄 ${fileName}` : "Choose file"}
+        {fileName ? (
+          <>
+            <Icon name="doc" size={13} /> {fileName}
+          </>
+        ) : (
+          <>
+            <Icon name="upload" size={13} /> Choose file
+          </>
+        )}
       </button>
       {fileName && (
         <button
           type="button"
-          className="btn btn-sm"
-          onClick={() => { setFileName(""); onChange(null); }}
+          className="btn btn-sm btn-ghost"
+          onClick={clearFile}
           style={{ marginLeft: "8px" }}
         >
-          Remove
+          <Icon name="trash" size={13} /> Remove
         </button>
       )}
-      {error && <span className="error" style={{ fontSize: "12px", marginTop: "4px", display: "block" }}>{error}</span>}
-      <span className="hint" style={{ fontSize: "11px", color: "var(--ink-2)" }}>
+      {error && <span className="error" style={{ fontSize: "11px", marginTop: "4px", display: "block", color: "var(--red)" }}>{error}</span>}
+      <span className="hint" style={{ fontSize: "10.5px", color: "var(--muted)", marginTop: "4px", display: "block" }}>
         PDF only, max {maxSizeMB}MB
       </span>
     </div>
+  );
+}
+
+function SectionTitle({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <fieldset style={{ border: "1px solid var(--rule)", borderRadius: "var(--r-md)", padding: "16px", marginTop: "16px" }}>
+      <legend style={{ fontWeight: 600, fontSize: "12px", marginBottom: "12px", padding: "0 8px" }}>{title}</legend>
+      <div style={{ display: "grid", gap: "12px" }}>{children}</div>
+    </fieldset>
+  );
+}
+
+function ReferenceFieldset({ index, form, handleChange }: { index: 1 | 2; form: JobApplicationInput; handleChange: (key: string, value: string) => void }) {
+  const ref = index === 1 ? "reference_1" : "reference_2";
+  return (
+    <fieldset style={{ border: "1px solid var(--rule)", borderRadius: "var(--r-md)", padding: "16px", background: "var(--white)" }}>
+      <legend style={{ fontWeight: 600, fontSize: "11px", marginBottom: "10px", padding: "0 8px" }}>Reference {index}</legend>
+      <div style={{ display: "grid", gap: "10px" }}>
+        <div className="field">
+          <label className="lbl">Full Name</label>
+          <input
+            type="text"
+            className="field-input"
+            placeholder="Full Name"
+            value={form[`${ref}_name` as keyof JobApplicationInput] as string}
+            onChange={(e) => handleChange(`${ref}_name`, e.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label className="lbl">Email</label>
+          <input
+            type="email"
+            className="field-input"
+            placeholder="email@example.com"
+            value={form[`${ref}_email` as keyof JobApplicationInput] as string}
+            onChange={(e) => handleChange(`${ref}_email`, e.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label className="lbl">Phone</label>
+          <input
+            type="tel"
+            className="field-input"
+            placeholder="+256 7XX XXX XXX"
+            value={form[`${ref}_phone` as keyof JobApplicationInput] as string}
+            onChange={(e) => handleChange(`${ref}_phone`, e.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label className="lbl">Relationship</label>
+          <input
+            type="text"
+            className="field-input"
+            placeholder="e.g., Former Supervisor, Professor"
+            value={form[`${ref}_relationship` as keyof JobApplicationInput] as string}
+            onChange={(e) => handleChange(`${ref}_relationship`, e.target.value)}
+          />
+        </div>
+      </div>
+    </fieldset>
   );
 }
 
@@ -227,7 +299,7 @@ export function JobSeekerRoles() {
                         disabled={applying}
                         onClick={() => openApply(r.id)}
                       >
-                        Apply
+                        <Icon name="send" size={13} /> Apply
                       </button>
                     ) : (
                       <StatusBadge status={r.status} />
@@ -241,31 +313,43 @@ export function JobSeekerRoles() {
       </div>
 
       {applyingTo && (
-        <div className="panel" style={{ marginTop: "14px" }}>
-          <div className="ph"><span className="lbl">Apply to role</span></div>
-          <div className="pb" style={{ display: "grid", gap: "16px" }}>
+        <div className="panel" style={{ marginTop: "16px" }}>
+          <div className="ph">
+            <span className="lbl">Application Form</span>
+            <button
+              type="button"
+              className="btn btn-sm btn-ghost"
+              onClick={() => setApplyingTo(null)}
+              style={{ padding: 0 }}
+            >
+              <Icon name="x" size={15} />
+            </button>
+          </div>
+          <div className="pb" style={{ display: "grid", gap: "20px", padding: "20px" }}>
             {/* Personal Statement */}
-            <div>
-              <label className="lbl">Personal Statement *</label>
+            <div className="field">
+              <label className="lbl">Personal Statement <span style={{ color: "var(--red)" }}>*</span></label>
               <textarea
-                className="field"
-                rows={4}
+                className="field-input"
+                rows={5}
                 value={form.statement}
                 onChange={(e) => handleChange("statement", e.target.value)}
-                placeholder="Tell us why you're a great fit for this role..."
+                placeholder="Tell us why you're a great fit for this role... Highlight your relevant experience, skills, and motivation."
                 required
+                style={{ minHeight: "120px" }}
               />
             </div>
 
             {/* Cover Letter */}
-            <div>
+            <div className="field">
               <label className="lbl">Cover Letter</label>
               <textarea
-                className="field"
+                className="field-input"
                 rows={4}
                 value={form.cover_letter}
                 onChange={(e) => handleChange("cover_letter", e.target.value)}
-                placeholder="Optional: Upload or paste your cover letter..."
+                placeholder="Optional: Paste or write your cover letter here..."
+                style={{ minHeight: "100px" }}
               />
             </div>
 
@@ -276,8 +360,6 @@ export function JobSeekerRoles() {
               onChange={(file) => {
                 setCvFile(file);
                 if (file) {
-                  // In a real app, you'd upload to a storage service and get a URL
-                  // For now, we'll store the file name as a placeholder
                   setForm((prev) => ({ ...prev, cv_url: file.name }));
                 } else {
                   setForm((prev) => ({ ...prev, cv_url: "" }));
@@ -287,31 +369,31 @@ export function JobSeekerRoles() {
 
             {/* Links Section */}
             <div style={{ display: "grid", gap: "12px", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
-              <div>
+              <div className="field">
                 <label className="lbl">GitHub Profile</label>
                 <input
                   type="url"
-                  className="field"
+                  className="field-input"
                   value={form.github_url}
                   onChange={(e) => handleChange("github_url", e.target.value)}
                   placeholder="https://github.com/username"
                 />
               </div>
-              <div>
+              <div className="field">
                 <label className="lbl">LinkedIn Profile</label>
                 <input
                   type="url"
-                  className="field"
+                  className="field-input"
                   value={form.linkedin_url}
                   onChange={(e) => handleChange("linkedin_url", e.target.value)}
                   placeholder="https://linkedin.com/in/username"
                 />
               </div>
-              <div>
+              <div className="field">
                 <label className="lbl">Portfolio / Personal Website</label>
                 <input
                   type="url"
-                  className="field"
+                  className="field-input"
                   value={form.portfolio_url}
                   onChange={(e) => handleChange("portfolio_url", e.target.value)}
                   placeholder="https://your-portfolio.com"
@@ -320,97 +402,27 @@ export function JobSeekerRoles() {
             </div>
 
             {/* Academic Papers */}
-            <div>
+            <div className="field">
               <label className="lbl">Academic Papers / Publications (one URL per line)</label>
               <textarea
-                className="field"
+                className="field-input"
                 rows={3}
                 value={form.academic_papers.join("\n")}
                 onChange={(e) => handleArrayChange("academic_papers", e.target.value.split("\n").map(s => s.trim()).filter(Boolean))}
                 placeholder="https://example.com/paper1.pdf&#10;https://example.com/paper2.pdf"
+                style={{ minHeight: "80px" }}
               />
             </div>
 
             {/* References */}
-            <div style={{ borderTop: "1px solid var(--border)", paddingTop: "16px" }}>
-              <h4 style={{ marginBottom: "12px" }}>Professional References</h4>
-              <div style={{ display: "grid", gap: "12px", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
-                {/* Reference 1 */}
-                <fieldset style={{ border: "1px solid var(--border)", borderRadius: "8px", padding: "12px" }}>
-                  <legend style={{ fontWeight: 600, marginBottom: "8px" }}>Reference 1</legend>
-                  <div style={{ display: "grid", gap: "8px" }}>
-                    <input
-                      type="text"
-                      className="field"
-                      placeholder="Full Name"
-                      value={form.reference_1_name}
-                      onChange={(e) => handleChange("reference_1_name", e.target.value)}
-                    />
-                    <input
-                      type="email"
-                      className="field"
-                      placeholder="Email"
-                      value={form.reference_1_email}
-                      onChange={(e) => handleChange("reference_1_email", e.target.value)}
-                    />
-                    <input
-                      type="tel"
-                      className="field"
-                      placeholder="Phone"
-                      value={form.reference_1_phone}
-                      onChange={(e) => handleChange("reference_1_phone", e.target.value)}
-                    />
-                    <input
-                      type="text"
-                      className="field"
-                      placeholder="Relationship (e.g., Former Supervisor, Professor)"
-                      value={form.reference_1_relationship}
-                      onChange={(e) => handleChange("reference_1_relationship", e.target.value)}
-                    />
-                  </div>
-                </fieldset>
-
-                {/* Reference 2 */}
-                <fieldset style={{ border: "1px solid var(--border)", borderRadius: "8px", padding: "12px" }}>
-                  <legend style={{ fontWeight: 600, marginBottom: "8px" }}>Reference 2</legend>
-                  <div style={{ display: "grid", gap: "8px" }}>
-                    <input
-                      type="text"
-                      className="field"
-                      placeholder="Full Name"
-                      value={form.reference_2_name}
-                      onChange={(e) => handleChange("reference_2_name", e.target.value)}
-                    />
-                    <input
-                      type="email"
-                      className="field"
-                      placeholder="Email"
-                      value={form.reference_2_email}
-                      onChange={(e) => handleChange("reference_2_email", e.target.value)}
-                    />
-                    <input
-                      type="tel"
-                      className="field"
-                      placeholder="Phone"
-                      value={form.reference_2_phone}
-                      onChange={(e) => handleChange("reference_2_phone", e.target.value)}
-                    />
-                    <input
-                      type="text"
-                      className="field"
-                      placeholder="Relationship (e.g., Former Supervisor, Professor)"
-                      value={form.reference_2_relationship}
-                      onChange={(e) => handleChange("reference_2_relationship", e.target.value)}
-                    />
-                  </div>
-                </fieldset>
-              </div>
-            </div>
+            <SectionTitle title="Professional References">
+              <ReferenceFieldset index={1} form={form} handleChange={handleChange} />
+              <ReferenceFieldset index={2} form={form} handleChange={handleChange} />
+            </SectionTitle>
 
             {/* Additional Documents */}
-            <div style={{ borderTop: "1px solid var(--border)", paddingTop: "16px" }}>
-              <h4 style={{ marginBottom: "12px" }}>Additional Documents</h4>
-              <p className="hint" style={{ fontSize: "12px", color: "var(--ink-2)", marginBottom: "12px" }}>
+            <SectionTitle title="Additional Documents">
+              <p style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "12px" }}>
                 Upload reference letters, transcripts, certificates, etc. (PDF, max 5MB each)
               </p>
               <FileUpload
@@ -440,16 +452,16 @@ export function JobSeekerRoles() {
                   }
                 }}
               />
-            </div>
+            </SectionTitle>
 
             {/* Actions */}
-            <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end", borderTop: "1px solid var(--border)", paddingTop: "16px" }}>
+            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", borderTop: "1px solid var(--rule)", paddingTop: "16px", marginTop: "8px" }}>
               <button
                 type="button"
                 className="btn btn-sm"
                 onClick={() => setApplyingTo(null)}
               >
-                Cancel
+                <Icon name="x" size={13} /> Cancel
               </button>
               <button
                 type="button"
@@ -457,12 +469,56 @@ export function JobSeekerRoles() {
                 disabled={applying || !form.statement.trim()}
                 onClick={submitApply}
               >
-                {applying ? "Submitting..." : "Submit Application"}
+                {applying ? (
+                  <>
+                    <div className="spinner" style={{ width: "13px", height: "13px", border: "2px solid currentColor", borderRightColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite", marginRight: "8px" }} />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    <Icon name="send" size={13} /> Submit Application
+                  </>
+                )}
               </button>
             </div>
           </div>
         </div>
       )}
+
+      <style jsx>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        .field-input {
+          border: 1px solid var(--rule-2);
+          border-radius: var(--r-sm);
+          background: var(--white);
+          height: 40px;
+          padding: 0 12px;
+          font-size: 13px;
+          outline: 0;
+          width: 100%;
+        }
+        .field-input:focus {
+          border-color: var(--blue);
+        }
+        .field textarea.field-input {
+          height: 84px;
+          padding: 10px 12px;
+          resize: vertical;
+        }
+        .file-input {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          padding: 0;
+          margin: -1px;
+          overflow: hidden;
+          clip: rect(0, 0, 0, 0);
+          white-space: nowrap;
+          border: 0;
+        }
+      `}</style>
     </>
   );
 }

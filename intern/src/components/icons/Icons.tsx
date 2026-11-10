@@ -6,6 +6,14 @@ export type IconName =
   | "arrow"
   | "search"
   | "upload"
+  | "download"
+  | "filter"
+  | "send"
+  | "trash"
+  | "eye"
+  | "chevron-left"
+  | "chevron-right"
+  | "file-text"
   | "bldg"
   | "gov"
   | "uni"
@@ -42,6 +50,34 @@ export function SvgDefs() {
         <symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
           <path d="M12 16V4M7 9l5-5 5 5" />
           <path d="M4 17v3h16v-3" />
+        </symbol>
+        <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
+          <path d="M12 8v12M7 13l5 5 5-5" />
+          <path d="M4 20v-3h16v3" />
+        </symbol>
+        <symbol id="i-filter" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
+          <path d="M3 5h18M7 12h10M11 19h2" />
+        </symbol>
+        <symbol id="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
+          <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+        </symbol>
+        <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
+          <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+        </symbol>
+        <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+          <circle cx="12" cy="12" r="3" />
+        </symbol>
+        <symbol id="i-chevron-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M15 18l-6-6 6-6" strokeLinecap="square" />
+        </symbol>
+        <symbol id="i-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M9 18l6-6-6-6" strokeLinecap="square" />
+        </symbol>
+        <symbol id="i-file-text" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <path d="M14 2v6h6" />
+          <path d="M16 13h-6M16 17h-6M10 9h6" />
         </symbol>
         <symbol id="i-bldg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
           <path d="M4 21V6l8-3v18" />
