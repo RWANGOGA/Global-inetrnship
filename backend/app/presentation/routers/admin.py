@@ -42,6 +42,7 @@ from app.presentation.schemas import (
     StudentDocumentRead,
     StudentDocumentVerifyRequest,
     StudentDocumentVerifyResponse,
+    PlacementListResponse,
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -369,6 +370,50 @@ def list_testimonials(
         else:
             documents = service.list_public_testimonials(limit=limit)
     return [StudentDocumentRead.model_validate(d, from_attributes=True) for d in documents[:limit]]
+
+
+# ---------------- Placement Management ------------------------------------
+
+@router.get("/placements", response_model=PlacementListResponse)
+def list_placements(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    review_status: str = Query(None, description="Filter by review status: pending_review, approved, rejected"),
+    status: str = Query(None, description="Filter by status: Open, Closing, Closed"),
+    org_id: str = Query(None, description="Filter by organization ID"),
+    search: str = Query(None, description="Search by title"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+) -> PlacementListResponse:
+    _require_admin(current_user)
+
+    query = session.query(PlacementORM)
+
+    if review_status:
+        query = query.filter(PlacementORM.review_status == review_status)
+
+    if status:
+        query = query.filter(PlacementORM.status == status)
+
+    if org_id:
+        query = query.filter(PlacementORM.org_id == org_id)
+
+    if search:
+        query = query.filter(PlacementORM.title.ilike(f"%{search}%"))
+
+    total = query.count()
+
+    offset = (page - 1) * page_size
+    rows = query.order_by(PlacementORM.published_at.desc()).offset(offset).limit(page_size).all()
+
+    repo = SqlAlchemyPlacementRepository(session)
+    items = []
+    for row in rows:
+        placement = repo.get(row.id)
+        if placement:
+            items.append(placement)
+
+    return PlacementListResponse(total=total, items=items)
 
 
 # ---------------- Organization Management ------------------------------------

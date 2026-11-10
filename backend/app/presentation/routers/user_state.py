@@ -9,7 +9,7 @@ Grouped in one module because they share the same shape: a thin HTTP handler
 that resolves the actor, calls an application service, and maps a domain error
 to an HTTP status.
 """
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 from typing import Optional
 from sqlalchemy.orm import Session
@@ -322,7 +322,8 @@ def list_documents(
 @router.put("/documents/{document_type}", response_model=StudentDocumentRead)
 async def upload_document(
     document_type: str,
-    file: UploadFile = File(...),
+    file: UploadFile = File(None),
+    testimonial_text: str = Form(None),
     service: StudentDocumentService = Depends(get_student_document_service),
     current_user: User = Depends(get_current_user),
 ) -> StudentDocumentRead:
@@ -330,30 +331,57 @@ async def upload_document(
     if document_type == "testimonial":
         if current_user.role not in ("student", "employer", "employee", "admin"):
             raise HTTPException(status_code=403, detail="Only students, employers, employees, and admins can submit testimonials")
+        # For testimonials, accept either file or text content
+        if testimonial_text:
+            content = testimonial_text.encode('utf-8')
+            content_type = "text/plain"
+            filename = "testimonial.txt"
+        elif file:
+            if file.content_type not in (
+                "application/pdf",
+                "image/jpeg",
+                "image/png",
+                "application/msword",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "text/plain",
+            ):
+                raise HTTPException(status_code=415, detail="Document must be PDF, JPG, PNG, Word, or plain text")
+            content = await file.read()
+            if not content:
+                raise HTTPException(status_code=400, detail="Document file is empty")
+            content_type = file.content_type
+            filename = file.filename or "testimonial.txt"
+        else:
+            raise HTTPException(status_code=400, detail="Testimonial content is required (file or text)")
     else:
         if current_user.role != "student":
             raise HTTPException(status_code=403, detail="Only students have documents")
+        if not file:
+            raise HTTPException(status_code=400, detail="File is required")
+        if file.content_type not in (
+            "application/pdf",
+            "image/jpeg",
+            "image/png",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ):
+            raise HTTPException(status_code=415, detail="Document must be PDF, JPG, PNG, or Word")
+        content = await file.read()
+        if not content:
+            raise HTTPException(status_code=400, detail="Document file is empty")
+        content_type = file.content_type
+        filename = file.filename or document_type
+    
     if document_type not in StudentDocumentService.ALLOWED_TYPES:
         raise HTTPException(status_code=400, detail="Unsupported document type")
-    if file.content_type not in (
-        "application/pdf",
-        "image/jpeg",
-        "image/png",
-        "application/msword",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    ):
-        raise HTTPException(status_code=415, detail="Document must be PDF, JPG, PNG, or Word")
-    content = await file.read()
-    if not content:
-        raise HTTPException(status_code=400, detail="Document file is empty")
     if len(content) > 10 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="Document must be 10 MB or smaller")
     try:
         document = service.save(
             user_id=current_user.id,
             document_type=document_type,
-            filename=file.filename or document_type,
-            content_type=file.content_type,
+            filename=filename,
+            content_type=content_type,
             content=content,
             author_role=current_user.role,
         )

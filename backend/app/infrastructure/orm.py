@@ -26,6 +26,7 @@ class OrganisationORM(Base):
     billing_email: Mapped[str | None] = mapped_column(String, nullable=True)
     tax_id: Mapped[str | None] = mapped_column(String, nullable=True)
     billing_address: Mapped[dict] = mapped_column(JSON, default=dict)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
 class PlacementORM(Base):
@@ -262,3 +263,4 @@ class UserORM(Base):
     # Employer accounts act on their organisation; derived from the token in
     # the user-state endpoints. Nullable: students/jobseekers/admins have none.
     org_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
