@@ -918,14 +918,25 @@ Complete and pushed:
 - **All dashboard hardcoded data replaced with live API** (admin, employer, jobseeker, student)
 - **Admin user provisioned** in seed data
 - **Login page polished** — no hardcoded demo credentials
+- **Rich application workflow** (CV, cover letter, GitHub/LinkedIn, references, academic papers, documents) for both internships and jobs
+- **CSV exports** for admin and employer dashboards (placements, jobs, applicants)
+- **Saved Jobs (bookmarks)** feature - `GET/POST /api/jobs/saved`, `POST /api/jobs/saved/{id}/toggle`
+- **JobSeekerRoles** polished UI with SaveButton component, saved jobs integration
+- **JobSeekerApps** new "Saved" tab with full job details display
+- **EmployerPlacements** completely redesigned with professional form, section cards, dynamic fields
+- **StudentDocuments** professional UI with progress bar, document cards, upload zones
+- **AdminApplications** unified view of all applications (internships + jobs) with filters, pagination, CSV export
+- **Invoice/Transaction metadata bugs fixed** - repository uses correct field names
+- **All backend tests passing** (105+ tests)
 
 In progress:
 
 - Administrator overview metrics, user/organization management, audit activity, reports
 - University, NGO, government, and company-specific organization dashboards
-- Jobs domain, jobs catalogue, candidate workflows, and employer jobs portal
+- Jobs domain enhancements: Job detail view, Company detail view, Saved Jobs page, Job Alerts, Candidate Profile/CV/Cover Letter management, Interview/Shortlist workflows
 - Notifications, alerts, learning, and career assistance persistence
 - Production hardening: restricted CORS, formal migrations, observability, deployment verification, accessibility/mobile review
+- Feature 12: Skills-to-Opportunity Matching Platform (Skills Quiz, Gigs/Entry-level, Advisor guidance, Placement-fee model, Student Premium tier)
 
 ### Authentication entry-point contract
 
@@ -988,23 +999,30 @@ for authentication, authorization, Neon access, and all protected data.
 
 ### Jobs Portal status
 
-The Jobs Portal is **not complete**. The current implementation contains the
-portal entry point, role-aware job-seeker dashboard shell, and presentation
-demo screens only. It does not yet have live Jobs entities, database tables,
-organization job posting, job approval, live search, saved jobs, applications,
-alerts, CV/cover-letter persistence, interviews, or shortlist workflows.
+The Jobs Portal core is **complete and live**. The implementation includes:
 
-The correct Jobs delivery order is:
+**Completed:**
+- Job domain entities, ORM tables, migrations, repositories, and organization/admin authorization
+- Organization job drafts, requirements, publication dates, closing dates, and admin approval
+- Live Jobs catalogue (`GET /api/jobs`, `GET /api/jobs/{id}`, search/location/mode filters)
+- Job detail view with full job information
+- Company/Employer detail view
+- Job-seeker profile, saved jobs (bookmarks), applications, and status tracking
+- Employer applicants view with accept/reject/review actions
+- Employer job posting and management
+- Rich application workflow (CV, cover letter, GitHub/LinkedIn, references, academic papers, documents)
+- CSV exports for admin and employer dashboards (placements, jobs, applicants)
+- Saved Jobs (bookmarks) feature with toggle UI
+- JobSeekerRoles polished UI with SaveButton component
+- JobSeekerApps with "Saved" tab showing full job details
+- All backend tests passing (105+ tests)
 
-1. Add separate Job domain entities, ORM tables, migrations, repositories, and
-   organization/admin authorization.
-2. Add organization job drafts, requirements, publication dates, closing dates,
-   and admin approval using the same lifecycle proven for internships.
-3. Add live Jobs catalogue and job detail pages.
-4. Add job-seeker profile, saved jobs, applications, and status tracking.
-5. Add employer applicants, shortlist, interviews, and company profile.
-6. Remove the remaining job dashboard demo data and verify the full
-   sign-in-to-dashboard flow.
+**In Progress / Remaining:**
+- Job Alerts (email notifications for new matching jobs)
+- Candidate Profile/CV/Cover Letter management UI
+- Interview/Shortlist workflows for employers
+- Notifications and alerts system
+- Learning and career assistance persistence
 
 Jobs Portal progress:
 
@@ -1013,8 +1031,9 @@ Jobs Portal progress:
   `GET /api/jobs`, `GET /api/jobs/{id}`, search/location/mode filters, and
   authenticated job-seeker dashboard loading with explicit loading, empty, and
   error states.
-- Job applications and employer job posting are intentionally not marked
-  complete until their own backend and frontend slices are delivered.
+- Job applications and employer job posting are complete with rich application data.
+- Saved jobs/bookmarks feature complete with API and UI.
+- Employer applicant management with accept/reject/review complete.
 
 Learner dashboard progress:
 
