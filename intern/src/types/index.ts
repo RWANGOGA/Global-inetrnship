@@ -70,6 +70,15 @@ export interface Job {
   publishedAt?: string;
   reviewReason?: string;
   applicants?: number;
+  org?: {
+    id: string;
+    name: string;
+    type: string;
+    sector: string;
+    loc: string;
+    seal: string;
+    about: string;
+  };
 }
 
 export interface JobPostingInput {

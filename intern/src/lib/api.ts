@@ -263,6 +263,11 @@ export async function fetchJobs(): Promise<Job[]> {
   return data.items.map(mapJob);
 }
 
+export async function fetchJobDetail(jobId: string): Promise<Job> {
+  const data = await getJson<ApiJob>(`/jobs/${jobId}`);
+  return mapJob(data);
+}
+
 export interface JobPostingInput {
   title: string;
   loc: string;
