@@ -254,6 +254,8 @@ export interface ApplicationDto {
   reference_2_relationship: string;
   // Document IDs
   document_ids: string[];
+  // Shortlist flag
+  shortlisted: boolean;
 }
 
 export interface JobApplicationDto {
@@ -282,6 +284,8 @@ export interface JobApplicationDto {
   reference_2_relationship: string;
   // Document IDs
   document_ids: string[];
+  // Shortlist flag
+  shortlisted: boolean;
 }
 
 export interface ApplicationsResponse {

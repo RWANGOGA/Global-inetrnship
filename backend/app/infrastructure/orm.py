@@ -133,6 +133,8 @@ class ApplicationORM(Base):
     reference_2_relationship: Mapped[str] = mapped_column(String, default="")
     # Document IDs
     document_ids: Mapped[list] = mapped_column(JSON, default=list)
+    # Shortlist flag
+    shortlisted: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class JobApplicationORM(Base):
@@ -163,6 +165,8 @@ class JobApplicationORM(Base):
     reference_2_relationship: Mapped[str] = mapped_column(String, default="")
     # Document IDs
     document_ids: Mapped[list] = mapped_column(JSON, default=list)
+    # Shortlist flag
+    shortlisted: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class StudentProfileORM(Base):

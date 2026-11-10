@@ -317,6 +317,7 @@ class SqlAlchemyApplicationRepository(ApplicationRepository):
             reference_2_phone=row.reference_2_phone or "",
             reference_2_relationship=row.reference_2_relationship or "",
             document_ids=row.document_ids or [],
+            shortlisted=row.shortlisted,
         )
 
     def add(self, application: Application) -> Application:
@@ -344,6 +345,7 @@ class SqlAlchemyApplicationRepository(ApplicationRepository):
                 reference_2_phone=application.reference_2_phone,
                 reference_2_relationship=application.reference_2_relationship,
                 document_ids=application.document_ids,
+                shortlisted=application.shortlisted,
             )
         )
         self._session.commit()
@@ -421,6 +423,7 @@ class SqlAlchemyJobApplicationRepository(JobApplicationRepository):
             reference_2_phone=row.reference_2_phone or "",
             reference_2_relationship=row.reference_2_relationship or "",
             document_ids=row.document_ids or [],
+            shortlisted=row.shortlisted,
         )
 
     def add(self, application: JobApplication) -> JobApplication:
@@ -448,6 +451,7 @@ class SqlAlchemyJobApplicationRepository(JobApplicationRepository):
                 reference_2_phone=application.reference_2_phone,
                 reference_2_relationship=application.reference_2_relationship,
                 document_ids=application.document_ids,
+                shortlisted=application.shortlisted,
             )
         )
         self._session.commit()

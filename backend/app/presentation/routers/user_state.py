@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Upload
 from fastapi.responses import Response
 from typing import Optional
 from sqlalchemy.orm import Session
+from datetime import datetime
 
 from app.application.services import (
     ApplicationService,
@@ -25,7 +26,7 @@ from app.application.services import (
 from app.core.errors import PlacementNotFound, PlacementNotOpen
 from app.domain.entities import User
 from app.infrastructure.db import get_session
-from app.infrastructure.orm import ApplicationPackORM
+from app.infrastructure.orm import ApplicationORM, ApplicationPackORM, PlacementORM
 from app.presentation.deps import (
     get_application_service,
     get_billing_service,
@@ -209,6 +210,34 @@ def withdraw_application(
     if application.status in ("Accepted", "Rejected"):
         raise HTTPException(status_code=409, detail="This application can no longer be withdrawn")
     return ApplicationRead.model_validate(application)
+
+
+@router.patch("/applications/{application_id}/shortlist", response_model=ApplicationRead)
+def toggle_application_shortlist(
+    application_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> ApplicationRead:
+    """Toggle shortlist status for an internship application (employer only)."""
+    if current_user.role not in ("employer", "admin"):
+        raise HTTPException(status_code=403, detail="Only employers can shortlist applications")
+
+    app_orm = session.query(ApplicationORM).filter_by(id=application_id).first()
+    if app_orm is None:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    # Verify the employer owns this placement
+    if current_user.role == "employer":
+        placement = session.query(PlacementORM).filter_by(id=app_orm.placement_id).first()
+        if placement is None or placement.org_id != current_user.org_id:
+            raise HTTPException(status_code=403, detail="Not authorized to shortlist this application")
+
+    # Toggle shortlisted status
+    app_orm.shortlisted = not app_orm.shortlisted
+    app_orm.updated_at = datetime.utcnow().isoformat()
+    session.commit()
+
+    return ApplicationRead.model_validate(app_orm)
 
 
 @router.get(

@@ -200,6 +200,7 @@ class ApplicationService:
             reference_2_phone=reference_2_phone,
             reference_2_relationship=reference_2_relationship,
             document_ids=document_ids or [],
+            shortlisted=False,
             created_at=now,
             updated_at=now,
         )

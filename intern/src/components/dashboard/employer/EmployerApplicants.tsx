@@ -12,6 +12,8 @@ import {
   isApiEnabled,
   exportOrgPlacementApplicantsCsv,
   exportOrgJobApplicantsCsv,
+  toggleJobApplicationShortlist,
+  toggleInternshipApplicationShortlist,
 } from "../../../lib/api";
 import { Placement, ApplicationDto, Job, JobApplicationDto } from "../../../types";
 import { Icon } from "../../icons/Icons";
@@ -52,7 +54,7 @@ export function EmployerApplicants() {
   const [jobApplicants, setJobApplicants] = useState<Record<string, JobApplicationDto[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState<"internships" | "jobs">("internships");
+  const [activeTab, setActiveTab] = useState<"internships" | "jobs" | "shortlisted">("internships");
   const [selectedId, setSelectedId] = useState<string>("");
   const [updating, setUpdating] = useState<string | null>(null);
 
@@ -127,6 +129,28 @@ export function EmployerApplicants() {
     }
   }
 
+  async function handleShortlistInternship(applicationId: string, shortlist: boolean) {
+    try {
+      await toggleInternshipApplicationShortlist(applicationId);
+      // Reload the current placement's applicants
+      if (selectedId) loadInternshipApplicants(selectedId);
+      toast(shortlist ? "Applicant shortlisted" : "Applicant removed from shortlist");
+    } catch {
+      toast("Failed to update shortlist");
+    }
+  }
+
+  async function handleShortlistJob(applicationId: string, shortlist: boolean) {
+    try {
+      await toggleJobApplicationShortlist(applicationId);
+      // Reload the current job's applicants
+      if (selectedId) loadJobApplicants(selectedId);
+      toast(shortlist ? "Applicant shortlisted" : "Applicant removed from shortlist");
+    } catch {
+      toast("Failed to update shortlist");
+    }
+  }
+
   function handleSelectionChange(id: string) {
     setSelectedId(id);
     if (activeTab === "internships") {
@@ -150,17 +174,22 @@ export function EmployerApplicants() {
     }
   }
 
-  const currentItems = activeTab === "internships" ? placements : jobs;
+  const currentItems = activeTab === "internships" ? placements : activeTab === "jobs" ? jobs : [];
   const currentApplicants = activeTab === "internships"
     ? internshipApplicants[selectedId] || []
-    : jobApplicants[selectedId] || [];
+    : activeTab === "jobs"
+    ? jobApplicants[selectedId] || []
+    : [
+        ...(internshipApplicants[selectedId] || []).filter((a) => a.shortlisted),
+        ...(jobApplicants[selectedId] || []).filter((a) => a.shortlisted),
+      ];
 
   const totalApplicants = Object.values(
     activeTab === "internships" ? internshipApplicants : jobApplicants
   ).flat().length;
-  const shortlisted = Object.values(
+  const shortlistedCount = Object.values(
     activeTab === "internships" ? internshipApplicants : jobApplicants
-  ).flat().filter((a) => a.status === "Accepted").length;
+  ).flat().filter((a) => a.shortlisted).length;
 
   return (
     <>
@@ -169,7 +198,7 @@ export function EmployerApplicants() {
           <h2>Applicants</h2>
           <p>
             {totalApplicants} candidate{totalApplicants === 1 ? "" : "s"} ·{" "}
-            {shortlisted} shortlisted
+            {shortlistedCount} shortlisted
           </p>
         </div>
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
@@ -204,6 +233,13 @@ export function EmployerApplicants() {
             onClick={() => setActiveTab("jobs")}
           >
             <Icon name="brief" size={13} /> Jobs
+          </button>
+          <button
+            type="button"
+            className={`btn btn-sm ${activeTab === "shortlisted" ? "btn-blue" : ""}`}
+            onClick={() => setActiveTab("shortlisted")}
+          >
+            <Icon name="check" size={13} /> Shortlisted ({shortlistedCount})
           </button>
         </div>
       </div>
@@ -324,6 +360,23 @@ export function EmployerApplicants() {
                             onClick={() => console.log("Invite", app.id)}
                           >
                             <Icon name="send" size={12} /> Invite
+                          </button>
+                        )}
+                        {["Submitted", "In Review", "Accepted"].includes(app.status) && (
+                          <button
+                            type="button"
+                            className={`btn btn-sm ${app.shortlisted ? "btn-blue" : ""}`}
+                            disabled={updating === app.id}
+                            onClick={() => {
+                              if (activeTab === "internships") {
+                                handleShortlistInternship(app.id, !app.shortlisted);
+                              } else {
+                                handleShortlistJob(app.id, !app.shortlisted);
+                              }
+                            }}
+                          >
+                            <Icon name={app.shortlisted ? "check" : "plus"} size={12} />
+                            {app.shortlisted ? " Shortlisted" : " Shortlist"}
                           </button>
                         )}
                       </td>

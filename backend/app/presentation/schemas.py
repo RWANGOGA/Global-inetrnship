@@ -119,6 +119,8 @@ class JobApplicationRead(BaseModel):
     reference_2_relationship: str = ""
     # Document IDs
     document_ids: list = []
+    # Shortlist flag
+    shortlisted: bool = False
 
 
 class JobApplicationCreate(BaseModel):
@@ -278,6 +280,8 @@ class ApplicationRead(BaseModel):
     reference_2_relationship: str = ""
     # Document IDs
     document_ids: list = []
+    # Shortlist flag
+    shortlisted: bool = False
 
 
 class ApplyRequest(BaseModel):

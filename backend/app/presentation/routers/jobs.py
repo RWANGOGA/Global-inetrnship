@@ -120,6 +120,7 @@ def apply_to_job(
                 reference_2_phone=payload.reference_2_phone,
                 reference_2_relationship=payload.reference_2_relationship,
                 document_ids=payload.document_ids,
+                shortlisted=False,
                 created_at=now,
                 updated_at=now,
             )
@@ -195,6 +196,33 @@ def update_job_application_status(
         raise HTTPException(status_code=404, detail="Application not found")
 
     return JobApplicationRead.model_validate(updated)
+
+
+@router.patch("/applications/{application_id}/shortlist", response_model=JobApplicationRead)
+def toggle_job_application_shortlist(
+    application_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> JobApplicationRead:
+    """Toggle shortlist status for a job application (employer only)."""
+    if current_user.role != "employer" or not current_user.org_id:
+        raise HTTPException(status_code=403, detail="Only employers can shortlist applications")
+
+    # Verify the application belongs to a job owned by this employer
+    app_orm = session.query(JobApplicationORM).filter_by(id=application_id).first()
+    if app_orm is None:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    job = session.query(JobORM).filter_by(id=app_orm.job_id).first()
+    if job is None or job.org_id != current_user.org_id:
+        raise HTTPException(status_code=403, detail="Not authorized to shortlist this application")
+
+    # Toggle shortlisted status
+    app_orm.shortlisted = not app_orm.shortlisted
+    app_orm.updated_at = datetime.utcnow().isoformat()
+    session.commit()
+
+    return JobApplicationRead.model_validate(app_orm)
 
 
 @router.post("/applications/{application_id}/withdraw", response_model=JobApplicationRead)

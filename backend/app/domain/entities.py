@@ -157,6 +157,8 @@ class Application:
     reference_2_relationship: str = ""
     # Document IDs (referencing StudentDocument)
     document_ids: list = field(default_factory=list)
+    # Shortlist flag
+    shortlisted: bool = False
 
 
 @dataclass(frozen=True)
@@ -188,6 +190,8 @@ class JobApplication:
     reference_2_relationship: str = ""
     # Document IDs (referencing StudentDocument)
     document_ids: list = field(default_factory=list)
+    # Shortlist flag
+    shortlisted: bool = False
 
 
 @dataclass(frozen=True)

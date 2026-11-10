@@ -374,6 +374,16 @@ export async function withdrawJobApplication(applicationId: string): Promise<Job
   return postJson<JobApplicationDto>(`/jobs/applications/${applicationId}/withdraw`, {});
 }
 
+export async function toggleJobApplicationShortlist(applicationId: string): Promise<JobApplicationDto> {
+  return patchJson<JobApplicationDto>(`/jobs/applications/${applicationId}/shortlist`, {});
+}
+
+// ---- Internship Application Shortlist ---------------------------------------
+
+export async function toggleInternshipApplicationShortlist(applicationId: string): Promise<ApplicationDto> {
+  return patchJson<ApplicationDto>(`/applications/${applicationId}/shortlist`, {});
+}
+
 // ---- Saved Jobs -----------------------------------------------------------
 
 export async function fetchSavedJobs(): Promise<string[]> {
