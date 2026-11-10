@@ -1015,13 +1015,14 @@ The Jobs Portal core is **complete and live**. The implementation includes:
 - Saved Jobs (bookmarks) feature with toggle UI
 - JobSeekerRoles polished UI with SaveButton component
 - JobSeekerApps with "Saved" tab showing full job details
-- All backend tests passing (105+ tests)
+- **Employer Shortlist Feature**: Dedicated "Shortlisted" tab in EmployerApplicants, shortlist/unsortlist toggle for both internship and job applications, shortlisted count badge, persistence across refreshes, employer-only authorization
+- All backend tests passing (108+ tests)
 
 **In Progress / Remaining:**
 - Saved Jobs Page - Dedicated page showing saved jobs with details
 - Job Alerts (email notifications for new matching jobs)
 - Candidate Profile/CV/Cover Letter management UI
-- Interview/Shortlist workflows for employers
+- Interview/Shortlist workflows for employers (beyond basic shortlist)
 - Notifications and alerts system
 - Learning and career assistance persistence
 
