@@ -559,7 +559,7 @@ class SqlAlchemyInvoiceRepository(InvoiceRepository):
         row.invoice_number = invoice.invoice_number
         row.description = invoice.description
         row.line_items = invoice.line_items
-        row.invoice_metadata = invoice.metadata
+        row.invoice_metadata = invoice.invoice_metadata
         row.due_date = invoice.due_date
         row.paid_at = invoice.paid_at
         row.payment_gateway = invoice.payment_gateway
@@ -632,7 +632,7 @@ class SqlAlchemyTransactionRepository(TransactionRepository):
         row.gateway_transaction_id = transaction.gateway_transaction_id
         row.gateway_response = transaction.gateway_response
         row.description = transaction.description
-        row.transaction_metadata = transaction.metadata
+        row.transaction_metadata = transaction.transaction_metadata
         row.idempotency_key = transaction.idempotency_key
         row.processed_at = transaction.processed_at
         self._session.commit()
