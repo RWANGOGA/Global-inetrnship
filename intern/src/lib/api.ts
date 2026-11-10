@@ -338,6 +338,38 @@ export async function fetchInternshipReviewQueue(): Promise<Placement[]> {
   return data.items.map(mapPlacement);
 }
 
+export interface AdminPlacementListParams {
+  reviewStatus?: string;
+  status?: string;
+  orgId?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface PlacementListResponse {
+  total: number;
+  items: Placement[];
+}
+
+export async function fetchAdminPlacements(
+  params?: AdminPlacementListParams
+): Promise<PlacementListResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.reviewStatus) searchParams.append("review_status", params.reviewStatus);
+  if (params?.status) searchParams.append("status", params.status);
+  if (params?.orgId) searchParams.append("org_id", params.orgId);
+  if (params?.search) searchParams.append("search", params.search);
+  if (params?.page) searchParams.append("page", String(params.page));
+  if (params?.pageSize) searchParams.append("page_size", String(params.pageSize));
+  const query = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  const data = await getJson<ApiListResponse<ApiPlacement>>(`/admin/placements${query}`);
+  return {
+    total: data.total,
+    items: data.items.map(mapPlacement),
+  };
+}
+
 export async function reviewInternship(
   internshipId: string,
   decision: "approved" | "rejected",
