@@ -7,15 +7,87 @@ import {
   createOrganizationInternship,
   fetchOrganizationInternships,
   isApiEnabled,
+  exportOrgPlacementsCsv,
 } from "../../../lib/api";
 import { Placement } from "../../../types";
+import { Icon } from "../../icons/Icons";
+
+function StatusBadge({ status }: { status: string }) {
+  const colors: Record<string, string> = {
+    approved: "green",
+    pending_review: "amber",
+    rejected: "red",
+  };
+  const color = colors[status] || "ink";
+  const classMap: Record<string, string> = {
+    green: "tg green",
+    amber: "tg gold",
+    red: "tg red",
+  };
+  return <span className={classMap[color] || "tg"}>{status.replace("_", " ")}</span>;
+}
+
+function TypeBadge({ type }: { type: string }) {
+  const colors: Record<string, string> = {
+    internship: "blue",
+    gig: "green",
+    entry_level: "gold",
+  };
+  const color = colors[type] || "blue";
+  return (
+    <span
+      className="tg"
+      style={{
+        background: `var(--${color})`,
+        color: "white",
+        textTransform: "capitalize",
+      }}
+    >
+      {type.replace("_", " ")}
+    </span>
+  );
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function SectionTitle({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <fieldset style={{ border: "1px solid var(--rule)", borderRadius: "var(--r-md)", padding: "16px", marginTop: "8px" }}>
+      <legend style={{ fontWeight: 600, fontSize: "12px", marginBottom: "12px", padding: "0 8px", color: "var(--ink)" }}>{title}</legend>
+      <div style={{ display: "grid", gap: "12px" }}>{children}</div>
+    </fieldset>
+  );
+}
+
+function FieldGroup({ children, columns = 2 }: { children: React.ReactNode; columns?: number }) {
+  return (
+    <div style={{ display: "grid", gap: "14px", gridTemplateColumns: `repeat(${columns}, 1fr)` }}>
+      {children}
+    </div>
+  );
+}
+
+function Field({ label, required, children, error, hint }: { label: string; required?: boolean; children: React.ReactNode; error?: string; hint?: string }) {
+  return (
+    <div className="field">
+      <label className="lbl">{label} {required && <span style={{ color: "var(--red)" }}>*</span>}</label>
+      {children}
+      {error && <span className="error" style={{ fontSize: "11px", marginTop: "4px", display: "block", color: "var(--red)" }}>{error}</span>}
+      {hint && <span className="hint" style={{ fontSize: "10.5px", color: "var(--muted)", marginTop: "4px", display: "block" }}>{hint}</span>}
+    </div>
+  );
+}
 
 export function EmployerPlacements() {
-  const { subscription, isPremium, freeAllowance, employerLiveCount, session } =
-    useApp();
-  const [employerPlacements, setEmployerPlacements] = React.useState<Placement[]>(
-    []
-  );
+  const { subscription, isPremium, freeAllowance, employerLiveCount, session, toast } = useApp();
+  const [employerPlacements, setEmployerPlacements] = React.useState<Placement[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
   const [showForm, setShowForm] = React.useState(false);
@@ -35,17 +107,14 @@ export function EmployerPlacements() {
     closesAt: "",
     startsAt: "",
     opportunityType: "internship",
-    // Gig fields
     durationHours: "",
     budgetRange: "",
     milestones: "",
     remoteOk: false,
-    // Entry-level fields
     salaryRange: "",
     probationPeriod: "",
     trainingIncluded: false,
     careerPath: "",
-    // Skills
     skillsRequired: "",
   });
   const remaining = Math.max(0, freeAllowance - employerLiveCount);
@@ -88,7 +157,6 @@ export function EmployerPlacements() {
         opportunity_type: form.opportunityType,
       };
 
-      // Add gig-specific fields if opportunity type is gig
       if (form.opportunityType === "gig") {
         postingData.duration_hours = form.durationHours ? Number(form.durationHours) : null;
         postingData.budget_range = form.budgetRange || null;
@@ -96,7 +164,6 @@ export function EmployerPlacements() {
         postingData.remote_ok = form.remoteOk;
       }
 
-      // Add entry-level specific fields if opportunity type is entry_level
       if (form.opportunityType === "entry_level") {
         postingData.salary_range = form.salaryRange || null;
         postingData.probation_period = form.probationPeriod || null;
@@ -104,7 +171,6 @@ export function EmployerPlacements() {
         postingData.career_path = form.careerPath || null;
       }
 
-      // Add skills required if provided
       if (form.skillsRequired) {
         postingData.skills_required = form.skillsRequired.split(",").map((value) => value.trim()).filter(Boolean);
       }
@@ -121,19 +187,34 @@ export function EmployerPlacements() {
         salaryRange: "", probationPeriod: "", trainingIncluded: false, careerPath: "",
         skillsRequired: "",
       });
+      toast("Placement submitted for review!");
     } catch (cause) {
-      setFormError(cause instanceof ApiError ? cause.message : "Unable to submit internship");
+      setFormError(cause instanceof ApiError ? cause.message : "Unable to submit placement");
     } finally {
       setSaving(false);
     }
   }
 
+  const handleExport = async () => {
+    try {
+      const blob = await exportOrgPlacementsCsv();
+      downloadBlob(blob, "my_placements.csv");
+      toast("Placements exported!");
+    } catch {
+      toast("Failed to export placements");
+    }
+  };
+
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const minClosesAt = tomorrow.toISOString().split("T")[0];
+
   return (
     <>
-      <div className="dpane-h">
-        <div>
-          <h2>My placements</h2>
-          <p>
+      <div className="dpane-h" style={{ flexWrap: "wrap", gap: "16px", alignItems: "flex-start" }}>
+        <div style={{ flex: 1, minWidth: "280px" }}>
+          <h2 style={{ fontWeight: 700, fontSize: "22px", marginBottom: "4px" }}>My Placements</h2>
+          <p style={{ color: "var(--ink-2)", fontSize: "13px" }}>
             {employerLiveCount} published ·{" "}
             {isPremium ? (
               <>
@@ -142,162 +223,413 @@ export function EmployerPlacements() {
               </>
             ) : (
               <>
-                {remaining} free posting{remaining === 1 ? "" : "s"} left, then a
-                placement fee
+                {remaining} free posting{remaining === 1 ? "" : "s"} left, then a placement fee applies
               </>
             )}
           </p>
         </div>
-        <button
-          type="button"
-          className="btn btn-sm btn-blue"
-          onClick={() => setShowForm((current) => !current)}
-        >
-          {showForm ? "Close form" : "New internship"}
-        </button>
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          <button type="button" className="btn btn-sm" onClick={handleExport}>
+            <Icon name="download" size={13} /> Export CSV
+          </button>
+          <button
+            type="button"
+            className={`btn btn-sm ${showForm ? "btn-blue" : ""}`}
+            onClick={() => setShowForm((current) => !current)}
+          >
+            <Icon name={showForm ? "x" : "plus"} size={13} /> {showForm ? "Close form" : "New placement"}
+          </button>
+        </div>
       </div>
+
       {showForm && (
-        <form className="panel" onSubmit={submitPosting} style={{ marginBottom: "14px" }}>
-          <div className="ph"><span className="lbl">Submit internship for review</span></div>
-          <div className="pb" style={{ display: "grid", gap: "10px" }}>
-            <div className="dsplit">
-              <label>Title<input className="field" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label>
-              <label>Eligible courses<input className="field" required placeholder="Computer Science, Design" value={form.courses} onChange={(e) => setForm({ ...form, courses: e.target.value })} /></label>
-            </div>
-            <div className="dsplit">
-              <label>Opportunity type
-                <select 
-                  className="field" 
-                  value={form.opportunityType} 
-                  onChange={(e) => setForm({ ...form, opportunityType: e.target.value })}
-                >
-                  <option value="internship">Internship</option>
-                  <option value="gig">Gig / Short-term project</option>
-                  <option value="entry_level">Entry-level position</option>
-                </select>
-              </label>
-              <label>Location<input className="field" required value={form.loc} onChange={(e) => setForm({ ...form, loc: e.target.value })} /></label>
-            </div>
-            <div className="dsplit">
-              <label>Closing date<input className="field" type="date" required value={form.closesAt} onChange={(e) => setForm({ ...form, closesAt: e.target.value })} /></label>
-              <label>Start date<input className="field" type="date" required value={form.startsAt} onChange={(e) => setForm({ ...form, startsAt: e.target.value })} /></label>
-            </div>
-            <div className="dsplit">
-              <label>Minimum grade<input className="field" placeholder="CGPA 3.0+" value={form.grade} onChange={(e) => setForm({ ...form, grade: e.target.value })} /></label>
-              <label>Mode
-                <select className="field" value={form.mode} onChange={(e) => setForm({ ...form, mode: e.target.value })}>
-                  <option value="On-site">On-site</option>
-                  <option value="Hybrid">Hybrid</option>
-                  <option value="Remote">Remote</option>
-                </select>
-              </label>
-            </div>
-            
-            {/* Gig-specific fields */}
+        <form className="panel" onSubmit={submitPosting} style={{ marginBottom: "20px" }}>
+          <div className="ph" style={{ textAlign: "center", paddingBottom: "16px", borderBottom: "1px solid var(--rule)" }}>
+            <h3 style={{ fontWeight: 700, fontSize: "18px", marginBottom: "4px" }}>Submit Placement for Review</h3>
+            <p style={{ color: "var(--ink-2)", fontSize: "13px" }}>All fields marked with * are required. Your posting will be reviewed by the placement office before going live.</p>
+            <button
+              type="button"
+              className="btn btn-sm btn-ghost"
+              onClick={() => setShowForm(false)}
+              style={{ position: "absolute", right: "16px", top: "16px", padding: 0 }}
+            >
+              <Icon name="x" size={15} />
+            </button>
+          </div>
+
+          <div className="pb" style={{ display: "grid", gap: "18px", padding: "24px" }}>
+            {formError && (
+              <div className="panel" style={{ background: "var(--red-tint)", border: "1px solid var(--red)", borderRadius: "var(--r-md)", padding: "12px 16px", color: "var(--red)", display: "flex", alignItems: "center", gap: "8px" }}>
+                <Icon name="bell" size={14} />
+                {formError}
+              </div>
+            )}
+
+            <SectionTitle title="Basic Information">
+              <FieldGroup columns={2}>
+                <Field label="Placement Title" required>
+                  <input
+                    type="text"
+                    className="field-input"
+                    required
+                    value={form.title}
+                    onChange={(e) => setForm({ ...form, title: e.target.value })}
+                    placeholder="e.g., Software Engineering Intern"
+                  />
+                </Field>
+                <Field label="Opportunity Type" required>
+                  <select
+                    className="field-input"
+                    required
+                    value={form.opportunityType}
+                    onChange={(e) => setForm({ ...form, opportunityType: e.target.value })}
+                  >
+                    <option value="internship">Internship</option>
+                    <option value="gig">Gig / Short-term Project</option>
+                    <option value="entry_level">Entry-level Position</option>
+                  </select>
+                </Field>
+              </FieldGroup>
+
+              <FieldGroup columns={2}>
+                <Field label="Location" required>
+                  <input
+                    type="text"
+                    className="field-input"
+                    required
+                    value={form.loc}
+                    onChange={(e) => setForm({ ...form, loc: e.target.value })}
+                    placeholder="Kampala, Uganda"
+                  />
+                </Field>
+                <Field label="Work Mode">
+                  <select
+                    className="field-input"
+                    value={form.mode}
+                    onChange={(e) => setForm({ ...form, mode: e.target.value })}
+                  >
+                    <option value="On-site">On-site</option>
+                    <option value="Hybrid">Hybrid</option>
+                    <option value="Remote">Remote</option>
+                  </select>
+                </Field>
+              </FieldGroup>
+
+              <FieldGroup columns={2}>
+                <Field label="Eligible Courses" required>
+                  <input
+                    type="text"
+                    className="field-input"
+                    required
+                    value={form.courses}
+                    onChange={(e) => setForm({ ...form, courses: e.target.value })}
+                    placeholder="Computer Science, Design, Business (comma separated)"
+                  />
+                </Field>
+                <Field label="Minimum Grade">
+                  <input
+                    type="text"
+                    className="field-input"
+                    value={form.grade}
+                    onChange={(e) => setForm({ ...form, grade: e.target.value })}
+                    placeholder="CGPA 3.0+"
+                  />
+                </Field>
+              </FieldGroup>
+            </SectionTitle>
+
+            <SectionTitle title="Dates & Capacity">
+              <FieldGroup columns={2}>
+                <Field label="Closing Date" required>
+                  <input
+                    type="date"
+                    className="field-input"
+                    required
+                    min={minClosesAt}
+                    value={form.closesAt}
+                    onChange={(e) => setForm({ ...form, closesAt: e.target.value })}
+                  />
+                </Field>
+                <Field label="Start Date" required>
+                  <input
+                    type="date"
+                    className="field-input"
+                    required
+                    min={minClosesAt}
+                    value={form.startsAt}
+                    onChange={(e) => setForm({ ...form, startsAt: e.target.value })}
+                  />
+                </Field>
+              </FieldGroup>
+
+              <FieldGroup columns={2}>
+                <Field label="Duration">
+                  <input
+                    type="text"
+                    className="field-input"
+                    value={form.duration}
+                    onChange={(e) => setForm({ ...form, duration: e.target.value })}
+                    placeholder="e.g., 3 months"
+                  />
+                </Field>
+                <Field label="Stipend / Salary">
+                  <input
+                    type="text"
+                    className="field-input"
+                    value={form.stipend}
+                    onChange={(e) => setForm({ ...form, stipend: e.target.value })}
+                    placeholder="e.g., $500/month or Competitive"
+                  />
+                </Field>
+              </FieldGroup>
+
+              <FieldGroup columns={2}>
+                <Field label="Available Slots" required>
+                  <input
+                    type="number"
+                    className="field-input"
+                    required
+                    min="1"
+                    value={form.slots}
+                    onChange={(e) => setForm({ ...form, slots: e.target.value })}
+                  />
+                </Field>
+              </FieldGroup>
+            </SectionTitle>
+
             {form.opportunityType === "gig" && (
-              <>
-                <div className="dsplit">
-                  <label>Duration (hours)<input className="field" type="number" placeholder="e.g., 40" value={form.durationHours} onChange={(e) => setForm({ ...form, durationHours: e.target.value })} /></label>
-                  <label>Budget range<input className="field" placeholder="e.g., $500-$1,000" value={form.budgetRange} onChange={(e) => setForm({ ...form, budgetRange: e.target.value })} /></label>
-                </div>
-                <label>Milestones<textarea className="field" rows={2} placeholder="One milestone per line" value={form.milestones} onChange={(e) => setForm({ ...form, milestones: e.target.value })} /></label>
-                <div className="dsplit">
-                  <label>
-                    <input type="checkbox" checked={form.remoteOk} onChange={(e) => setForm({ ...form, remoteOk: e.target.checked })} />
-                    Remote work allowed
+              <SectionTitle title="Gig Details">
+                <FieldGroup columns={2}>
+                  <Field label="Duration (Hours)">
+                    <input
+                      type="number"
+                      className="field-input"
+                      placeholder="e.g., 40"
+                      value={form.durationHours}
+                      onChange={(e) => setForm({ ...form, durationHours: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Budget Range">
+                    <input
+                      type="text"
+                      className="field-input"
+                      placeholder="e.g., $500-$1,000"
+                      value={form.budgetRange}
+                      onChange={(e) => setForm({ ...form, budgetRange: e.target.value })}
+                    />
+                  </Field>
+                </FieldGroup>
+                <Field label="Milestones (one per line)">
+                  <textarea
+                    className="field-input"
+                    rows={2}
+                    placeholder="Design phase&#10;Development&#10;Testing & Delivery"
+                    value={form.milestones}
+                    onChange={(e) => setForm({ ...form, milestones: e.target.value })}
+                  />
+                </Field>
+                <Field label="Remote Work Allowed">
+                  <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={form.remoteOk}
+                      onChange={(e) => setForm({ ...form, remoteOk: e.target.checked })}
+                      style={{ width: "18px", height: "18px", accentColor: "var(--blue)" }}
+                    />
+                    <span>Allow remote work for this gig</span>
                   </label>
-                </div>
-              </>
+                </Field>
+              </SectionTitle>
             )}
 
-            {/* Entry-level specific fields */}
             {form.opportunityType === "entry_level" && (
-              <>
-                <div className="dsplit">
-                  <label>Salary range<input className="field" placeholder="e.g., $30,000-$40,000/year" value={form.salaryRange} onChange={(e) => setForm({ ...form, salaryRange: e.target.value })} /></label>
-                  <label>Probation period<input className="field" placeholder="e.g., 3 months" value={form.probationPeriod} onChange={(e) => setForm({ ...form, probationPeriod: e.target.value })} /></label>
-                </div>
-                <div className="dsplit">
-                  <label>
-                    <input type="checkbox" checked={form.trainingIncluded} onChange={(e) => setForm({ ...form, trainingIncluded: e.target.checked })} />
-                    Training included
-                  </label>
-                  <label>Career path<textarea className="field" rows={2} placeholder="Growth opportunities" value={form.careerPath} onChange={(e) => setForm({ ...form, careerPath: e.target.value })} /></label>
-                </div>
-              </>
+              <SectionTitle title="Entry-Level Details">
+                <FieldGroup columns={2}>
+                  <Field label="Salary Range">
+                    <input
+                      type="text"
+                      className="field-input"
+                      placeholder="e.g., $30,000-$40,000/year"
+                      value={form.salaryRange}
+                      onChange={(e) => setForm({ ...form, salaryRange: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Probation Period">
+                    <input
+                      type="text"
+                      className="field-input"
+                      placeholder="e.g., 3 months"
+                      value={form.probationPeriod}
+                      onChange={(e) => setForm({ ...form, probationPeriod: e.target.value })}
+                    />
+                  </Field>
+                </FieldGroup>
+                <FieldGroup columns={2}>
+                  <Field label="Training Included">
+                    <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={form.trainingIncluded}
+                        onChange={(e) => setForm({ ...form, trainingIncluded: e.target.checked })}
+                        style={{ width: "18px", height: "18px", accentColor: "var(--blue)" }}
+                      />
+                      <span>This position includes structured training</span>
+                    </label>
+                  </Field>
+                  <Field label="Career Path">
+                    <textarea
+                      className="field-input"
+                      rows={2}
+                      placeholder="Growth opportunities and progression"
+                      value={form.careerPath}
+                      onChange={(e) => setForm({ ...form, careerPath: e.target.value })}
+                    />
+                  </Field>
+                </FieldGroup>
+              </SectionTitle>
             )}
 
-            <label>Requirements<textarea className="field" rows={3} placeholder="One requirement per line" value={form.requirements} onChange={(e) => setForm({ ...form, requirements: e.target.value })} /></label>
-            
-            <label>Skills required (optional)<input className="field" placeholder="Python, React, Project management (comma separated)" value={form.skillsRequired} onChange={(e) => setForm({ ...form, skillsRequired: e.target.value })} /></label>
-            
-            <div className="dsplit">
-              <label>Duration<input className="field" placeholder="e.g., 3 months" value={form.duration} onChange={(e) => setForm({ ...form, duration: e.target.value })} /></label>
-              <label>Stipend/Salary<input className="field" placeholder="e.g., $500/month or Competitive" value={form.stipend} onChange={(e) => setForm({ ...form, stipend: e.target.value })} /></label>
+            <SectionTitle title="Requirements & Skills">
+              <Field label="Requirements (one per line)">
+                <textarea
+                  className="field-input"
+                  rows={4}
+                  placeholder="Bachelor's degree in Computer Science&#10;Strong Python and React skills&#10;Experience with REST APIs&#10;Good communication skills"
+                  value={form.requirements}
+                  onChange={(e) => setForm({ ...form, requirements: e.target.value })}
+                />
+              </Field>
+
+              <Field label="Skills Required (comma separated)">
+                <input
+                  type="text"
+                  className="field-input"
+                  placeholder="Python, React, SQL, Git, Agile"
+                  value={form.skillsRequired}
+                  onChange={(e) => setForm({ ...form, skillsRequired: e.target.value })}
+                />
+              </Field>
+            </SectionTitle>
+
+            <SectionTitle title="About This Opportunity">
+              <Field label="Description">
+                <textarea
+                  className="field-input"
+                  rows={4}
+                  placeholder="Describe the role, team, projects, and what makes this opportunity exciting..."
+                  value={form.about}
+                  onChange={(e) => setForm({ ...form, about: e.target.value })}
+                />
+              </Field>
+            </SectionTitle>
+
+            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", borderTop: "1px solid var(--rule)", paddingTop: "16px", marginTop: "8px" }}>
+              <button type="button" className="btn btn-sm" onClick={() => setShowForm(false)}>
+                <Icon name="x" size={13} /> Cancel
+              </button>
+              <button type="submit" className="btn btn-sm btn-blue" disabled={saving}>
+                {saving ? (
+                  <>
+                    <div className="spinner" style={{ width: "13px", height: "13px", border: "2px solid currentColor", borderRightColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite", marginRight: "8px" }} />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    <Icon name="send" size={13} /> Submit for Admin Review
+                  </>
+                )}
+              </button>
             </div>
-            
-            <label>About this opportunity<textarea className="field" rows={3} placeholder="Detailed description" value={form.about} onChange={(e) => setForm({ ...form, about: e.target.value })} /></label>
-            
-            {formError && <p className="error">{formError}</p>}
-            <button type="submit" className="btn btn-sm btn-blue" disabled={saving}>{saving ? "Submitting..." : "Submit for admin review"}</button>
           </div>
         </form>
       )}
+
       <div className="panel">
         <div className="pb" style={{ padding: 0 }}>
-          <table className="dtable">
-            <thead>
-              <tr>
-                <th>Placement</th>
-                <th>Status</th>
-                <th className="hide-xs">Type</th>
-                <th className="hide-xs">Courses</th>
-                <th>Grade</th>
-                <th>Applicants</th>
-                <th>Closes</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={7}>Loading internships...</td></tr>
-              ) : error ? (
-                <tr><td colSpan={7} className="error">{error}</td></tr>
-              ) : employerPlacements.length === 0 ? (
-                <tr><td colSpan={7}>No internships submitted yet.</td></tr>
-              ) : employerPlacements.map((p) => (
-                <tr key={p.id}>
-                  <td className="who">
-                    <b>{p.title}</b>
-                    <span>{p.slots} slots · {p.opportunityType.charAt(0).toUpperCase() + p.opportunityType.slice(1)}</span>
-                  </td>
-                  <td>
-                    <span className={`tg ${p.reviewStatus === "approved" ? "green" : "gold"}`}>
-                      {p.reviewStatus === "pending_review" ? "Pending review" : p.reviewStatus}
-                    </span>
-                  </td>
-                  <td className="hide-xs">
-                    <span className="tg" style={{
-                      background: p.opportunityType === "internship" ? "var(--blue)" :
-                                  p.opportunityType === "gig" ? "var(--green)" : "var(--gold)",
-                      color: "white"
-                    }}>
-                      {p.opportunityType.charAt(0).toUpperCase() + p.opportunityType.slice(1)}
-                    </span>
-                  </td>
-                  <td className="hide-xs" style={{ fontSize: "11px" }}>
-                    {p.courses.join(", ")}
-                  </td>
-                  <td className="num">{p.grade}</td>
-                  <td className="num">{p.applicants}</td>
-                  <td className="num">{p.closesAt || p.deadline}</td>
-                  <td className="act"><span className="lbl">{p.startsAt ? `Starts ${p.startsAt}` : ""}</span></td>
+          <div style={{ overflowX: "auto" }}>
+            <table className="dtable">
+              <thead>
+                <tr>
+                  <th>Placement</th>
+                  <th>Status</th>
+                  <th className="hide-xs">Type</th>
+                  <th className="hide-xs">Courses</th>
+                  <th>Grade</th>
+                  <th>Applicants</th>
+                  <th>Closes</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={8}>Loading placements...</td></tr>
+                ) : error ? (
+                  <tr><td colSpan={8} className="error">{error}</td></tr>
+                ) : employerPlacements.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} style={{ textAlign: "center", padding: "40px", color: "var(--muted)" }}>
+                      <span style={{ opacity: 0.3, display: "block", marginBottom: "12px" }}>
+                        <Icon name="brief" size={48} />
+                      </span>
+                      <p>No placements submitted yet.</p>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-blue"
+                        style={{ marginTop: "12px" }}
+                        onClick={() => setShowForm(true)}
+                      >
+                        <Icon name="plus" size={13} /> Create your first placement
+                      </button>
+                    </td>
+                  </tr>
+                ) : employerPlacements.map((p) => (
+                  <tr key={p.id}>
+                    <td className="who">
+                      <b>{p.title}</b>
+                      <span>{p.slots} slots · {p.opportunityType.charAt(0).toUpperCase() + p.opportunityType.slice(1)}</span>
+                    </td>
+                    <td><StatusBadge status={p.reviewStatus} /></td>
+                    <td className="hide-xs"><TypeBadge type={p.opportunityType} /></td>
+                    <td className="hide-xs" style={{ fontSize: "11px", color: "var(--ink-2)" }}>
+                      {p.courses.join(", ")}
+                    </td>
+                    <td className="num">{p.grade}</td>
+                    <td className="num">{p.applicants}</td>
+                    <td className="num">{p.closesAt || p.deadline}</td>
+                    <td className="act">
+                      {p.startsAt && <span className="lbl" style={{ fontSize: "11px" }}>Starts {p.startsAt}</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
+
+      <style jsx>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        .field-input {
+          border: 1px solid var(--rule-2);
+          border-radius: var(--r-sm);
+          background: var(--white);
+          height: 40px;
+          padding: 0 12px;
+          font-size: 13px;
+          outline: 0;
+          width: 100%;
+        }
+        .field-input:focus {
+          border-color: var(--blue);
+        }
+        .field textarea.field-input {
+          height: 84px;
+          padding: 10px 12px;
+          resize: vertical;
+        }
+      `}</style>
     </>
   );
 }
