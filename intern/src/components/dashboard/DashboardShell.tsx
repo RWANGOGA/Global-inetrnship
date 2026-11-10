@@ -9,6 +9,7 @@ import { Icon } from "../icons/Icons";
 // Views
 import { AdminOverview } from "./admin/AdminOverview";
 import { AdminPlacements } from "./admin/AdminPlacements";
+import { AdminApplications } from "./admin/AdminApplications";
 import { AdminRequirements } from "./admin/AdminRequirements";
 import { AdminStudents } from "./admin/AdminStudents";
 import { AdminDocuments } from "./admin/AdminDocuments";
@@ -90,6 +91,8 @@ export function DashboardShell() {
           return <AdminOverview />;
         case "placements":
           return <AdminPlacements />;
+        case "applications":
+          return <AdminApplications />;
         case "requirements":
           return <AdminRequirements />;
         case "students":

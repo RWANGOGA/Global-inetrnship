@@ -30,6 +30,7 @@ import {
 import { matchPlacement, setSkillTables } from "../lib/skills";
 import {
   applyApi,
+  applyToPlacement,
   askAdvisor,
   cancelSubscriptionApi,
   fetchAdminActivity,
@@ -91,6 +92,7 @@ import {
   type UserActionResponse,
 } from "../lib/api";
 import type { ApplicationDto, JobApplicationDto } from "../types";
+import { ApplicationForm } from "../components/dashboard/student/ApplicationForm";
 
 // Placement-fee model. Free host organisations (seed org "o4") publish up to
 // this many placements, then the fee applies. Mirrors the site's "first three
@@ -1091,81 +1093,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const orgName = o ? o.name : "the organisation";
 
       openModal(
-        `Apply with your pack — ${p.title}`,
-        <div>
-          <p
-            style={{
-              fontSize: "13px",
-              color: "var(--ink-2)",
-              lineHeight: 1.65,
-            }}
-          >
-            One click sends your statement, verified documents and eligibility
-            check to <b>{orgName}</b>. The placement office confirms the record
-            before the employer opens it.
-          </p>
-          <div
-            style={{
-              marginTop: "14px",
-              border: "1px solid var(--rule)",
-              padding: "12px",
-              background: "#fff",
-            }}
-          >
-            <div className="lbl">Statement</div>
-            <p
-              style={{
-                fontSize: "12px",
-                lineHeight: 1.6,
-                marginTop: "5px",
-              }}
-            >
-              {pack.statement}
-            </p>
-          </div>
-          <div
-            style={{
-              marginTop: "12px",
-              border: "1px solid var(--rule)",
-            }}
-          >
-            {p.docs.map((d) => {
-              const have = docs.find((x) => x.name === d);
-              const isAttached = have && have.status !== "missing";
-              return (
-                <div
-                  key={d}
-                  className="file"
-                  style={{ padding: "9px 11px" }}
-                >
-                  <span className="fi">{isAttached ? "✓" : "!"}</span>
-                  <div>
-                    <b>{d}</b>
-                    <span>{have ? have.status : "will be requested"}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>,
-        "Send application",
-        () => {
-          if (!isApiEnabled) {
-            toast(`Pack sent to ${orgName}`);
-            return;
-          }
-          if (!session) {
-            toast("Please sign in to apply.");
-            go("signin");
-            return;
-          }
-          applyApi(id, pack.statement)
-            .then(() => toast(`Application sent to ${orgName}`))
-            .catch(() => toast("Couldn't submit right now — please try again"));
-        }
+        `Apply — ${p.title}`,
+        <ApplicationForm
+          placementId={id}
+          onClose={() => closeModal()}
+          onSubmit={async (input) => {
+            if (!isApiEnabled) {
+              toast(`Application sent to ${orgName}`);
+              return;
+            }
+            if (!session) {
+              toast("Please sign in to apply.");
+              go("signin");
+              return;
+            }
+            await applyToPlacement(id, input)
+              .then(() => {
+                toast(`Application sent to ${orgName}`);
+                closeModal();
+              })
+              .catch(() => toast("Couldn't submit right now — please try again"));
+          }}
+        />,
+        null,
+        null
       );
     },
-    [getPlacement, getOrg, pack.statement, docs, openModal, toast, session, go]
+    [getPlacement, getOrg, openModal, closeModal, toast, session, go, isApiEnabled]
   );
 
   const reviewStudent = useCallback(

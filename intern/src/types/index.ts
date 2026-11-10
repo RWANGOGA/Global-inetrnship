@@ -206,7 +206,13 @@ export interface MatchResponse {
 export interface ApplicationDto {
   id: string;
   user_id: string;
+  user_name?: string;
+  user_email?: string;
   placement_id: string;
+  placement_title?: string;
+  job_id?: string;
+  job_title?: string;
+  type?: "internship" | "job";
   status: string;
   statement: string;
   created_at: string;
@@ -257,6 +263,11 @@ export interface JobApplicationDto {
   reference_2_relationship: string;
   // Document IDs
   document_ids: string[];
+}
+
+export interface ApplicationsResponse {
+  total: number;
+  items: ApplicationDto[];
 }
 
 export type DashboardView =

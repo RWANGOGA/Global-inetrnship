@@ -10,6 +10,7 @@ from app.domain.entities import User
 from app.infrastructure.db import get_session
 from app.infrastructure.orm import (
     ApplicationORM,
+    JobApplicationORM,
     OrganisationORM,
     PlacementORM,
     JobORM,
@@ -43,6 +44,8 @@ from app.presentation.schemas import (
     StudentDocumentVerifyRequest,
     StudentDocumentVerifyResponse,
     PlacementListResponse,
+    ApplicationRead,
+    ApplicationsResponse,
 )
 from fastapi.responses import StreamingResponse
 import csv
@@ -884,6 +887,143 @@ def user_action(
     )
 
 
+# ---------------- Applications Management ------------------------------------
+
+@router.get("/applications", response_model=ApplicationsResponse)
+def list_all_applications(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    type: str = Query(None, description="Filter by type: internship, job"),
+    status: str = Query(None, description="Filter by status"),
+    placement_id: str = Query(None, description="Filter by placement ID"),
+    job_id: str = Query(None, description="Filter by job ID"),
+    search: str = Query(None, description="Search by user email or name"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+) -> ApplicationsResponse:
+    _require_admin(current_user)
+    
+    # Build internship applications query
+    internship_query = session.query(ApplicationORM).join(UserORM, ApplicationORM.user_id == UserORM.id)
+    if status:
+        internship_query = internship_query.filter(ApplicationORM.status == status)
+    if placement_id:
+        internship_query = internship_query.filter(ApplicationORM.placement_id == placement_id)
+    if search:
+        internship_query = internship_query.filter(
+            (UserORM.email.ilike(f"%{search}%")) | (UserORM.name.ilike(f"%{search}%"))
+        )
+    
+    # Build job applications query
+    job_query = session.query(JobApplicationORM).join(UserORM, JobApplicationORM.user_id == UserORM.id)
+    if status:
+        job_query = job_query.filter(JobApplicationORM.status == status)
+    if job_id:
+        job_query = job_query.filter(JobApplicationORM.job_id == job_id)
+    if search:
+        job_query = job_query.filter(
+            (UserORM.email.ilike(f"%{search}%")) | (UserORM.name.ilike(f"%{search}%"))
+        )
+    
+    # Apply type filter
+    if type == "internship":
+        job_query = job_query.filter(False)  # No results
+    elif type == "job":
+        internship_query = internship_query.filter(False)  # No results
+    
+    # Get total counts
+    internship_total = internship_query.count()
+    job_total = job_query.count()
+    total = internship_total + job_total
+    
+    # Apply pagination - we need to combine and sort
+    # For simplicity, fetch all and paginate in memory (could be optimized)
+    internship_rows = internship_query.order_by(ApplicationORM.created_at.desc()).all()
+    job_rows = job_query.order_by(JobApplicationORM.created_at.desc()).all()
+    
+    # Combine and sort by created_at
+    all_apps = []
+    for row in internship_rows:
+        user = session.query(UserORM).filter_by(id=row.user_id).first()
+        placement = session.query(PlacementORM).filter_by(id=row.placement_id).first()
+        all_apps.append({
+            "id": row.id,
+            "type": "internship",
+            "user_id": row.user_id,
+            "user_name": user.name if user else "",
+            "user_email": user.email if user else "",
+            "placement_id": row.placement_id,
+            "placement_title": placement.title if placement else "",
+            "job_id": None,
+            "job_title": None,
+            "status": row.status,
+            "statement": row.statement,
+            "cover_letter": row.cover_letter,
+            "cv_url": row.cv_url,
+            "github_url": row.github_url,
+            "linkedin_url": row.linkedin_url,
+            "portfolio_url": row.portfolio_url,
+            "academic_papers": row.academic_papers,
+            "reference_1_name": row.reference_1_name,
+            "reference_1_email": row.reference_1_email,
+            "reference_1_phone": row.reference_1_phone,
+            "reference_1_relationship": row.reference_1_relationship,
+            "reference_2_name": row.reference_2_name,
+            "reference_2_email": row.reference_2_email,
+            "reference_2_phone": row.reference_2_phone,
+            "reference_2_relationship": row.reference_2_relationship,
+            "document_ids": row.document_ids,
+            "created_at": row.created_at,
+            "updated_at": row.updated_at,
+        })
+    
+    for row in job_rows:
+        user = session.query(UserORM).filter_by(id=row.user_id).first()
+        job = session.query(JobORM).filter_by(id=row.job_id).first()
+        all_apps.append({
+            "id": row.id,
+            "type": "job",
+            "user_id": row.user_id,
+            "user_name": user.name if user else "",
+            "user_email": user.email if user else "",
+            "placement_id": None,
+            "placement_title": None,
+            "job_id": row.job_id,
+            "job_title": job.title if job else "",
+            "status": row.status,
+            "statement": row.statement,
+            "cover_letter": row.cover_letter,
+            "cv_url": row.cv_url,
+            "github_url": row.github_url,
+            "linkedin_url": row.linkedin_url,
+            "portfolio_url": row.portfolio_url,
+            "academic_papers": row.academic_papers,
+            "reference_1_name": row.reference_1_name,
+            "reference_1_email": row.reference_1_email,
+            "reference_1_phone": row.reference_1_phone,
+            "reference_1_relationship": row.reference_1_relationship,
+            "reference_2_name": row.reference_2_name,
+            "reference_2_email": row.reference_2_email,
+            "reference_2_phone": row.reference_2_phone,
+            "reference_2_relationship": row.reference_2_relationship,
+            "document_ids": row.document_ids,
+            "created_at": row.created_at,
+            "updated_at": row.updated_at,
+        })
+    
+    # Sort by created_at desc
+    all_apps.sort(key=lambda x: x["created_at"], reverse=True)
+    
+    # Apply pagination
+    offset = (page - 1) * page_size
+    paginated = all_apps[offset:offset + page_size]
+    
+    return ApplicationsResponse(
+        total=total,
+        items=[ApplicationRead.model_validate(a) for a in paginated]
+    )
+
+
 # ---------------- CSV Exports ------------------------------------
 
 @router.get("/export/placements.csv")
@@ -1047,4 +1187,67 @@ def export_job_applicants_csv(
         io.BytesIO(output.getvalue().encode()),
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename=job_{job_id}_applicants.csv"}
+    )
+
+
+@router.get("/export/applications.csv")
+def export_all_applications_csv(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    _require_admin(current_user)
+    
+    # Get all internship applications
+    internship_apps = session.query(ApplicationORM).join(UserORM, ApplicationORM.user_id == UserORM.id).all()
+    # Get all job applications
+    job_apps = session.query(JobApplicationORM).join(UserORM, JobApplicationORM.user_id == UserORM.id).all()
+    
+    users = {u.id: u for u in session.query(UserORM).all()}
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Application ID", "Type", "User ID", "User Name", "User Email", "Status",
+        "Placement ID", "Placement Title", "Job ID", "Job Title",
+        "Statement", "Cover Letter", "CV URL", "GitHub", "LinkedIn", "Portfolio",
+        "Academic Papers", "Reference 1 Name", "Reference 1 Email", "Reference 1 Phone", "Reference 1 Relationship",
+        "Reference 2 Name", "Reference 2 Email", "Reference 2 Phone", "Reference 2 Relationship",
+        "Document IDs", "Applied At", "Updated At"
+    ])
+    
+    for app in internship_apps:
+        user = users.get(app.user_id)
+        placement = session.query(PlacementORM).filter_by(id=app.placement_id).first()
+        writer.writerow([
+            app.id, "internship", app.user_id, user.name if user else "", user.email if user else "",
+            app.status, app.placement_id, placement.title if placement else "", "", "",
+            app.statement, app.cover_letter, app.cv_url or "",
+            app.github_url or "", app.linkedin_url or "", app.portfolio_url or "",
+            "; ".join(app.academic_papers) if app.academic_papers else "",
+            app.reference_1_name, app.reference_1_email, app.reference_1_phone, app.reference_1_relationship,
+            app.reference_2_name, app.reference_2_email, app.reference_2_phone, app.reference_2_relationship,
+            "; ".join(app.document_ids) if app.document_ids else "",
+            app.created_at, app.updated_at
+        ])
+    
+    for app in job_apps:
+        user = users.get(app.user_id)
+        job = session.query(JobORM).filter_by(id=app.job_id).first()
+        writer.writerow([
+            app.id, "job", app.user_id, user.name if user else "", user.email if user else "",
+            app.status, "", "", app.job_id, job.title if job else "",
+            app.statement, app.cover_letter, app.cv_url or "",
+            app.github_url or "", app.linkedin_url or "", app.portfolio_url or "",
+            "; ".join(app.academic_papers) if app.academic_papers else "",
+            app.reference_1_name, app.reference_1_email, app.reference_1_phone, app.reference_1_relationship,
+            app.reference_2_name, app.reference_2_email, app.reference_2_phone, app.reference_2_relationship,
+            "; ".join(app.document_ids) if app.document_ids else "",
+            app.created_at, app.updated_at
+        ])
+    
+    output.seek(0)
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode()),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=all_applications.csv"}
     )

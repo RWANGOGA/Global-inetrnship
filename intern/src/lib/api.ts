@@ -432,6 +432,43 @@ export async function exportOrgJobApplicantsCsv(jobId: string): Promise<Blob> {
   return res.blob();
 }
 
+// Admin Applications
+export interface AdminApplicationsParams {
+  type?: "internship" | "job";
+  status?: string;
+  placement_id?: string;
+  job_id?: string;
+  search?: string;
+  page?: number;
+  page_size?: number;
+}
+
+export async function fetchAdminApplications(params?: AdminApplicationsParams): Promise<ApplicationsResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.type) searchParams.append("type", params.type);
+  if (params?.status) searchParams.append("status", params.status);
+  if (params?.placement_id) searchParams.append("placement_id", params.placement_id);
+  if (params?.job_id) searchParams.append("job_id", params.job_id);
+  if (params?.search) searchParams.append("search", params.search);
+  if (params?.page) searchParams.append("page", String(params.page));
+  if (params?.page_size) searchParams.append("page_size", String(params.page_size));
+  const query = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  return getJson<ApplicationsResponse>(`/admin/applications${query}`);
+}
+
+export async function exportAdminApplicationsCsv(): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/admin/export/applications.csv`, {
+    headers: { Accept: "text/csv", ...authHeader() },
+  });
+  if (!res.ok) throw new Error("Failed to export applications");
+  return res.blob();
+}
+
+export interface ApplicationsResponse {
+  total: number;
+  items: ApplicationDto[];
+}
+
 export interface InternshipPostingInput {
   title: string;
   courses: string[];
