@@ -10,7 +10,7 @@ import {
   exportOrgPlacementsCsv,
 } from "../../../lib/api";
 import { Placement } from "../../../types";
-import { Icon } from "../../icons/Icons";
+import { Icon, IconName } from "../../icons/Icons";
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
@@ -57,30 +57,143 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-function SectionTitle({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <fieldset style={{ border: "1px solid var(--rule)", borderRadius: "var(--r-md)", padding: "16px", marginTop: "8px" }}>
-      <legend style={{ fontWeight: 600, fontSize: "12px", marginBottom: "12px", padding: "0 8px", color: "var(--ink)" }}>{title}</legend>
-      <div style={{ display: "grid", gap: "12px" }}>{children}</div>
-    </fieldset>
-  );
-}
-
 function FieldGroup({ children, columns = 2 }: { children: React.ReactNode; columns?: number }) {
   return (
-    <div style={{ display: "grid", gap: "14px", gridTemplateColumns: `repeat(${columns}, 1fr)` }}>
+    <div style={{ display: "grid", gap: "16px", gridTemplateColumns: `repeat(${columns}, 1fr)` }}>
       {children}
     </div>
   );
 }
 
-function Field({ label, required, children, error, hint }: { label: string; required?: boolean; children: React.ReactNode; error?: string; hint?: string }) {
+function Field({ label, required, children, error, hint, fullWidth }: { label: string; required?: boolean; children: React.ReactNode; error?: string; hint?: string; fullWidth?: boolean }) {
   return (
-    <div className="field">
-      <label className="lbl">{label} {required && <span style={{ color: "var(--red)" }}>*</span>}</label>
+    <div className="field" style={fullWidth ? { gridColumn: "1 / -1" } : {}}>
+      <label className="lbl" style={{ fontWeight: 600, fontSize: "12px", marginBottom: "6px", display: "block" }}>
+        {label} {required && <span style={{ color: "var(--red)" }}>*</span>}
+      </label>
       {children}
       {error && <span className="error" style={{ fontSize: "11px", marginTop: "4px", display: "block", color: "var(--red)" }}>{error}</span>}
       {hint && <span className="hint" style={{ fontSize: "10.5px", color: "var(--muted)", marginTop: "4px", display: "block" }}>{hint}</span>}
+    </div>
+  );
+}
+
+function Input({ className = "field-input", style, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <input
+      className={className}
+      style={{
+        border: "1px solid var(--rule-2)",
+        borderRadius: "var(--r-sm)",
+        background: "var(--white)",
+        height: "44px",
+        padding: "0 14px",
+        fontSize: "13.5px",
+        outline: 0,
+        width: "100%",
+        transition: "border-color 0.15s, box-shadow 0.15s",
+        ...style,
+      }}
+      onFocus={(e) => { e.currentTarget.style.borderColor = "var(--blue)"; e.currentTarget.style.boxShadow = "0 0 0 3px var(--blue-tint)"; }}
+      onBlur={(e) => { e.currentTarget.style.borderColor = "var(--rule-2)"; e.currentTarget.style.boxShadow = "none"; }}
+      {...props}
+    />
+  );
+}
+
+function Select({ className = "field-input", style, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <select
+      className={className}
+      style={{
+        border: "1px solid var(--rule-2)",
+        borderRadius: "var(--r-sm)",
+        background: "var(--white)",
+        height: "44px",
+        padding: "0 14px",
+        fontSize: "13.5px",
+        outline: 0,
+        width: "100%",
+        transition: "border-color 0.15s, box-shadow 0.15s",
+        appearance: "none",
+        backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='1.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")",
+        backgroundRepeat: "no-repeat",
+        backgroundPosition: "right 12px center",
+        paddingRight: "40px",
+        ...style,
+      }}
+      onFocus={(e) => { e.currentTarget.style.borderColor = "var(--blue)"; e.currentTarget.style.boxShadow = "0 0 0 3px var(--blue-tint)"; }}
+      onBlur={(e) => { e.currentTarget.style.borderColor = "var(--rule-2)"; e.currentTarget.style.boxShadow = "none"; }}
+      {...props}
+    />
+  );
+}
+
+function Textarea({ className = "field-input", style, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return (
+    <textarea
+      className={className}
+      style={{
+        border: "1px solid var(--rule-2)",
+        borderRadius: "var(--r-sm)",
+        background: "var(--white)",
+        minHeight: "96px",
+        padding: "12px 14px",
+        fontSize: "13.5px",
+        outline: 0,
+        width: "100%",
+        resize: "vertical",
+        fontFamily: "inherit",
+        transition: "border-color 0.15s, box-shadow 0.15s",
+        ...style,
+      }}
+      onFocus={(e) => { e.currentTarget.style.borderColor = "var(--blue)"; e.currentTarget.style.boxShadow = "0 0 0 3px var(--blue-tint)"; }}
+      onBlur={(e) => { e.currentTarget.style.borderColor = "var(--rule-2)"; e.currentTarget.style.boxShadow = "none"; }}
+      {...props}
+    />
+  );
+}
+
+function Checkbox({ label, checked, onChange, description }: { label: string; checked: boolean; onChange: (checked: boolean) => void; description?: string }) {
+  return (
+    <label style={{ display: "flex", alignItems: "flex-start", gap: "12px", cursor: "pointer", padding: "8px 0" }}>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        style={{
+          width: "20px",
+          height: "20px",
+          accentColor: "var(--blue)",
+          marginTop: "2px",
+          flexShrink: 0,
+        }}
+      />
+      <div>
+        <span style={{ fontWeight: 500, fontSize: "13.5px", color: "var(--ink)" }}>{label}</span>
+        {description && <span style={{ fontSize: "12px", color: "var(--muted)", marginTop: "2px", display: "block" }}>{description}</span>}
+      </div>
+    </label>
+  );
+}
+
+function SectionCard({ title, children, icon }: { title: string; children: React.ReactNode; icon?: IconName }) {
+  return (
+    <div style={{ background: "var(--white)", border: "1px solid var(--rule)", borderRadius: "var(--r-lg)", padding: "24px", boxShadow: "0 1px 3px var(--shadow-1)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px", paddingBottom: "16px", borderBottom: "1px solid var(--rule)" }}>
+        {icon && <span style={{ color: "var(--blue)" }}><Icon name={icon} size={20} /></span>}
+        <h3 style={{ fontWeight: 700, fontSize: "16px", margin: 0, color: "var(--ink)" }}>{title}</h3>
+      </div>
+      <div style={{ display: "grid", gap: "16px" }}>{children}</div>
+    </div>
+  );
+}
+
+function FormError({ message }: { message: string }) {
+  return (
+    <div style={{ background: "var(--red-tint)", border: "1px solid var(--red)", borderRadius: "var(--r-md)", padding: "14px 16px", color: "var(--red)", display: "flex", alignItems: "flex-start", gap: "10px" }}>
+      <span style={{ marginTop: "2px", flexShrink: 0 }}><Icon name="bell" size={16} /></span>
+      <span style={{ fontSize: "13.5px", fontWeight: 500 }}>{message}</span>
     </div>
   );
 }
@@ -211,66 +324,124 @@ export function EmployerPlacements() {
 
   return (
     <>
-      <div className="dpane-h" style={{ flexWrap: "wrap", gap: "16px", alignItems: "flex-start" }}>
+      {/* Header */}
+      <div className="dpane-h" style={{ 
+        flexWrap: "wrap", 
+        gap: "20px", 
+        alignItems: "center",
+        marginBottom: "8px",
+        paddingBottom: "20px",
+        borderBottom: "2px solid var(--rule)",
+      }}>
         <div style={{ flex: 1, minWidth: "280px" }}>
-          <h2 style={{ fontWeight: 700, fontSize: "22px", marginBottom: "4px" }}>My Placements</h2>
-          <p style={{ color: "var(--ink-2)", fontSize: "13px" }}>
+          <h1 style={{ 
+            fontWeight: 800, 
+            fontSize: "32px", 
+            marginBottom: "8px",
+            color: "var(--ink)",
+            letterSpacing: "-0.5px",
+          }}>
+            My Placements
+          </h1>
+          <p style={{ color: "var(--ink-2)", fontSize: "15px", fontWeight: 500 }}>
             {employerLiveCount} published ·{" "}
             {isPremium ? (
               <>
-                <b>{subscription.plan}</b> plan · unlimited postings
-                {subscription.since ? ` since ${subscription.since}` : ""}
+                <span style={{ background: "var(--blue-tint)", color: "var(--blue)", padding: "4px 10px", borderRadius: "var(--r-pill)", fontSize: "12px", fontWeight: 600, marginRight: "8px" }}>
+                  {subscription.plan}
+                </span>
+                <span>unlimited postings</span>
+                {subscription.since && <span style={{ marginLeft: "8px", opacity: 0.7 }}>since {subscription.since}</span>}
               </>
             ) : (
               <>
-                {remaining} free posting{remaining === 1 ? "" : "s"} left, then a placement fee applies
+                <span style={{ background: "var(--gold-tint)", color: "var(--gold)", padding: "4px 10px", borderRadius: "var(--r-pill)", fontSize: "12px", fontWeight: 600, marginRight: "8px" }}>
+                  {remaining} free left
+                </span>
+                <span>then placement fee applies</span>
               </>
             )}
           </p>
         </div>
-        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-          <button type="button" className="btn btn-sm" onClick={handleExport}>
-            <Icon name="download" size={13} /> Export CSV
+        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+          <button type="button" className="btn btn-sm" onClick={handleExport} style={{ height: "44px" }}>
+            <span style={{ marginRight: "8px" }}><Icon name="download" size={14} /></span> Export CSV
           </button>
           <button
             type="button"
             className={`btn btn-sm ${showForm ? "btn-blue" : ""}`}
             onClick={() => setShowForm((current) => !current)}
+            style={{ height: "44px" }}
           >
-            <Icon name={showForm ? "x" : "plus"} size={13} /> {showForm ? "Close form" : "New placement"}
+            <span style={{ marginRight: "8px" }}><Icon name={showForm ? "x" : "plus"} size={14} /></span>
+            {showForm ? "Close form" : "Create new placement"}
           </button>
         </div>
       </div>
 
+      {/* Create Form Modal */}
       {showForm && (
-        <form className="panel" onSubmit={submitPosting} style={{ marginBottom: "20px" }}>
-          <div className="ph" style={{ textAlign: "center", paddingBottom: "16px", borderBottom: "1px solid var(--rule)" }}>
-            <h3 style={{ fontWeight: 700, fontSize: "18px", marginBottom: "4px" }}>Submit Placement for Review</h3>
-            <p style={{ color: "var(--ink-2)", fontSize: "13px" }}>All fields marked with * are required. Your posting will be reviewed by the placement office before going live.</p>
+        <div className="panel" style={{ 
+          marginBottom: "24px",
+          background: "var(--white)",
+          border: "1px solid var(--rule)",
+          borderRadius: "var(--r-xl)",
+          boxShadow: "0 10px 40px var(--shadow-2)",
+          overflow: "hidden",
+        }}>
+          {/* Header */}
+          <div style={{ 
+            background: "linear-gradient(135deg, var(--blue) 0%, var(--blue-2) 100%)",
+            color: "white",
+            padding: "28px 32px",
+            textAlign: "center",
+            position: "relative",
+          }}>
             <button
               type="button"
-              className="btn btn-sm btn-ghost"
               onClick={() => setShowForm(false)}
-              style={{ position: "absolute", right: "16px", top: "16px", padding: 0 }}
+              style={{
+                position: "absolute",
+                right: "24px",
+                top: "50%",
+                transform: "translateY(-50%)",
+                background: "rgba(255,255,255,0.15)",
+                border: "none",
+                borderRadius: "50%",
+                width: "40px",
+                height: "40px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                color: "white",
+                transition: "background 0.15s",
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.25)"}
+              onMouseLeave={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.15)"}
             >
-              <Icon name="x" size={15} />
+              <Icon name="x" size={18} />
             </button>
+            <span style={{ marginBottom: "12px", opacity: 0.9, display: "block" }}>
+              <Icon name="brief" size={36} />
+            </span>
+            <h2 style={{ fontWeight: 800, fontSize: "28px", margin: "0 0 8px", letterSpacing: "-0.5px" }}>
+              Create New Placement
+            </h2>
+            <p style={{ fontSize: "15px", opacity: 0.85, maxWidth: "500px", margin: "0 auto" }}>
+              Fill in the details below. Your placement will be reviewed by our team before going live.
+            </p>
           </div>
 
-          <div className="pb" style={{ display: "grid", gap: "18px", padding: "24px" }}>
-            {formError && (
-              <div className="panel" style={{ background: "var(--red-tint)", border: "1px solid var(--red)", borderRadius: "var(--r-md)", padding: "12px 16px", color: "var(--red)", display: "flex", alignItems: "center", gap: "8px" }}>
-                <Icon name="bell" size={14} />
-                {formError}
-              </div>
-            )}
+          {/* Form Content */}
+          <form onSubmit={submitPosting} style={{ padding: "32px" }}>
+            {formError && <FormError message={formError} />}
 
-            <SectionTitle title="Basic Information">
+            {/* Basic Information */}
+            <SectionCard title="Basic Information" icon="brief">
               <FieldGroup columns={2}>
                 <Field label="Placement Title" required>
-                  <input
-                    type="text"
-                    className="field-input"
+                  <Input
                     required
                     value={form.title}
                     onChange={(e) => setForm({ ...form, title: e.target.value })}
@@ -278,8 +449,7 @@ export function EmployerPlacements() {
                   />
                 </Field>
                 <Field label="Opportunity Type" required>
-                  <select
-                    className="field-input"
+                  <Select
                     required
                     value={form.opportunityType}
                     onChange={(e) => setForm({ ...form, opportunityType: e.target.value })}
@@ -287,15 +457,13 @@ export function EmployerPlacements() {
                     <option value="internship">Internship</option>
                     <option value="gig">Gig / Short-term Project</option>
                     <option value="entry_level">Entry-level Position</option>
-                  </select>
+                  </Select>
                 </Field>
               </FieldGroup>
 
               <FieldGroup columns={2}>
                 <Field label="Location" required>
-                  <input
-                    type="text"
-                    className="field-input"
+                  <Input
                     required
                     value={form.loc}
                     onChange={(e) => setForm({ ...form, loc: e.target.value })}
@@ -303,47 +471,42 @@ export function EmployerPlacements() {
                   />
                 </Field>
                 <Field label="Work Mode">
-                  <select
-                    className="field-input"
+                  <Select
                     value={form.mode}
                     onChange={(e) => setForm({ ...form, mode: e.target.value })}
                   >
                     <option value="On-site">On-site</option>
                     <option value="Hybrid">Hybrid</option>
                     <option value="Remote">Remote</option>
-                  </select>
+                  </Select>
                 </Field>
               </FieldGroup>
 
               <FieldGroup columns={2}>
-                <Field label="Eligible Courses" required>
-                  <input
-                    type="text"
-                    className="field-input"
+                <Field label="Eligible Courses" required hint="Comma separated (e.g., Computer Science, Design, Business)">
+                  <Input
                     required
                     value={form.courses}
                     onChange={(e) => setForm({ ...form, courses: e.target.value })}
-                    placeholder="Computer Science, Design, Business (comma separated)"
+                    placeholder="Computer Science, Design, Business"
                   />
                 </Field>
-                <Field label="Minimum Grade">
-                  <input
-                    type="text"
-                    className="field-input"
+                <Field label="Minimum Grade" hint="e.g., CGPA 3.0+">
+                  <Input
                     value={form.grade}
                     onChange={(e) => setForm({ ...form, grade: e.target.value })}
                     placeholder="CGPA 3.0+"
                   />
                 </Field>
               </FieldGroup>
-            </SectionTitle>
+            </SectionCard>
 
-            <SectionTitle title="Dates & Capacity">
+            {/* Dates & Capacity */}
+            <SectionCard title="Dates & Capacity" icon="clock">
               <FieldGroup columns={2}>
                 <Field label="Closing Date" required>
-                  <input
+                  <Input
                     type="date"
-                    className="field-input"
                     required
                     min={minClosesAt}
                     value={form.closesAt}
@@ -351,9 +514,8 @@ export function EmployerPlacements() {
                   />
                 </Field>
                 <Field label="Start Date" required>
-                  <input
+                  <Input
                     type="date"
-                    className="field-input"
                     required
                     min={minClosesAt}
                     value={form.startsAt}
@@ -363,31 +525,26 @@ export function EmployerPlacements() {
               </FieldGroup>
 
               <FieldGroup columns={2}>
-                <Field label="Duration">
-                  <input
-                    type="text"
-                    className="field-input"
+                <Field label="Duration" hint="e.g., 3 months">
+                  <Input
                     value={form.duration}
                     onChange={(e) => setForm({ ...form, duration: e.target.value })}
-                    placeholder="e.g., 3 months"
+                    placeholder="3 months"
                   />
                 </Field>
-                <Field label="Stipend / Salary">
-                  <input
-                    type="text"
-                    className="field-input"
+                <Field label="Stipend / Salary" hint="e.g., $500/month or Competitive">
+                  <Input
                     value={form.stipend}
                     onChange={(e) => setForm({ ...form, stipend: e.target.value })}
-                    placeholder="e.g., $500/month or Competitive"
+                    placeholder="$500/month or Competitive"
                   />
                 </Field>
               </FieldGroup>
 
               <FieldGroup columns={2}>
                 <Field label="Available Slots" required>
-                  <input
+                  <Input
                     type="number"
-                    className="field-input"
                     required
                     min="1"
                     value={form.slots}
@@ -395,215 +552,255 @@ export function EmployerPlacements() {
                   />
                 </Field>
               </FieldGroup>
-            </SectionTitle>
+            </SectionCard>
 
+            {/* Gig-specific fields */}
             {form.opportunityType === "gig" && (
-              <SectionTitle title="Gig Details">
+              <SectionCard title="Gig Details" icon="brief">
                 <FieldGroup columns={2}>
-                  <Field label="Duration (Hours)">
-                    <input
+                  <Field label="Duration (Hours)" hint="Total hours for the project">
+                    <Input
                       type="number"
-                      className="field-input"
-                      placeholder="e.g., 40"
                       value={form.durationHours}
                       onChange={(e) => setForm({ ...form, durationHours: e.target.value })}
+                      placeholder="40"
                     />
                   </Field>
-                  <Field label="Budget Range">
-                    <input
-                      type="text"
-                      className="field-input"
-                      placeholder="e.g., $500-$1,000"
+                  <Field label="Budget Range" hint="e.g., $500-$1,000">
+                    <Input
                       value={form.budgetRange}
                       onChange={(e) => setForm({ ...form, budgetRange: e.target.value })}
+                      placeholder="$500-$1,000"
                     />
                   </Field>
                 </FieldGroup>
-                <Field label="Milestones (one per line)">
-                  <textarea
-                    className="field-input"
-                    rows={2}
+                <Field fullWidth label="Milestones (one per line)">
+                  <Textarea
+                    rows={3}
                     placeholder="Design phase&#10;Development&#10;Testing & Delivery"
                     value={form.milestones}
                     onChange={(e) => setForm({ ...form, milestones: e.target.value })}
                   />
                 </Field>
-                <Field label="Remote Work Allowed">
-                  <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}>
-                    <input
-                      type="checkbox"
-                      checked={form.remoteOk}
-                      onChange={(e) => setForm({ ...form, remoteOk: e.target.checked })}
-                      style={{ width: "18px", height: "18px", accentColor: "var(--blue)" }}
-                    />
-                    <span>Allow remote work for this gig</span>
-                  </label>
+                <Field fullWidth label="Remote Work Allowed">
+                  <Checkbox
+                    label="Allow remote work for this gig"
+                    checked={form.remoteOk}
+                    onChange={(checked) => setForm({ ...form, remoteOk: checked })}
+                    description="Candidates can work remotely if selected"
+                  />
                 </Field>
-              </SectionTitle>
+              </SectionCard>
             )}
 
+            {/* Entry-level specific fields */}
             {form.opportunityType === "entry_level" && (
-              <SectionTitle title="Entry-Level Details">
+              <SectionCard title="Entry-Level Details" icon="brief">
                 <FieldGroup columns={2}>
-                  <Field label="Salary Range">
-                    <input
-                      type="text"
-                      className="field-input"
-                      placeholder="e.g., $30,000-$40,000/year"
+                  <Field label="Salary Range" hint="e.g., $30,000-$40,000/year">
+                    <Input
                       value={form.salaryRange}
                       onChange={(e) => setForm({ ...form, salaryRange: e.target.value })}
+                      placeholder="$30,000-$40,000/year"
                     />
                   </Field>
-                  <Field label="Probation Period">
-                    <input
-                      type="text"
-                      className="field-input"
-                      placeholder="e.g., 3 months"
+                  <Field label="Probation Period" hint="e.g., 3 months">
+                    <Input
                       value={form.probationPeriod}
                       onChange={(e) => setForm({ ...form, probationPeriod: e.target.value })}
+                      placeholder="3 months"
                     />
                   </Field>
                 </FieldGroup>
                 <FieldGroup columns={2}>
-                  <Field label="Training Included">
-                    <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}>
-                      <input
-                        type="checkbox"
-                        checked={form.trainingIncluded}
-                        onChange={(e) => setForm({ ...form, trainingIncluded: e.target.checked })}
-                        style={{ width: "18px", height: "18px", accentColor: "var(--blue)" }}
-                      />
-                      <span>This position includes structured training</span>
-                    </label>
+                  <Field fullWidth label="Training Included">
+                    <Checkbox
+                      label="This position includes structured training"
+                      checked={form.trainingIncluded}
+                      onChange={(checked) => setForm({ ...form, trainingIncluded: checked })}
+                    />
                   </Field>
-                  <Field label="Career Path">
-                    <textarea
-                      className="field-input"
+                  <Field label="Career Path" hint="Growth opportunities and progression">
+                    <Textarea
                       rows={2}
-                      placeholder="Growth opportunities and progression"
+                      placeholder="Describe career progression opportunities..."
                       value={form.careerPath}
                       onChange={(e) => setForm({ ...form, careerPath: e.target.value })}
                     />
                   </Field>
                 </FieldGroup>
-              </SectionTitle>
+              </SectionCard>
             )}
 
-            <SectionTitle title="Requirements & Skills">
-              <Field label="Requirements (one per line)">
-                <textarea
-                  className="field-input"
-                  rows={4}
+            {/* Requirements & Skills */}
+            <SectionCard title="Requirements & Skills" icon="brief">
+              <Field fullWidth label="Requirements (one per line)" hint="List each requirement on a new line">
+                <Textarea
+                  rows={5}
                   placeholder="Bachelor's degree in Computer Science&#10;Strong Python and React skills&#10;Experience with REST APIs&#10;Good communication skills"
                   value={form.requirements}
                   onChange={(e) => setForm({ ...form, requirements: e.target.value })}
                 />
               </Field>
 
-              <Field label="Skills Required (comma separated)">
-                <input
-                  type="text"
-                  className="field-input"
-                  placeholder="Python, React, SQL, Git, Agile"
+              <Field fullWidth label="Skills Required (comma separated)" hint="e.g., Python, React, SQL, Git, Agile">
+                <Input
                   value={form.skillsRequired}
                   onChange={(e) => setForm({ ...form, skillsRequired: e.target.value })}
+                  placeholder="Python, React, SQL, Git, Agile"
                 />
               </Field>
-            </SectionTitle>
+            </SectionCard>
 
-            <SectionTitle title="About This Opportunity">
-              <Field label="Description">
-                <textarea
-                  className="field-input"
+            {/* About */}
+            <SectionCard title="About This Opportunity" icon="brief">
+              <Field fullWidth label="Description" hint="Describe the role, team, projects, and what makes this opportunity exciting">
+                <Textarea
                   rows={4}
                   placeholder="Describe the role, team, projects, and what makes this opportunity exciting..."
                   value={form.about}
                   onChange={(e) => setForm({ ...form, about: e.target.value })}
                 />
               </Field>
-            </SectionTitle>
+            </SectionCard>
 
-            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", borderTop: "1px solid var(--rule)", paddingTop: "16px", marginTop: "8px" }}>
-              <button type="button" className="btn btn-sm" onClick={() => setShowForm(false)}>
-                <Icon name="x" size={13} /> Cancel
+            {/* Actions */}
+            <div style={{ 
+              display: "flex", 
+              gap: "12px", 
+              justifyContent: "flex-end", 
+              borderTop: "1px solid var(--rule)", 
+              paddingTop: "24px", 
+              marginTop: "8px" 
+            }}>
+              <button 
+                type="button" 
+                className="btn btn-sm" 
+                onClick={() => setShowForm(false)}
+                style={{ height: "44px" }}
+              >
+                <span style={{ marginRight: "8px" }}><Icon name="x" size={14} /></span> Cancel
               </button>
-              <button type="submit" className="btn btn-sm btn-blue" disabled={saving}>
+              <button 
+                type="submit" 
+                className="btn btn-sm btn-blue" 
+                disabled={saving}
+                style={{ height: "44px" }}
+              >
                 {saving ? (
                   <>
-                    <div className="spinner" style={{ width: "13px", height: "13px", border: "2px solid currentColor", borderRightColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite", marginRight: "8px" }} />
-                    Submitting...
+                    <div className="spinner" style={{ width: "16px", height: "16px", border: "2px solid currentColor", borderRightColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite", marginRight: "10px" }} />
+                    Submitting for review...
                   </>
                 ) : (
                   <>
-                    <Icon name="send" size={13} /> Submit for Admin Review
+                    <span style={{ marginRight: "8px" }}><Icon name="send" size={14} /></span> Submit for Admin Review
                   </>
                 )}
               </button>
             </div>
-          </div>
-        </form>
+          </form>
+        </div>
       )}
 
-      <div className="panel">
-        <div className="pb" style={{ padding: 0 }}>
-          <div style={{ overflowX: "auto" }}>
-            <table className="dtable">
-              <thead>
+      {/* Placements Table */}
+      <div className="panel" style={{ 
+        background: "var(--white)", 
+        border: "1px solid var(--rule)", 
+        borderRadius: "var(--r-xl)", 
+        overflow: "hidden",
+        boxShadow: "0 1px 3px var(--shadow-1)",
+      }}>
+        <div style={{ overflowX: "auto" }}>
+          <table className="dtable" style={{ width: "100%" }}>
+            <thead style={{ background: "var(--paper-2)" }}>
+              <tr>
+                <th style={{ padding: "16px 20px", fontWeight: 600, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--muted)" }}>Placement</th>
+                <th style={{ padding: "16px 20px", fontWeight: 600, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--muted)" }}>Status</th>
+                <th className="hide-xs" style={{ padding: "16px 20px", fontWeight: 600, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--muted)" }}>Type</th>
+                <th className="hide-xs" style={{ padding: "16px 20px", fontWeight: 600, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--muted)" }}>Courses</th>
+                <th style={{ padding: "16px 20px", fontWeight: 600, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--muted)" }}>Grade</th>
+                <th style={{ padding: "16px 20px", fontWeight: 600, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--muted)" }}>Applicants</th>
+                <th style={{ padding: "16px 20px", fontWeight: 600, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--muted)" }}>Closes</th>
+                <th style={{ padding: "16px 20px", fontWeight: 600, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--muted)" }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
                 <tr>
-                  <th>Placement</th>
-                  <th>Status</th>
-                  <th className="hide-xs">Type</th>
-                  <th className="hide-xs">Courses</th>
-                  <th>Grade</th>
-                  <th>Applicants</th>
-                  <th>Closes</th>
-                  <th></th>
+                  <td colSpan={8} style={{ textAlign: "center", padding: "60px", color: "var(--muted)" }}>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
+                      <div className="spinner" style={{ width: "32px", height: "32px", border: "3px solid var(--rule-2)", borderTopColor: "var(--blue)", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+                      <span>Loading placements...</span>
+                    </div>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr><td colSpan={8}>Loading placements...</td></tr>
-                ) : error ? (
-                  <tr><td colSpan={8} className="error">{error}</td></tr>
-                ) : employerPlacements.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} style={{ textAlign: "center", padding: "40px", color: "var(--muted)" }}>
-                      <span style={{ opacity: 0.3, display: "block", marginBottom: "12px" }}>
-                        <Icon name="brief" size={48} />
-                      </span>
-                      <p>No placements submitted yet.</p>
+              ) : error ? (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: "center", padding: "60px", color: "var(--red)" }}>
+                    <span style={{ opacity: 0.5, marginBottom: "12px", display: "block" }}>
+                      <Icon name="bell" size={32} />
+                    </span>
+                    <span>{error}</span>
+                  </td>
+                </tr>
+              ) : employerPlacements.length === 0 ? (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: "center", padding: "80px 40px", color: "var(--muted)" }}>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "20px" }}>
+                      <div style={{ opacity: 0.2 }}>
+                        <Icon name="brief" size={64} />
+                      </div>
+                      <div>
+                        <h3 style={{ fontWeight: 700, fontSize: "20px", marginBottom: "8px", color: "var(--ink)" }}>No placements yet</h3>
+                        <p style={{ fontSize: "15px" }}>Create your first placement to start attracting candidates.</p>
+                      </div>
                       <button
                         type="button"
-                        className="btn btn-sm btn-blue"
-                        style={{ marginTop: "12px" }}
+                        className="btn btn-blue"
                         onClick={() => setShowForm(true)}
+                        style={{ height: "48px", padding: "0 28px", fontSize: "14px" }}
                       >
-                        <Icon name="plus" size={13} /> Create your first placement
+                        <span style={{ marginRight: "10px" }}><Icon name="plus" size={16} /></span> Create your first placement
                       </button>
-                    </td>
-                  </tr>
-                ) : employerPlacements.map((p) => (
-                  <tr key={p.id}>
-                    <td className="who">
-                      <b>{p.title}</b>
-                      <span>{p.slots} slots · {p.opportunityType.charAt(0).toUpperCase() + p.opportunityType.slice(1)}</span>
-                    </td>
-                    <td><StatusBadge status={p.reviewStatus} /></td>
-                    <td className="hide-xs"><TypeBadge type={p.opportunityType} /></td>
-                    <td className="hide-xs" style={{ fontSize: "11px", color: "var(--ink-2)" }}>
-                      {p.courses.join(", ")}
-                    </td>
-                    <td className="num">{p.grade}</td>
-                    <td className="num">{p.applicants}</td>
-                    <td className="num">{p.closesAt || p.deadline}</td>
-                    <td className="act">
-                      {p.startsAt && <span className="lbl" style={{ fontSize: "11px" }}>Starts {p.startsAt}</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </div>
+                  </td>
+                </tr>
+              ) : employerPlacements.map((p) => (
+                <tr key={p.id} style={{ borderTop: "1px solid var(--rule)", transition: "background 0.15s" }}>
+                  <td style={{ padding: "18px 20px" }}>
+                    <div className="who" style={{ fontWeight: 700, fontSize: "15px", color: "var(--ink)" }}>
+                      {p.title}
+                    </div>
+                    <div style={{ fontSize: "13px", color: "var(--muted)", marginTop: "4px" }}>
+                      {p.slots} slots · {p.opportunityType.charAt(0).toUpperCase() + p.opportunityType.slice(1)}
+                    </div>
+                  </td>
+                  <td style={{ padding: "18px 20px" }}>
+                    <StatusBadge status={p.reviewStatus} />
+                  </td>
+                  <td className="hide-xs" style={{ padding: "18px 20px" }}>
+                    <TypeBadge type={p.opportunityType} />
+                  </td>
+                  <td className="hide-xs" style={{ padding: "18px 20px", fontSize: "13px", color: "var(--ink-2)" }}>
+                    {p.courses.join(", ")}
+                  </td>
+                  <td style={{ padding: "18px 20px", fontWeight: 600, fontSize: "14px", color: "var(--ink)" }}>
+                    {p.grade}
+                  </td>
+                  <td style={{ padding: "18px 20px", fontWeight: 600, fontSize: "14px", color: "var(--blue)" }}>
+                    {p.applicants}
+                  </td>
+                  <td style={{ padding: "18px 20px", fontSize: "13px", color: "var(--ink-2)" }}>
+                    {p.closesAt || p.deadline}
+                  </td>
+                  <td style={{ padding: "18px 20px" }}>
+                    {p.startsAt && <span style={{ fontSize: "12px", color: "var(--muted)", background: "var(--paper-2)", padding: "4px 10px", borderRadius: "var(--r-pill)" }}>Starts {p.startsAt}</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -611,25 +808,116 @@ export function EmployerPlacements() {
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
+        .panel {
+          background: var(--white);
+          border: 1px solid var(--rule);
+          border-radius: var(--r-lg);
+        }
+        .ph {
+          padding: 16px 20px;
+          border-bottom: 1px solid var(--rule);
+          background: var(--paper-2);
+          border-radius: var(--r-lg) var(--r-lg) 0 0;
+        }
+        .pb {
+          padding: 20px;
+        }
+        .lbl {
+          display: block;
+          font-size: 12px;
+          font-weight: 600;
+          color: var(--ink-2);
+          margin-bottom: 6px;
+        }
         .field-input {
           border: 1px solid var(--rule-2);
           border-radius: var(--r-sm);
           background: var(--white);
-          height: 40px;
-          padding: 0 12px;
-          font-size: 13px;
+          height: 44px;
+          padding: 0 14px;
+          font-size: 13.5px;
           outline: 0;
           width: 100%;
+          transition: border-color 0.15s, box-shadow 0.15s;
         }
         .field-input:focus {
           border-color: var(--blue);
+          box-shadow: 0 0 0 3px var(--blue-tint);
         }
         .field textarea.field-input {
-          height: 84px;
-          padding: 10px 12px;
+          min-height: 96px;
+          padding: 12px 14px;
           resize: vertical;
         }
-      `}</style>
+        .dtable {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        .dtable th {
+          text-align: left;
+          font-weight: 600;
+          font-size: 12px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          color: var(--muted);
+        }
+        .dtable td {
+          border-top: 1px solid var(--rule);
+        }
+        .dtable tbody tr:hover {
+          background: var(--paper-2);
+        }
+        .who b {
+          display: block;
+          font-weight: 700;
+        }
+        .who span {
+          font-size: 13px;
+          color: var(--muted);
+          margin-top: 4px;
+        }
+        .num {
+          font-weight: 600;
+          font-size: 14px;
+        }
+        .act {
+          white-space: nowrap;
+        }
+        .tg {
+          display: inline-block;
+          padding: 4px 10px;
+          border-radius: var(--r-pill);
+          font-size: 11px;
+          font-weight: 600;
+        }
+        .tg.blue { background: var(--blue-tint); color: var(--blue); }
+        .tg.gold { background: var(--gold-tint); color: var(--gold); }
+        .tg.green { background: var(--green-tint); color: var(--green); }
+        .tg.red { background: var(--red-tint); color: var(--red); }
+        .tg.dark { background: var(--ink-1); color: var(--ink); }
+        .btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          padding: 0 16px;
+          border-radius: var(--r-sm);
+          font-size: 13px;
+          font-weight: 600;
+          border: 1px solid transparent;
+          cursor: pointer;
+          transition: all 0.15s;
+        }
+        .btn-sm { height: 40px; padding: 0 14px; font-size: 12.5px; }
+        .btn-blue { background: var(--blue); color: white; border-color: var(--blue); }
+        .btn-blue:hover { background: var(--blue-2); }
+        .btn-blue:disabled { opacity: 0.6; cursor: not-allowed; }
+        .btn-ghost { background: transparent; color: var(--ink); border-color: var(--rule); }
+        .btn-ghost:hover { background: var(--paper-2); }
+        .spinner {
+          animation: spin 0.8s linear infinite;
+}
+  `}</style>
     </>
   );
 }
