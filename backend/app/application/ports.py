@@ -9,7 +9,7 @@ from typing import Optional
 from dataclasses import dataclass
 
 from app.domain.entities import (
-    Application, Job, Placement, Resume, StudentDocument,
+    AdminActionLog, Application, Job, Placement, Resume, StudentDocument,
     StudentProfile, Subscription, User, Invoice, Transaction, StudentUsage, JobApplication
 )
 
@@ -346,3 +346,34 @@ class UserRepository(ABC):
 
     @abstractmethod
     def get_by_id(self, user_id: str) -> Optional[User]: ...
+
+
+class AdminActionLogRepository(ABC):
+    """Audit trail for admin actions."""
+
+    @abstractmethod
+    def add(self, log: AdminActionLog) -> AdminActionLog: ...
+
+    @abstractmethod
+    def list(
+        self,
+        *,
+        admin_id: Optional[str] = None,
+        target_user_id: Optional[str] = None,
+        action: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> list[AdminActionLog]: ...
+
+    @abstractmethod
+    def count(
+        self,
+        *,
+        admin_id: Optional[str] = None,
+        target_user_id: Optional[str] = None,
+        action: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> int: ...

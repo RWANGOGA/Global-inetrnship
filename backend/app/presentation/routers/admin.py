@@ -1,5 +1,6 @@
 """Platform administrator internship review workflow."""
-from datetime import date
+from datetime import datetime
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
@@ -9,6 +10,7 @@ from app.application.services import StudentDocumentService
 from app.domain.entities import User
 from app.infrastructure.db import get_session
 from app.infrastructure.orm import (
+    AdminActionLogORM,
     ApplicationORM,
     JobApplicationORM,
     OrganisationORM,
@@ -18,8 +20,10 @@ from app.infrastructure.orm import (
     UserORM,
 )
 from app.infrastructure.repositories import SqlAlchemyPlacementRepository
-from app.presentation.deps import get_current_user, get_student_document_service
+from app.presentation.deps import get_current_user, get_student_document_service, get_admin_action_log_repository
 from app.presentation.schemas import (
+    AdminActionLogRead,
+    AdminActionLogListResponse,
     AdminActivityItem,
     AdminDashboardMetrics,
     AdminQueueItemRead,
@@ -694,6 +698,7 @@ def list_users(
     current_user: User = Depends(get_current_user),
     role: str = Query(None, description="Filter by role: student, employer, employee, admin, jobseeker"),
     status: str = Query("all", description="Filter by status: active, inactive, all"),
+    deleted: str = Query("false", description="Filter by deleted status: true, false, all"),
     search: str = Query(None, description="Search by name or email"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -701,6 +706,13 @@ def list_users(
     _require_admin(current_user)
     
     query = session.query(UserORM)
+    
+    # Filter out deleted users by default
+    if deleted == "false":
+        query = query.filter(UserORM.deleted == False)
+    elif deleted == "true":
+        query = query.filter(UserORM.deleted == True)
+    # if deleted == "all", no filter
     
     if role:
         query = query.filter(UserORM.role == role)
@@ -834,6 +846,7 @@ def user_action(
     payload: UserActionRequest,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
+    admin_log_repo=Depends(get_admin_action_log_repository),
 ) -> UserActionResponse:
     _require_admin(current_user)
     
@@ -863,11 +876,42 @@ def user_action(
             raise HTTPException(status_code=422, detail="Invalid role")
         user.role = new_role
         message = f"User role changed to {new_role}"
+    elif action == "delete":
+        if user.deleted:
+            raise HTTPException(status_code=409, detail="User already deleted")
+        user.deleted = True
+        user.deleted_at = datetime.utcnow().isoformat()
+        user.is_active = False
+        message = f"User deleted: {reason}"
     else:
-        raise HTTPException(status_code=422, detail="Invalid action. Must be: suspend, activate, or change_role")
+        raise HTTPException(status_code=422, detail="Invalid action. Must be: suspend, activate, change_role, or delete")
     
     session.commit()
     session.refresh(user)
+    
+    # Log the admin action
+    log = AdminActionLogORM(
+        id=f"aal-{uuid4().hex[:12]}",
+        admin_id=current_user.id,
+        admin_email=current_user.email,
+        target_user_id=user.id,
+        target_user_email=user.email,
+        action=action,
+        reason=reason,
+        details=f"Role: {user.role}, Active: {user.is_active}, Deleted: {user.deleted}",
+        created_at=datetime.utcnow().isoformat(),
+    )
+    admin_log_repo.add(AdminActionLog(
+        id=log.id,
+        admin_id=log.admin_id,
+        admin_email=log.admin_email,
+        target_user_id=log.target_user_id,
+        target_user_email=log.target_user_email,
+        action=log.action,
+        reason=log.reason,
+        details=log.details,
+        created_at=log.created_at,
+    ))
     
     user_read = UserRead(
         id=user.id,
@@ -884,6 +928,46 @@ def user_action(
         action=action,
         reason=reason,
         message=message,
+    )
+
+
+@router.get("/action-logs", response_model=AdminActionLogListResponse)
+def list_admin_action_logs(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    admin_id: str = Query(None, description="Filter by admin ID"),
+    target_user_id: str = Query(None, description="Filter by target user ID"),
+    action: str = Query(None, description="Filter by action"),
+    start_date: str = Query(None, description="Filter by start date (ISO format)"),
+    end_date: str = Query(None, description="Filter by end date (ISO format)"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+) -> AdminActionLogListResponse:
+    _require_admin(current_user)
+    
+    repo = get_admin_action_log_repository(session)
+    
+    total = repo.count(
+        admin_id=admin_id,
+        target_user_id=target_user_id,
+        action=action,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    
+    items = repo.list(
+        admin_id=admin_id,
+        target_user_id=target_user_id,
+        action=action,
+        start_date=start_date,
+        end_date=end_date,
+        page=page,
+        page_size=page_size,
+    )
+    
+    return AdminActionLogListResponse(
+        total=total,
+        items=[AdminActionLogRead.model_validate(log) for log in items]
     )
 
 

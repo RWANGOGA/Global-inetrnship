@@ -308,3 +308,18 @@ class StudentUsage:
     last_billed_at: Optional[str] = None
     created_at: str = ""
     updated_at: str = ""
+
+
+@dataclass(frozen=True)
+class AdminActionLog:
+    """Record of admin actions for audit trail."""
+
+    id: str
+    admin_id: str
+    admin_email: str
+    action: str  # suspend, activate, change_role, delete, etc.
+    reason: str
+    target_user_id: Optional[str] = None
+    target_user_email: Optional[str] = None
+    details: Optional[str] = None
+    created_at: str = ""

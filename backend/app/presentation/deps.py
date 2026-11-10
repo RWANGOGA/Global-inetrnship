@@ -28,6 +28,7 @@ from app.infrastructure.db import get_session
 from app.infrastructure.groq import GroqClient
 from app.infrastructure.payment_gateways.factory import get_gateway_factory
 from app.infrastructure.repositories import (
+    SqlAlchemyAdminActionLogRepository,
     SqlAlchemyApplicationRepository,
     SqlAlchemyJobApplicationRepository,
     SqlAlchemyPlacementRepository,
@@ -116,6 +117,12 @@ def get_saved_jobs_repository(
     session: Session = Depends(get_session),
 ):
     return SqlAlchemySavedJobsRepository(session)
+
+
+def get_admin_action_log_repository(
+    session: Session = Depends(get_session),
+):
+    return SqlAlchemyAdminActionLogRepository(session)
 
 
 # ---- Auth ------------------------------------------------------------------

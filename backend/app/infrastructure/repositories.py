@@ -12,6 +12,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.application.ports import (
+    AdminActionLogRepository,
     ApplicationRepository,
     JobApplicationRepository,
     JobRepository,
@@ -28,6 +29,7 @@ from app.application.ports import (
     UserRepository,
 )
 from app.domain.entities import (
+    AdminActionLog,
     Application,
     Invoice,
     Job,
@@ -43,6 +45,7 @@ from app.domain.entities import (
     User,
 )
 from app.infrastructure.orm import (
+    AdminActionLogORM,
     ApplicationORM,
     InvoiceORM,
     JobApplicationORM,
@@ -905,3 +908,93 @@ class SqlAlchemyUserRepository(UserRepository):
     def get_by_id(self, user_id: str) -> Optional[User]:
         row = self._session.query(UserORM).filter_by(id=user_id).first()
         return self._to_domain(row) if row is not None else None
+
+
+class SqlAlchemyAdminActionLogRepository(AdminActionLogRepository):
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    @staticmethod
+    def _to_domain(row: AdminActionLogORM) -> AdminActionLog:
+        return AdminActionLog(
+            id=row.id,
+            admin_id=row.admin_id,
+            admin_email=row.admin_email,
+            target_user_id=row.target_user_id,
+            target_user_email=row.target_user_email,
+            action=row.action,
+            reason=row.reason,
+            details=row.details,
+            created_at=row.created_at,
+        )
+
+    def add(self, log: AdminActionLog) -> AdminActionLog:
+        self._session.add(
+            AdminActionLogORM(
+                id=log.id,
+                admin_id=log.admin_id,
+                admin_email=log.admin_email,
+                target_user_id=log.target_user_id,
+                target_user_email=log.target_user_email,
+                action=log.action,
+                reason=log.reason,
+                details=log.details,
+                created_at=log.created_at,
+            )
+        )
+        self._session.commit()
+        return log
+
+    def list(
+        self,
+        *,
+        admin_id: Optional[str] = None,
+        target_user_id: Optional[str] = None,
+        action: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> list[AdminActionLog]:
+        query = self._session.query(AdminActionLogORM)
+
+        if admin_id:
+            query = query.filter(AdminActionLogORM.admin_id == admin_id)
+        if target_user_id:
+            query = query.filter(AdminActionLogORM.target_user_id == target_user_id)
+        if action:
+            query = query.filter(AdminActionLogORM.action == action)
+        if start_date:
+            query = query.filter(AdminActionLogORM.created_at >= start_date)
+        if end_date:
+            query = query.filter(AdminActionLogORM.created_at <= end_date)
+
+        query = query.order_by(AdminActionLogORM.created_at.desc())
+
+        offset = (page - 1) * page_size
+        rows = query.offset(offset).limit(page_size).all()
+        return [self._to_domain(r) for r in rows]
+
+    def count(
+        self,
+        *,
+        admin_id: Optional[str] = None,
+        target_user_id: Optional[str] = None,
+        action: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> int:
+        query = self._session.query(AdminActionLogORM)
+
+        if admin_id:
+            query = query.filter(AdminActionLogORM.admin_id == admin_id)
+        if target_user_id:
+            query = query.filter(AdminActionLogORM.target_user_id == target_user_id)
+        if action:
+            query = query.filter(AdminActionLogORM.action == action)
+        if start_date:
+            query = query.filter(AdminActionLogORM.created_at >= start_date)
+        if end_date:
+            query = query.filter(AdminActionLogORM.created_at <= end_date)
+
+        return query.count()

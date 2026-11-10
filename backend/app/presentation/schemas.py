@@ -622,3 +622,24 @@ class UserActionResponse(BaseModel):
     action: str
     reason: str
     message: str
+
+
+# ---------------- Admin Action Logs ------------------------------------
+
+class AdminActionLogRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    admin_id: str
+    admin_email: str
+    target_user_id: str | None = None
+    target_user_email: str | None = None
+    action: str
+    reason: str
+    details: str | None = None
+    created_at: str
+
+
+class AdminActionLogListResponse(BaseModel):
+    total: int
+    items: list[AdminActionLogRead]
