@@ -36,6 +36,20 @@ export interface Placement {
   startsAt: string;
   requirements: string[];
   reviewReason: string;
+  // Opportunity type: internship | gig | entry_level
+  opportunityType: string;
+  // Gig-specific fields
+  durationHours: number | null;
+  budgetRange: string | null;
+  milestones: string[] | null;
+  remoteOk: boolean | null;
+  // Entry-level specific fields
+  salaryRange: string | null;
+  probationPeriod: string | null;
+  trainingIncluded: boolean | null;
+  careerPath: string | null;
+  // Skill requirements (for matching)
+  skillsRequired: string[] | null;
   org?: Org;
 }
 

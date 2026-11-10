@@ -97,6 +97,16 @@ class SqlAlchemyPlacementRepository(PlacementRepository):
             starts_at=row.starts_at or "",
             requirements=list(row.requirements or []),
             review_reason=row.review_reason or "",
+            opportunity_type=row.opportunity_type or "internship",
+            duration_hours=row.duration_hours,
+            budget_range=row.budget_range,
+            milestones=list(row.milestones or []) if row.milestones else None,
+            remote_ok=row.remote_ok,
+            salary_range=row.salary_range,
+            probation_period=row.probation_period,
+            training_included=row.training_included,
+            career_path=row.career_path,
+            skills_required=list(row.skills_required or []) if row.skills_required else None,
             org=organisation,
         )
 

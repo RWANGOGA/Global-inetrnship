@@ -67,6 +67,16 @@ def ensure_schema() -> None:
             "starts_at": "VARCHAR DEFAULT ''",
             "requirements": "JSON",
             "review_reason": "TEXT DEFAULT ''",
+            "opportunity_type": "VARCHAR DEFAULT 'internship'",
+            "duration_hours": "INTEGER",
+            "budget_range": "VARCHAR",
+            "milestones": "JSON",
+            "remote_ok": "BOOLEAN",
+            "salary_range": "VARCHAR",
+            "probation_period": "VARCHAR",
+            "training_included": "BOOLEAN",
+            "career_path": "TEXT",
+            "skills_required": "JSON",
         }
         statements.extend(
             f"ALTER TABLE placements ADD COLUMN {name} {definition}"

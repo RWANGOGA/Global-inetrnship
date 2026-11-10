@@ -54,6 +54,20 @@ class PlacementORM(Base):
     starts_at: Mapped[str] = mapped_column(String, default="")
     requirements: Mapped[list] = mapped_column(JSON, default=list)
     review_reason: Mapped[str] = mapped_column(Text, default="")
+    # Opportunity type: internship | gig | entry_level
+    opportunity_type: Mapped[str] = mapped_column(String, default="internship")
+    # Gig-specific fields
+    duration_hours: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    budget_range: Mapped[str | None] = mapped_column(String, nullable=True)
+    milestones: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    remote_ok: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    # Entry-level specific fields
+    salary_range: Mapped[str | None] = mapped_column(String, nullable=True)
+    probation_period: Mapped[str | None] = mapped_column(String, nullable=True)
+    training_included: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    career_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Skill requirements (for matching)
+    skills_required: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
 
 class JobORM(Base):

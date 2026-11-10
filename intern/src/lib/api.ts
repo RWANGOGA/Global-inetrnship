@@ -92,6 +92,20 @@ interface ApiPlacement {
   requirements: string[];
   review_reason: string;
   org: ApiOrg | null;
+  // Opportunity type: internship | gig | entry_level
+  opportunity_type: string;
+  // Gig-specific fields
+  duration_hours: number | null;
+  budget_range: string | null;
+  milestones: string[] | null;
+  remote_ok: boolean | null;
+  // Entry-level specific fields
+  salary_range: string | null;
+  probation_period: string | null;
+  training_included: boolean | null;
+  career_path: string | null;
+  // Skill requirements (for matching)
+  skills_required: string[] | null;
 }
 
 interface ApiListResponse<T> {
@@ -138,6 +152,16 @@ function mapPlacement(p: ApiPlacement): Placement {
     startsAt: p.starts_at,
     requirements: p.requirements,
     reviewReason: p.review_reason,
+    opportunityType: p.opportunity_type,
+    durationHours: p.duration_hours,
+    budgetRange: p.budget_range,
+    milestones: p.milestones,
+    remoteOk: p.remote_ok,
+    salaryRange: p.salary_range,
+    probationPeriod: p.probation_period,
+    trainingIncluded: p.training_included,
+    careerPath: p.career_path,
+    skillsRequired: p.skills_required,
   };
 }
 
@@ -277,6 +301,20 @@ export interface InternshipPostingInput {
   published_at: string;
   closes_at: string;
   starts_at: string;
+  // Opportunity type: internship | gig | entry_level
+  opportunity_type: string;
+  // Gig-specific fields
+  duration_hours?: number | null;
+  budget_range?: string | null;
+  milestones?: string[] | null;
+  remote_ok?: boolean | null;
+  // Entry-level specific fields
+  salary_range?: string | null;
+  probation_period?: string | null;
+  training_included?: boolean | null;
+  career_path?: string | null;
+  // Skill requirements (for matching)
+  skills_required?: string[] | null;
 }
 
 export async function fetchOrganizationInternships(): Promise<Placement[]> {

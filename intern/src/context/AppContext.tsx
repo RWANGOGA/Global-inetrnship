@@ -1734,6 +1734,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
           startsAt: "",
           requirements: [],
           reviewReason: "",
+          opportunityType: "internship",
+          durationHours: null,
+          budgetRange: null,
+          milestones: null,
+          remoteOk: null,
+          salaryRange: null,
+          probationPeriod: null,
+          trainingIncluded: null,
+          careerPath: null,
+          skillsRequired: null,
         };
 
         setPlacements((prev) => [placement, ...prev]);

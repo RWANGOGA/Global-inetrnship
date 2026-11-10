@@ -231,6 +231,20 @@ class InternshipPostingCreate(BaseModel):
     published_at: str = ""
     closes_at: str
     starts_at: str
+    # Opportunity type: internship | gig | entry_level
+    opportunity_type: str = "internship"
+    # Gig-specific fields
+    duration_hours: int | None = None
+    budget_range: str | None = None
+    milestones: list[str] | None = None
+    remote_ok: bool | None = None
+    # Entry-level specific fields
+    salary_range: str | None = None
+    probation_period: str | None = None
+    training_included: bool | None = None
+    career_path: str | None = None
+    # Skill requirements (for matching)
+    skills_required: list[str] | None = None
 
 
 class InternshipPostingRead(PlacementRead):

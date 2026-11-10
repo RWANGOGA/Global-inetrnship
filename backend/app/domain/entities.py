@@ -14,6 +14,9 @@ class Organisation:
     loc: str
     seal: str  # monogram shown in place of a logo
     about: str = ""
+    billing_email: Optional[str] = None
+    tax_id: Optional[str] = None
+    billing_address: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -44,6 +47,20 @@ class Placement:
     starts_at: str = ""
     requirements: list[str] = field(default_factory=list)
     review_reason: str = ""
+    # Opportunity type: internship | gig | entry_level
+    opportunity_type: str = "internship"
+    # Gig-specific fields
+    duration_hours: int | None = None
+    budget_range: str | None = None
+    milestones: list | None = None
+    remote_ok: bool | None = None
+    # Entry-level specific fields
+    salary_range: str | None = None
+    probation_period: str | None = None
+    training_included: bool | None = None
+    career_path: str | None = None
+    # Skill requirements (for matching)
+    skills_required: list | None = None
     org: Optional[Organisation] = None
 
 
@@ -107,8 +124,9 @@ class StudentDocument:
     rejection_reason: str = ""
     uploaded_at: str = ""
     is_public: bool = False
-    author_role: str = "student"  # student, employer, employee, admin
-    author_id: str = ""  # references user.id or org.id
+    author_role: str = "student"
+    author_id: str = ""
+
 
 @dataclass(frozen=True)
 class Application:
@@ -135,16 +153,48 @@ class Subscription:
     billing: str = ""
     seats: int = 1
     since: str = ""
+    status: str = "active"
+    current_period_start: Optional[str] = None
+    current_period_end: Optional[str] = None
+    cancel_at_period_end: bool = False
+    trial_end: Optional[str] = None
+    payment_gateway: Optional[str] = None
+    gateway_customer_id: Optional[str] = None
+    gateway_subscription_id: Optional[str] = None
 
     @property
     def is_premium(self) -> bool:
         return self.plan != "Free"
 
 
-"""Domain entities and value objects for the Placements bounded context."""
-from dataclasses import dataclass, field
-from typing import Optional
-from datetime import datetime
+# Account roles. Mirrors the four dashboards the product exposes.
+USER_ROLES = ("student", "jobseeker", "employer", "admin")
+
+
+@dataclass(frozen=True)
+class User:
+    """An authenticated account. ``password_hash`` never leaves the domain —
+    the presentation layer exposes a safe view without it. ``org_id`` links
+    employer accounts to the organisation they act on (R1d: user-state
+    endpoints derive the org from the token instead of a request parameter)."""
+
+    id: str
+    email: str
+    name: str
+    role: str
+    password_hash: str
+    created_at: str = ""
+    org_id: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class ApplicationPack:
+    """The student's ready-to-submit application pack, auto-filled from profile
+    and tailored for each placement application."""
+
+    user_id: str
+    statement: str = ""
+    targets: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -191,6 +241,20 @@ class Placement:
     starts_at: str = ""
     requirements: list[str] = field(default_factory=list)
     review_reason: str = ""
+    # Opportunity type: internship | gig | entry_level
+    opportunity_type: str = "internship"
+    # Gig-specific fields
+    duration_hours: int | None = None
+    budget_range: str | None = None
+    milestones: list | None = None
+    remote_ok: bool | None = None
+    # Entry-level specific fields
+    salary_range: str | None = None
+    probation_period: str | None = None
+    training_included: bool | None = None
+    career_path: str | None = None
+    # Skill requirements (for matching)
+    skills_required: list | None = None
     org: Optional[Organisation] = None
 
 
@@ -242,6 +306,23 @@ class Resume:
 
 
 @dataclass(frozen=True)
+class StudentDocument:
+    id: str
+    user_id: str
+    document_type: str
+    filename: str
+    content_type: str
+    size_bytes: int
+    content: bytes
+    status: str = "pending"
+    rejection_reason: str = ""
+    uploaded_at: str = ""
+    is_public: bool = False
+    author_role: str = "student"
+    author_id: str = ""
+
+
+@dataclass(frozen=True)
 class Application:
     """A student's submission to a placement. One row per (user, placement)."""
 
@@ -266,11 +347,11 @@ class Subscription:
     billing: str = ""
     seats: int = 1
     since: str = ""
-    status: str = "active"  # active, past_due, cancelled, trialing
-    current_period_start: Optional[datetime] = None
-    current_period_end: Optional[datetime] = None
+    status: str = "active"
+    current_period_start: Optional[str] = None
+    current_period_end: Optional[str] = None
     cancel_at_period_end: bool = False
-    trial_end: Optional[datetime] = None
+    trial_end: Optional[str] = None
     payment_gateway: Optional[str] = None
     gateway_customer_id: Optional[str] = None
     gateway_subscription_id: Optional[str] = None
@@ -301,59 +382,10 @@ class User:
 
 
 @dataclass(frozen=True)
-class Invoice:
-    """An invoice for billing."""
+class ApplicationPack:
+    """The student's ready-to-submit application pack, auto-filled from profile
+    and tailored for each placement application."""
 
-    id: str
-    org_id: str
-    subscription_id: Optional[str] = None
-    amount_cents: int = 0
-    currency: str = "USD"
-    status: str = "draft"  # draft, open, paid, void, uncollectible
-    invoice_number: str = ""
-    description: Optional[str] = None
-    line_items: list[dict] = field(default_factory=list)
-    metadata: dict = field(default_factory=dict)
-    due_date: Optional[datetime] = None
-    paid_at: Optional[datetime] = None
-    payment_gateway: Optional[str] = None
-    gateway_invoice_id: Optional[str] = None
-    gateway_payment_intent_id: Optional[str] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-
-
-@dataclass(frozen=True)
-class Transaction:
-    """A payment transaction (immutable ledger entry)."""
-
-    id: str
-    org_id: str
-    invoice_id: Optional[str] = None
-    subscription_id: Optional[str] = None
-    amount_cents: int = 0
-    currency: str = "USD"
-    type: str = "payment"  # payment, refund, chargeback, credit, fee
-    status: str = "pending"  # pending, succeeded, failed, cancelled
-    payment_gateway: str = ""
-    gateway_transaction_id: Optional[str] = None
-    gateway_response: dict = field(default_factory=dict)
-    description: Optional[str] = None
-    metadata: dict = field(default_factory=dict)
-    idempotency_key: Optional[str] = None
-    created_at: Optional[datetime] = None
-    processed_at: Optional[datetime] = None
-
-
-@dataclass(frozen=True)
-class StudentUsage:
-    """Student application usage tracking for billing."""
-
-    id: str
     user_id: str
-    month: str  # YYYY-MM
-    application_count: int = 0
-    billed_count: int = 0
-    last_billed_at: Optional[datetime] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    statement: str = ""
+    targets: list[str] = field(default_factory=list)

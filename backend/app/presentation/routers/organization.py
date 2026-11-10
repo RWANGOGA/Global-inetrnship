@@ -106,6 +106,16 @@ def create_organization_internship(
         closes_at=payload.closes_at,
         starts_at=payload.starts_at,
         requirements=list(payload.requirements),
+        opportunity_type=payload.opportunity_type,
+        duration_hours=payload.duration_hours,
+        budget_range=payload.budget_range,
+        milestones=payload.milestones,
+        remote_ok=payload.remote_ok,
+        salary_range=payload.salary_range,
+        probation_period=payload.probation_period,
+        training_included=payload.training_included,
+        career_path=payload.career_path,
+        skills_required=payload.skills_required,
     )
     session.add(row)
     session.commit()
