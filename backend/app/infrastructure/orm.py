@@ -98,6 +98,13 @@ class SavedORM(Base):
     placement_id: Mapped[str] = mapped_column(String, primary_key=True)
 
 
+class SavedJobORM(Base):
+    __tablename__ = "saved_jobs"
+
+    user_id: Mapped[str] = mapped_column(String, primary_key=True)
+    job_id: Mapped[str] = mapped_column(String, primary_key=True)
+
+
 class ApplicationORM(Base):
     __tablename__ = "applications"
 

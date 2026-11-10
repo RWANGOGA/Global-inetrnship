@@ -16,6 +16,7 @@ from app.application.ports import (
     JobApplicationRepository,
     JobRepository,
     PlacementRepository,
+    SavedJobsRepository,
     SavedRepository,
     StudentProfileRepository,
     ResumeRepository,
@@ -48,6 +49,7 @@ from app.infrastructure.orm import (
     JobORM,
     OrganisationORM,
     PlacementORM,
+    SavedJobORM,
     SavedORM,
     StudentProfileORM,
     ResumeORM,
@@ -246,6 +248,42 @@ class SqlAlchemySavedRepository(SavedRepository):
             self._session.commit()
             return False
         self._session.add(SavedORM(user_id=user_id, placement_id=placement_id))
+        self._session.commit()
+        return True
+
+
+class SqlAlchemySavedJobsRepository(SavedJobsRepository):
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def list(self, user_id: str) -> list[str]:
+        rows = (
+            self._session.query(SavedJobORM.job_id)
+            .filter(SavedJobORM.user_id == user_id)
+            .order_by(SavedJobORM.job_id)
+            .all()
+        )
+        return [r[0] for r in rows]
+
+    def is_saved(self, user_id: str, job_id: str) -> bool:
+        return (
+            self._session.query(SavedJobORM)
+            .filter_by(user_id=user_id, job_id=job_id)
+            .first()
+            is not None
+        )
+
+    def toggle(self, user_id: str, job_id: str) -> bool:
+        existing = (
+            self._session.query(SavedJobORM)
+            .filter_by(user_id=user_id, job_id=job_id)
+            .first()
+        )
+        if existing is not None:
+            self._session.delete(existing)
+            self._session.commit()
+            return False
+        self._session.add(SavedJobORM(user_id=user_id, job_id=job_id))
         self._session.commit()
         return True
 

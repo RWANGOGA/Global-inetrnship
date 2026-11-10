@@ -77,6 +77,21 @@ class SavedRepository(ABC):
         """Add if absent, remove if present. Return the new saved state."""
 
 
+class SavedJobsRepository(ABC):
+    """A user's bookmarked jobs."""
+
+    @abstractmethod
+    def list(self, user_id: str) -> list[str]:
+        """Job ids the user has saved (deterministic order)."""
+
+    @abstractmethod
+    def is_saved(self, user_id: str, job_id: str) -> bool: ...
+
+    @abstractmethod
+    def toggle(self, user_id: str, job_id: str) -> bool:
+        """Add if absent, remove if present. Return the new saved state."""
+
+
 class ApplicationRepository(ABC):
     """Submissions students make to placements."""
 

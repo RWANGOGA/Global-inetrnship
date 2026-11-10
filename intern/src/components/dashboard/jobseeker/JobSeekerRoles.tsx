@@ -8,6 +8,8 @@ import {
   applyToJob,
   isApiEnabled,
   JobApplicationInput,
+  fetchSavedJobs,
+  toggleSavedJob,
 } from "../../../lib/api";
 import { Job } from "../../../types";
 import { Icon } from "../../icons/Icons";
@@ -162,6 +164,7 @@ function ReferenceFieldset({ index, form, handleChange }: { index: 1 | 2; form: 
 export function JobSeekerRoles() {
   const { session, toast } = useApp();
   const [jobs, setJobs] = React.useState<Job[]>([]);
+  const [savedJobIds, setSavedJobIds] = React.useState<Set<string>>(new Set());
   const [state, setState] = React.useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = React.useState("");
   const [applyingTo, setApplyingTo] = React.useState<string | null>(null);
@@ -191,9 +194,10 @@ export function JobSeekerRoles() {
       setState("ready");
       return;
     }
-    fetchJobs()
-      .then((items) => {
+    Promise.all([fetchJobs(), fetchSavedJobs()])
+      .then(([items, saved]) => {
         setJobs(items);
+        setSavedJobIds(new Set(saved));
         setState("ready");
       })
       .catch((cause) => {
@@ -201,6 +205,21 @@ export function JobSeekerRoles() {
         setState("error");
       });
   }, [session]);
+
+  async function handleToggleSaved(jobId: string) {
+    try {
+      const isNowSaved = await toggleSavedJob(jobId);
+      setSavedJobIds((prev) => {
+        const next = new Set(prev);
+        if (isNowSaved) next.add(jobId);
+        else next.delete(jobId);
+        return next;
+      });
+      toast(isNowSaved ? "Job saved" : "Job removed from saved");
+    } catch {
+      toast("Failed to update saved jobs");
+    }
+  }
 
   function openApply(jobId: string) {
     setApplyingTo(jobId);
@@ -271,42 +290,58 @@ export function JobSeekerRoles() {
                 <th className="hide-xs">Location</th>
                 <th>Pay</th>
                 <th>Closes</th>
+                <th style={{ width: "50px" }}>Save</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {state === "loading" ? (
-                <tr><td colSpan={6}>Loading jobs...</td></tr>
+                <tr><td colSpan={7}>Loading jobs...</td></tr>
               ) : state === "error" ? (
-                <tr><td colSpan={6} className="error">{error}</td></tr>
+                <tr><td colSpan={7} className="error">{error}</td></tr>
               ) : jobs.length === 0 ? (
-                <tr><td colSpan={6}>No open jobs are available.</td></tr>
-              ) : jobs.map((r) => (
-                <tr key={r.id}>
-                  <td className="who">
-                    <b>{r.title}</b>
-                    <span>{r.employmentType}</span>
-                  </td>
-                  <td>{r.orgName}</td>
-                  <td className="hide-xs">{r.loc}</td>
-                  <td className="num">{r.salary}</td>
-                  <td className="num">{r.closesAt}</td>
-                  <td className="act">
-                    {r.status === "Open" ? (
+                <tr><td colSpan={7}>No open jobs are available.</td></tr>
+              ) : jobs.map((r) => {
+                const isSaved = savedJobIds.has(r.id);
+                return (
+                  <tr key={r.id}>
+                    <td className="who">
+                      <b>{r.title}</b>
+                      <span>{r.employmentType}</span>
+                    </td>
+                    <td>{r.orgName}</td>
+                    <td className="hide-xs">{r.loc}</td>
+                    <td className="num">{r.salary}</td>
+                    <td className="num">{r.closesAt}</td>
+                    <td className="act" style={{ textAlign: "center" }}>
                       <button
                         type="button"
-                        className="btn btn-sm btn-blue"
+                        className={`btn btn-sm ${isSaved ? "btn-blue" : "btn-ghost"}`}
+                        onClick={() => handleToggleSaved(r.id)}
                         disabled={applying}
-                        onClick={() => openApply(r.id)}
+                        style={{ minWidth: "40px", padding: "0 8px" }}
+                        title={isSaved ? "Remove from saved" : "Save job"}
                       >
-                        <Icon name="send" size={13} /> Apply
+                        <Icon name={isSaved ? "check" : "plus"} size={14} />
                       </button>
-                    ) : (
-                      <StatusBadge status={r.status} />
-                    )}
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="act">
+                      {r.status === "Open" ? (
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-blue"
+                          disabled={applying}
+                          onClick={() => openApply(r.id)}
+                        >
+                          <Icon name="send" size={13} /> Apply
+                        </button>
+                      ) : (
+                        <StatusBadge status={r.status} />
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

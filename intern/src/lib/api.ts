@@ -365,6 +365,20 @@ export async function withdrawJobApplication(applicationId: string): Promise<Job
   return postJson<JobApplicationDto>(`/jobs/applications/${applicationId}/withdraw`, {});
 }
 
+// ---- Saved Jobs -----------------------------------------------------------
+
+export async function fetchSavedJobs(): Promise<string[]> {
+  return getJson<string[]>("/jobs/saved");
+}
+
+export async function checkSavedJob(jobId: string): Promise<boolean> {
+  return getJson<boolean>(`/jobs/saved/${jobId}`);
+}
+
+export async function toggleSavedJob(jobId: string): Promise<boolean> {
+  return postJson<boolean>(`/jobs/saved/${jobId}/toggle`, {});
+}
+
 // ---- CSV Exports -----------------------------------------------------------
 
 export async function exportPlacementsCsv(): Promise<Blob> {

@@ -31,6 +31,7 @@ from app.infrastructure.repositories import (
     SqlAlchemyApplicationRepository,
     SqlAlchemyJobApplicationRepository,
     SqlAlchemyPlacementRepository,
+    SqlAlchemySavedJobsRepository,
     SqlAlchemySavedRepository,
     SqlAlchemyStudentProfileRepository,
     SqlAlchemyResumeRepository,
@@ -109,6 +110,12 @@ def get_job_application_repository(
     session: Session = Depends(get_session),
 ):
     return SqlAlchemyJobApplicationRepository(session)
+
+
+def get_saved_jobs_repository(
+    session: Session = Depends(get_session),
+):
+    return SqlAlchemySavedJobsRepository(session)
 
 
 # ---- Auth ------------------------------------------------------------------

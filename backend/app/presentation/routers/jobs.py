@@ -5,12 +5,12 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.application.ports import JobApplicationRepository
+from app.application.ports import JobApplicationRepository, SavedJobsRepository
 from app.domain.entities import User
 from app.infrastructure.db import get_session
 from app.infrastructure.orm import JobApplicationORM, JobORM
 from app.infrastructure.repositories import SqlAlchemyJobRepository
-from app.presentation.deps import get_current_user, get_job_application_repository
+from app.presentation.deps import get_current_user, get_job_application_repository, get_saved_jobs_repository
 from app.presentation.schemas import (
     JobListResponse,
     JobRead,
@@ -33,6 +33,37 @@ def list_jobs(
 ) -> JobListResponse:
     items = SqlAlchemyJobRepository(session).list(q=q, location=location, mode=mode)
     return JobListResponse(total=len(items), items=[JobRead.model_validate(item) for item in items])
+
+
+# ---- Saved Jobs (must come before /{job_id} to avoid route conflicts) ----
+
+@router.get("/saved", response_model=list[str])
+def list_saved_jobs(
+    current_user: User = Depends(get_current_user),
+    repo: SavedJobsRepository = Depends(get_saved_jobs_repository),
+) -> list[str]:
+    """Get list of saved job IDs for the current user."""
+    return repo.list(current_user.id)
+
+
+@router.get("/saved/{job_id}", response_model=bool)
+def check_saved_job(
+    job_id: str,
+    current_user: User = Depends(get_current_user),
+    repo: SavedJobsRepository = Depends(get_saved_jobs_repository),
+) -> bool:
+    """Check if a job is saved by the current user."""
+    return repo.is_saved(current_user.id, job_id)
+
+
+@router.post("/saved/{job_id}/toggle", response_model=bool)
+def toggle_saved_job(
+    job_id: str,
+    current_user: User = Depends(get_current_user),
+    repo: SavedJobsRepository = Depends(get_saved_jobs_repository),
+) -> bool:
+    """Toggle save/unsave for a job. Returns new saved state."""
+    return repo.toggle(current_user.id, job_id)
 
 
 @router.get("/{job_id}", response_model=JobRead)
