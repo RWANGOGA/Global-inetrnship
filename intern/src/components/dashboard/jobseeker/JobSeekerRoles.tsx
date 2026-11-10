@@ -104,7 +104,7 @@ function FileUpload({ label, accept, onChange, maxSizeMB = 5 }: { label: string;
 function SectionTitle({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <fieldset style={{ border: "1px solid var(--rule)", borderRadius: "var(--r-md)", padding: "16px", marginTop: "16px" }}>
-      <legend style={{ fontWeight: 600, fontSize: "12px", marginBottom: "12px", padding: "0 8px" }}>{title}</legend>
+      <legend style={{ fontWeight: 600, fontSize: "12px", marginBottom: "12px", padding: "0 8px", color: "var(--ink)" }}>{title}</legend>
       <div style={{ display: "grid", gap: "12px" }}>{children}</div>
     </fieldset>
   );
@@ -158,6 +158,22 @@ function ReferenceFieldset({ index, form, handleChange }: { index: 1 | 2; form: 
         </div>
       </div>
     </fieldset>
+  );
+}
+
+function SaveButton({ isSaved, onClick, disabled, title }: { isSaved: boolean; onClick: () => void; disabled?: boolean; title: string }) {
+  return (
+    <button
+      type="button"
+      className={`btn btn-sm ${isSaved ? "btn-blue" : "btn-ghost"}`}
+      onClick={onClick}
+      disabled={disabled}
+      style={{ minWidth: "44px", height: "40px", padding: "0 12px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px", transition: "all 0.15s" }}
+      title={title}
+    >
+      <Icon name={isSaved ? "check" : "plus"} size={15} />
+      <span style={{ fontSize: "12px", fontWeight: 500, display: "none" }}>{isSaved ? "Saved" : "Save"}</span>
+    </button>
   );
 }
 
@@ -314,16 +330,12 @@ export function JobSeekerRoles() {
                     <td className="num">{r.salary}</td>
                     <td className="num">{r.closesAt}</td>
                     <td className="act" style={{ textAlign: "center" }}>
-                      <button
-                        type="button"
-                        className={`btn btn-sm ${isSaved ? "btn-blue" : "btn-ghost"}`}
+                      <SaveButton
+                        isSaved={isSaved}
                         onClick={() => handleToggleSaved(r.id)}
                         disabled={applying}
-                        style={{ minWidth: "40px", padding: "0 8px" }}
                         title={isSaved ? "Remove from saved" : "Save job"}
-                      >
-                        <Icon name={isSaved ? "check" : "plus"} size={14} />
-                      </button>
+                      />
                     </td>
                     <td className="act">
                       {r.status === "Open" ? (
@@ -361,7 +373,6 @@ export function JobSeekerRoles() {
             </button>
           </div>
           <div className="pb" style={{ display: "grid", gap: "20px", padding: "20px" }}>
-            {/* Personal Statement */}
             <div className="field">
               <label className="lbl">Personal Statement <span style={{ color: "var(--red)" }}>*</span></label>
               <textarea
@@ -375,7 +386,6 @@ export function JobSeekerRoles() {
               />
             </div>
 
-            {/* Cover Letter */}
             <div className="field">
               <label className="lbl">Cover Letter</label>
               <textarea
@@ -388,7 +398,6 @@ export function JobSeekerRoles() {
               />
             </div>
 
-            {/* CV/Resume Upload */}
             <FileUpload
               label="CV / Resume (PDF, max 5MB)"
               accept=".pdf"
@@ -402,7 +411,6 @@ export function JobSeekerRoles() {
               }}
             />
 
-            {/* Links Section */}
             <div style={{ display: "grid", gap: "12px", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
               <div className="field">
                 <label className="lbl">GitHub Profile</label>
@@ -436,7 +444,6 @@ export function JobSeekerRoles() {
               </div>
             </div>
 
-            {/* Academic Papers */}
             <div className="field">
               <label className="lbl">Academic Papers / Publications (one URL per line)</label>
               <textarea
@@ -449,13 +456,11 @@ export function JobSeekerRoles() {
               />
             </div>
 
-            {/* References */}
             <SectionTitle title="Professional References">
               <ReferenceFieldset index={1} form={form} handleChange={handleChange} />
               <ReferenceFieldset index={2} form={form} handleChange={handleChange} />
             </SectionTitle>
 
-            {/* Additional Documents */}
             <SectionTitle title="Additional Documents">
               <p style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "12px" }}>
                 Upload reference letters, transcripts, certificates, etc. (PDF, max 5MB each)
@@ -489,7 +494,6 @@ export function JobSeekerRoles() {
               />
             </SectionTitle>
 
-            {/* Actions */}
             <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", borderTop: "1px solid var(--rule)", paddingTop: "16px", marginTop: "8px" }}>
               <button
                 type="button"
@@ -519,41 +523,6 @@ export function JobSeekerRoles() {
           </div>
         </div>
       )}
-
-      <style jsx>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-        .field-input {
-          border: 1px solid var(--rule-2);
-          border-radius: var(--r-sm);
-          background: var(--white);
-          height: 40px;
-          padding: 0 12px;
-          font-size: 13px;
-          outline: 0;
-          width: 100%;
-        }
-        .field-input:focus {
-          border-color: var(--blue);
-        }
-        .field textarea.field-input {
-          height: 84px;
-          padding: 10px 12px;
-          resize: vertical;
-        }
-        .file-input {
-          position: absolute;
-          width: 1px;
-          height: 1px;
-          padding: 0;
-          margin: -1px;
-          overflow: hidden;
-          clip: rect(0, 0, 0, 0);
-          white-space: nowrap;
-          border: 0;
-        }
-      `}</style>
     </>
   );
 }

@@ -9,8 +9,10 @@ import {
   withdrawJobApplication,
   withdrawApplicationApi,
   isApiEnabled,
+  fetchSavedJobs,
+  fetchJobs,
 } from "../../../lib/api";
-import { ApplicationDto, JobApplicationDto } from "../../../types";
+import { ApplicationDto, JobApplicationDto, Job } from "../../../types";
 import { Icon } from "../../icons/Icons";
 
 function StatusBadge({ status }: { status: string }) {
@@ -36,9 +38,10 @@ export function JobSeekerApps() {
   const { session, toast } = useApp();
   const [applications, setApplications] = useState<ApplicationDto[]>([]);
   const [jobApplications, setJobApplications] = useState<JobApplicationDto[]>([]);
+  const [savedJobs, setSavedJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState<"internships" | "jobs">("internships");
+  const [activeTab, setActiveTab] = useState<"internships" | "jobs" | "saved">("internships");
   const [withdrawing, setWithdrawing] = useState<string | null>(null);
 
   useEffect(() => {
@@ -52,12 +55,19 @@ export function JobSeekerApps() {
   async function loadApplications() {
     setLoading(true);
     try {
-      const [internships, jobs] = await Promise.all([
+      const [internships, jobs, saved] = await Promise.all([
         fetchJobApplications(),
         fetchMyJobApplications(),
+        fetchSavedJobs(),
       ]);
       setApplications(internships);
       setJobApplications(jobs.items);
+
+      if (saved.length > 0) {
+        const allJobs = await fetchJobs();
+        const savedJobMap = new Map(allJobs.map((j) => [j.id, j]));
+        setSavedJobs(saved.map((id) => savedJobMap.get(id)).filter(Boolean) as Job[]);
+      }
       setLoading(false);
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : "Unable to load applications");
@@ -85,10 +95,17 @@ export function JobSeekerApps() {
     }
   }
 
-  const currentApps = activeTab === "internships" ? applications : jobApplications;
-  const openCount = currentApps.filter(
-    (a) => !["Accepted", "Rejected", "Withdrawn"].includes(a.status)
-  ).length;
+  const currentApps =
+    activeTab === "internships"
+      ? applications
+      : activeTab === "jobs"
+      ? jobApplications
+      : savedJobs;
+  const openCount = activeTab === "saved"
+    ? 0
+    : currentApps.filter(
+        (a) => !["Accepted", "Rejected", "Withdrawn"].includes(a.status)
+      ).length;
 
   return (
     <>
@@ -96,8 +113,9 @@ export function JobSeekerApps() {
         <div>
           <h2>Applications</h2>
           <p>
-            {currentApps.length} application{currentApps.length === 1 ? "" : "s"} ·
-            {openCount} open
+            {activeTab === "saved"
+              ? `${savedJobs.length} saved job{savedJobs.length === 1 ? "" : "s"}`
+              : `${currentApps.length} application{currentApps.length === 1 ? "" : "s"} · {openCount} open`}
           </p>
         </div>
         <div style={{ display: "flex", gap: "8px" }}>
@@ -115,6 +133,13 @@ export function JobSeekerApps() {
           >
             <Icon name="brief" size={13} /> Jobs
           </button>
+          <button
+            type="button"
+            className={`btn btn-sm ${activeTab === "saved" ? "btn-blue" : ""}`}
+            onClick={() => setActiveTab("saved")}
+          >
+            <Icon name="check" size={13} /> Saved
+          </button>
         </div>
       </div>
       <div className="panel">
@@ -124,61 +149,144 @@ export function JobSeekerApps() {
               <tr>
                 <th>Role</th>
                 <th>Organisation</th>
-                <th>Applied</th>
+                <th>{activeTab === "saved" ? "Closes" : "Applied"}</th>
                 <th>Status</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={5}>Loading applications...</td></tr>
+                <tr>
+                  <td colSpan={5}>Loading...</td>
+                </tr>
               ) : !currentApps || currentApps.length === 0 ? (
                 <tr>
-                  <td colSpan={5} style={{ textAlign: "center", padding: "40px", color: "var(--muted)" }}>
-                    <span style={{ opacity: 0.3, marginBottom: "12px", display: "block" }}>
-                    <Icon name="file-text" size={48} />
-                  </span>
-                    <div>No applications yet</div>
-                    <div style={{ fontSize: "13px", marginTop: "4px" }}>Browse roles to get started</div>
+                  <td
+                    colSpan={5}
+                    style={{
+                      textAlign: "center",
+                      padding: "40px",
+                      color: "var(--muted)",
+                    }}
+                  >
+                    <span
+                      style={{
+                        opacity: 0.3,
+                        display: "block",
+                        marginBottom: "12px",
+                      }}
+                    >
+                      <Icon
+                        name={activeTab === "saved" ? "check" : "file-text"}
+                        size={48}
+                      />
+                    </span>
+                    <p>
+                      {activeTab === "saved"
+                        ? "No saved jobs yet"
+                        : "No applications yet. Browse roles to get started."}
+                    </p>
+                    {activeTab === "saved" && (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-blue"
+                        style={{ marginTop: "12px" }}
+                        onClick={() => setActiveTab("jobs")}
+                      >
+                        <Icon name="brief" size={13} /> Browse Jobs
+                      </button>
+                    )}
                   </td>
                 </tr>
               ) : (
                 currentApps.map((app) => {
                   const isInternship = activeTab === "internships";
-                  const appAny = app as ApplicationDto | JobApplicationDto;
+                  const isJob = activeTab === "jobs";
+                  const isSaved = activeTab === "saved";
+                  const appAny = app as ApplicationDto | JobApplicationDto | Job;
                   return (
                     <tr key={app.id}>
                       <td className="who">
                         <b>
                           {isInternship
                             ? (appAny as ApplicationDto).placement_id
-                            : (appAny as JobApplicationDto).job_id}
+                            : isJob
+                            ? (appAny as JobApplicationDto).job_id
+                            : (appAny as Job).title}
                         </b>
-                        <span>{isInternship ? "Internship" : "Full time"}</span>
+                        <span>
+                          {isInternship
+                            ? "Internship"
+                            : isJob
+                            ? "Full time"
+                            : (appAny as Job).employmentType}
+                        </span>
                       </td>
-                      <td>Employer</td>
-                      <td className="num">{app.created_at.split("T")[0]}</td>
-                      <td><StatusBadge status={app.status} /></td>
+                      <td>
+                        {isInternship
+                          ? "Employer"
+                          : isJob
+                          ? "Employer"
+                          : (appAny as Job).orgName}
+                      </td>
+                      <td className="num">
+                        {isInternship || isJob
+                          ? (appAny as ApplicationDto | JobApplicationDto).created_at.split("T")[0]
+                          : (appAny as Job).closesAt}
+                      </td>
+                      <td>
+                        {isSaved ? (
+                          <span className="tg green">Saved</span>
+                        ) : (
+                          <StatusBadge status={app.status} />
+                        )}
+                      </td>
                       <td className="act">
-                        {["Submitted", "In Review"].includes(app.status) && (
+                        {isSaved && (
                           <button
                             type="button"
-                            className={`btn btn-sm ${withdrawing === app.id ? "btn-red" : ""}`}
-                            disabled={withdrawing === app.id}
-                            onClick={() => handleWithdraw(app.id, activeTab === "internships" ? "internship" : "job")}
+                            className="btn btn-sm btn-ghost"
+                            onClick={() => setActiveTab("jobs")}
                           >
-                            {withdrawing === app.id ? (
-                              <>
-                                <div className="spinner" style={{ width: "13px", height: "13px", border: "2px solid currentColor", borderRightColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite", marginRight: "8px" }} />
-                                Withdrawing...
-                              </>
-                            ) : (
-                              <>
-                                <Icon name="trash" size={13} /> Withdraw
-                              </>
-                            )}
+                            <Icon name="send" size={13} /> View & Apply
                           </button>
                         )}
+                        {!isSaved &&
+                          ["Submitted", "In Review"].includes(app.status) && (
+                            <button
+                              type="button"
+                              className={`btn btn-sm ${withdrawing === app.id ? "btn-red" : ""}`}
+                              disabled={withdrawing === app.id}
+                              onClick={() =>
+                                handleWithdraw(
+                                  app.id,
+                                  activeTab === "internships" ? "internship" : "job"
+                                )
+                              }
+                            >
+                              {withdrawing === app.id ? (
+                                <>
+                                  <div
+                                    className="spinner"
+                                    style={{
+                                      width: "13px",
+                                      height: "13px",
+                                      border: "2px solid currentColor",
+                                      borderRightColor: "transparent",
+                                      borderRadius: "50%",
+                                      animation: "spin 0.8s linear infinite",
+                                      marginRight: "8px",
+                                    }}
+                                  />
+                                  Withdrawing...
+                                </>
+                              ) : (
+                                <>
+                                  <Icon name="trash" size={13} /> Withdraw
+                                </>
+                              )}
+                            </button>
+                          )}
                       </td>
                     </tr>
                   );
@@ -188,12 +296,6 @@ export function JobSeekerApps() {
           </table>
         </div>
       </div>
-
-      <style jsx>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </>
   );
 }
