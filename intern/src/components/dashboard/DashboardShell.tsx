@@ -27,6 +27,7 @@ import { StudentTestimonial } from "./student/StudentTestimonial";
 import { EmployerOverview } from "./employer/EmployerOverview";
 import { EmployerPlacements } from "./employer/EmployerPlacements";
 import { EmployerApplicants } from "./employer/EmployerApplicants";
+import { EmployerJobs } from "./employer/EmployerJobs";
 import { EmployerTestimonial } from "./employer/EmployerTestimonial";
 
 import { EmployeeTestimonial } from "./employee/EmployeeTestimonial";
@@ -131,6 +132,8 @@ export function DashboardShell() {
           return <EmployerPlacements />;
         case "applicants":
           return <EmployerApplicants />;
+        case "jobs":
+          return <EmployerJobs />;
         case "testimonial":
           return <EmployerTestimonial />;
         default:

@@ -1,11 +1,24 @@
-"""Public Jobs Portal catalogue endpoints."""
+"""Public Jobs Portal catalogue and application endpoints."""
 from typing import Optional
+from uuid import uuid4
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.infrastructure.repositories import SqlAlchemyJobRepository
+from app.application.ports import JobApplicationRepository
+from app.domain.entities import User
 from app.infrastructure.db import get_session
-from app.presentation.schemas import JobListResponse, JobRead
+from app.infrastructure.orm import JobApplicationORM, JobORM
+from app.infrastructure.repositories import SqlAlchemyJobRepository
+from app.presentation.deps import get_current_user, get_job_application_repository
+from app.presentation.schemas import (
+    JobListResponse,
+    JobRead,
+    JobApplicationRead,
+    JobApplicationCreate,
+    JobApplicationListResponse,
+    JobApplicationStatusUpdate,
+)
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -28,3 +41,137 @@ def get_job(job_id: str, session: Session = Depends(get_session)) -> JobRead:
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     return JobRead.model_validate(job)
+
+
+@router.post("/{job_id}/apply", response_model=JobApplicationRead, status_code=201)
+def apply_to_job(
+    job_id: str,
+    payload: JobApplicationCreate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    repo: JobApplicationRepository = Depends(get_job_application_repository),
+) -> JobApplicationRead:
+    """Submit an application to a job posting."""
+    # Check if job exists and is open
+    job = session.query(JobORM).filter_by(id=job_id).first()
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.status != "Open":
+        raise HTTPException(status_code=409, detail="Job is not accepting applications")
+
+    # Check if already applied
+    existing = repo.find(current_user.id, job_id)
+    if existing:
+        raise HTTPException(status_code=409, detail="Already applied to this job")
+
+    # Create application
+    application = repo.add(
+        repo._to_domain(
+            JobApplicationORM(
+                id=f"ja-{uuid4().hex[:12]}",
+                user_id=current_user.id,
+                job_id=job_id,
+                status="Submitted",
+                statement=payload.statement,
+                created_at=datetime.utcnow().isoformat(),
+                updated_at=datetime.utcnow().isoformat(),
+            )
+        )
+    )
+
+    # Increment applicant count
+    job.applicants = (job.applicants or 0) + 1
+    session.commit()
+
+    return JobApplicationRead.model_validate(application)
+
+
+@router.get("/my/applications", response_model=JobApplicationListResponse)
+def list_my_job_applications(
+    current_user: User = Depends(get_current_user),
+    repo: JobApplicationRepository = Depends(get_job_application_repository),
+) -> JobApplicationListResponse:
+    """Get all job applications for the current user."""
+    applications = repo.list_for_user(current_user.id)
+    return JobApplicationListResponse(total=len(applications), items=applications)
+
+
+@router.get("/{job_id}/applicants", response_model=JobApplicationListResponse)
+def list_job_applicants(
+    job_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    repo: JobApplicationRepository = Depends(get_job_application_repository),
+) -> JobApplicationListResponse:
+    """Get all applicants for a job (employer only)."""
+    # Verify the user is an employer and owns this job
+    if current_user.role != "employer" or not current_user.org_id:
+        raise HTTPException(status_code=403, detail="Only employers can view applicants")
+
+    job = session.query(JobORM).filter_by(id=job_id).first()
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.org_id != current_user.org_id:
+        raise HTTPException(status_code=403, detail="Not authorized to view applicants for this job")
+
+    applications = repo.list_for_job(job_id)
+    return JobApplicationListResponse(total=len(applications), items=applications)
+
+
+@router.patch("/applications/{application_id}/status", response_model=JobApplicationRead)
+def update_job_application_status(
+    application_id: str,
+    payload: JobApplicationStatusUpdate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    repo: JobApplicationRepository = Depends(get_job_application_repository),
+) -> JobApplicationRead:
+    """Update application status (employer only)."""
+    if current_user.role != "employer" or not current_user.org_id:
+        raise HTTPException(status_code=403, detail="Only employers can update application status")
+
+    # Verify the application belongs to a job owned by this employer
+    app_orm = session.query(JobApplicationORM).filter_by(id=application_id).first()
+    if app_orm is None:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    job = session.query(JobORM).filter_by(id=app_orm.job_id).first()
+    if job is None or job.org_id != current_user.org_id:
+        raise HTTPException(status_code=403, detail="Not authorized to update this application")
+
+    valid_statuses = ["Submitted", "In Review", "Accepted", "Rejected", "Withdrawn"]
+    if payload.status not in valid_statuses:
+        raise HTTPException(status_code=422, detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}")
+
+    updated = repo.update_status(application_id, payload.status)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    return JobApplicationRead.model_validate(updated)
+
+
+@router.post("/applications/{application_id}/withdraw", response_model=JobApplicationRead)
+def withdraw_job_application(
+    application_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    repo: JobApplicationRepository = Depends(get_job_application_repository),
+) -> JobApplicationRead:
+    """Withdraw a job application (jobseeker only)."""
+    app_orm = session.query(JobApplicationORM).filter_by(id=application_id).first()
+    if app_orm is None:
+        raise HTTPException(status_code=404, detail="Application not found")
+    if app_orm.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to withdraw this application")
+
+    updated = repo.update_status(application_id, "Withdrawn")
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    # Decrement applicant count
+    job = session.query(JobORM).filter_by(id=app_orm.job_id).first()
+    if job:
+        job.applicants = max(0, (job.applicants or 0) - 1)
+        session.commit()
+
+    return JobApplicationRead.model_validate(updated)

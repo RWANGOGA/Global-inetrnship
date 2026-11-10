@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.application.ports import (
     ApplicationRepository,
+    JobApplicationRepository,
     JobRepository,
     PlacementRepository,
     SavedRepository,
@@ -29,6 +30,7 @@ from app.domain.entities import (
     Application,
     Invoice,
     Job,
+    JobApplication,
     Organisation,
     Placement,
     Resume,
@@ -42,6 +44,7 @@ from app.domain.entities import (
 from app.infrastructure.orm import (
     ApplicationORM,
     InvoiceORM,
+    JobApplicationORM,
     JobORM,
     OrganisationORM,
     PlacementORM,
@@ -317,6 +320,77 @@ class SqlAlchemyApplicationRepository(ApplicationRepository):
             .all()
         )
         return [self._to_domain(r) for r in rows]
+
+
+class SqlAlchemyJobApplicationRepository(JobApplicationRepository):
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    @staticmethod
+    def _to_domain(row: JobApplicationORM) -> JobApplication:
+        return JobApplication(
+            id=row.id,
+            user_id=row.user_id,
+            job_id=row.job_id,
+            status=row.status,
+            statement=row.statement or "",
+            created_at=row.created_at or "",
+            updated_at=row.updated_at or "",
+        )
+
+    def add(self, application: JobApplication) -> JobApplication:
+        self._session.add(
+            JobApplicationORM(
+                id=application.id,
+                user_id=application.user_id,
+                job_id=application.job_id,
+                status=application.status,
+                statement=application.statement,
+                created_at=application.created_at,
+                updated_at=application.updated_at,
+            )
+        )
+        self._session.commit()
+        return application
+
+    def find(self, user_id: str, job_id: str) -> Optional[JobApplication]:
+        row = (
+            self._session.query(JobApplicationORM)
+            .filter_by(user_id=user_id, job_id=job_id)
+            .first()
+        )
+        return self._to_domain(row) if row is not None else None
+
+    def find_by_id(self, application_id: str) -> Optional[JobApplication]:
+        row = self._session.query(JobApplicationORM).filter_by(id=application_id).first()
+        return self._to_domain(row) if row is not None else None
+
+    def list_for_user(self, user_id: str) -> list[JobApplication]:
+        rows = (
+            self._session.query(JobApplicationORM)
+            .filter_by(user_id=user_id)
+            .order_by(JobApplicationORM.created_at.desc(), JobApplicationORM.id)
+            .all()
+        )
+        return [self._to_domain(r) for r in rows]
+
+    def list_for_job(self, job_id: str) -> list[JobApplication]:
+        rows = (
+            self._session.query(JobApplicationORM)
+            .filter_by(job_id=job_id)
+            .order_by(JobApplicationORM.created_at.desc(), JobApplicationORM.id)
+            .all()
+        )
+        return [self._to_domain(r) for r in rows]
+
+    def update_status(self, application_id: str, status: str) -> Optional[JobApplication]:
+        row = self._session.query(JobApplicationORM).filter_by(id=application_id).first()
+        if row is None:
+            return None
+        row.status = status
+        row.updated_at = datetime.utcnow().isoformat()
+        self._session.commit()
+        return self._to_domain(row)
 
 
 def get_by_id(self, user_id: str) -> Optional[User]:

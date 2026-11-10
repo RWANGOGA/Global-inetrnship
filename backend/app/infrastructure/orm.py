@@ -88,6 +88,7 @@ class JobORM(Base):
     review_status: Mapped[str] = mapped_column(String, default="approved")
     published_at: Mapped[str] = mapped_column(String, default="")
     review_reason: Mapped[str] = mapped_column(Text, default="")
+    applicants: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class SavedORM(Base):
@@ -106,6 +107,18 @@ class ApplicationORM(Base):
     status: Mapped[str] = mapped_column(String, default="Submitted")
     statement: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[str] = mapped_column(String, default="")
+
+
+class JobApplicationORM(Base):
+    __tablename__ = "job_applications"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[str] = mapped_column(String, index=True, nullable=False)
+    job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id"), index=True, nullable=False)
+    status: Mapped[str] = mapped_column(String, default="Submitted")
+    statement: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[str] = mapped_column(String, default="")
+    updated_at: Mapped[str] = mapped_column(String, default="")
 
 
 class StudentProfileORM(Base):

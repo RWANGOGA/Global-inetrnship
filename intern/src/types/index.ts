@@ -69,6 +69,18 @@ export interface Job {
   reviewStatus?: string;
   publishedAt?: string;
   reviewReason?: string;
+  applicants?: number;
+}
+
+export interface JobPostingInput {
+  title: string;
+  loc: string;
+  mode: string;
+  employment_type: string;
+  salary: string;
+  closes_at: string;
+  summary: string;
+  requirements: string[];
 }
 
 export interface GradRole {
@@ -200,6 +212,16 @@ export interface ApplicationDto {
   created_at: string;
 }
 
+export interface JobApplicationDto {
+  id: string;
+  user_id: string;
+  job_id: string;
+  status: string;
+  statement: string;
+  created_at: string;
+  updated_at: string | null;
+}
+
 export type DashboardView =
   | "overview"
   | "skills"
@@ -214,7 +236,8 @@ export type DashboardView =
   | "apps"
   | "applicants"
   | "organizations"
-  | "users";
+  | "users"
+  | "jobs";
 
 export interface OrganizationRead {
   id: string;

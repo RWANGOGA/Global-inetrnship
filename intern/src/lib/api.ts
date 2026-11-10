@@ -284,6 +284,49 @@ export async function createOrganizationJob(input: JobPostingInput): Promise<Job
   return mapJob(data);
 }
 
+// ---- Job Applications ------------------------------------------------------
+
+export interface JobApplicationDto {
+  id: string;
+  user_id: string;
+  job_id: string;
+  status: string;
+  statement: string;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface JobApplicationListResponse {
+  total: number;
+  items: JobApplicationDto[];
+}
+
+export async function applyToJob(
+  jobId: string,
+  statement: string
+): Promise<JobApplicationDto> {
+  return postJson<JobApplicationDto>(`/jobs/${jobId}/apply`, { statement });
+}
+
+export async function fetchMyJobApplications(): Promise<JobApplicationListResponse> {
+  return getJson<JobApplicationListResponse>("/jobs/my/applications");
+}
+
+export async function fetchJobApplicants(jobId: string): Promise<JobApplicationListResponse> {
+  return getJson<JobApplicationListResponse>(`/jobs/${jobId}/applicants`);
+}
+
+export async function updateJobApplicationStatus(
+  applicationId: string,
+  status: string
+): Promise<JobApplicationDto> {
+  return patchJson<JobApplicationDto>(`/jobs/applications/${applicationId}/status`, { status });
+}
+
+export async function withdrawJobApplication(applicationId: string): Promise<JobApplicationDto> {
+  return postJson<JobApplicationDto>(`/jobs/applications/${applicationId}/withdraw`, {});
+}
+
 export interface InternshipPostingInput {
   title: string;
   courses: string[];

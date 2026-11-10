@@ -29,6 +29,7 @@ from app.infrastructure.groq import GroqClient
 from app.infrastructure.payment_gateways.factory import get_gateway_factory
 from app.infrastructure.repositories import (
     SqlAlchemyApplicationRepository,
+    SqlAlchemyJobApplicationRepository,
     SqlAlchemyPlacementRepository,
     SqlAlchemySavedRepository,
     SqlAlchemyStudentProfileRepository,
@@ -100,6 +101,14 @@ def get_student_document_service(
     session: Session = Depends(get_session),
 ) -> StudentDocumentService:
     return StudentDocumentService(SqlAlchemyStudentDocumentRepository(session))
+
+
+# ---- Job Applications --------------------------------------------------------
+
+def get_job_application_repository(
+    session: Session = Depends(get_session),
+):
+    return SqlAlchemyJobApplicationRepository(session)
 
 
 # ---- Auth ------------------------------------------------------------------

@@ -344,8 +344,9 @@ export const NAV: Record<UserRole, [string, string, string][]> = {
   employer: [
     ["overview", "Overview", "01"],
     ["placements", "My placements", "02"],
-    ["applicants", "Applicants", "03"],
-    ["testimonial", "Testimonial", "04"],
+    ["jobs", "My jobs", "03"],
+    ["applicants", "Applicants", "04"],
+    ["testimonial", "Testimonial", "05"],
   ],
 admin: [
     ["overview", "Overview", "01"],

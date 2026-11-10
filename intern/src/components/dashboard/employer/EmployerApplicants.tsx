@@ -6,55 +6,132 @@ import {
   ApiError,
   fetchOrganizationInternships,
   fetchOrganizationApplicants,
+  fetchOrganizationJobs,
+  fetchJobApplicants,
+  updateJobApplicationStatus,
   isApiEnabled,
 } from "../../../lib/api";
-import { Placement, ApplicationDto } from "../../../types";
+import { Placement, ApplicationDto, Job, JobApplicationDto } from "../../../types";
 
 export function EmployerApplicants() {
   const { session, dashGo } = useApp();
   const [placements, setPlacements] = useState<Placement[]>([]);
-  const [applicants, setApplicants] = useState<Record<string, ApplicationDto[]>>({});
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [internshipApplicants, setInternshipApplicants] = useState<Record<string, ApplicationDto[]>>({});
+  const [jobApplicants, setJobApplicants] = useState<Record<string, JobApplicationDto[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [selectedPlacementId, setSelectedPlacementId] = useState<string>("");
+  const [activeTab, setActiveTab] = useState<"internships" | "jobs">("internships");
+  const [selectedId, setSelectedId] = useState<string>("");
+  const [updating, setUpdating] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isApiEnabled || session?.role !== "employer") {
       setLoading(false);
       return;
     }
-    loadPlacements();
+    loadData();
   }, [session]);
 
-  async function loadPlacements() {
+  async function loadData() {
     setLoading(true);
     try {
-      const items = await fetchOrganizationInternships();
-      setPlacements(items);
-      if (items.length > 0) {
-        setSelectedPlacementId(items[0].id);
-        loadApplicants(items[0].id);
+      const [placementsData, jobsData] = await Promise.all([
+        fetchOrganizationInternships(),
+        fetchOrganizationJobs(),
+      ]);
+      setPlacements(placementsData);
+      setJobs(jobsData);
+      
+      if (placementsData.length > 0) {
+        setSelectedId(placementsData[0].id);
+        loadInternshipApplicants(placementsData[0].id);
+      }
+      if (jobsData.length > 0 && activeTab === "jobs") {
+        setSelectedId(jobsData[0].id);
+        loadJobApplicants(jobsData[0].id);
       }
       setLoading(false);
     } catch (cause) {
-      setError(cause instanceof ApiError ? cause.message : "Unable to load placements");
+      setError(cause instanceof ApiError ? cause.message : "Unable to load data");
       setLoading(false);
     }
   }
 
-  async function loadApplicants(placementId: string) {
+  async function loadInternshipApplicants(placementId: string) {
     try {
       const apps = await fetchOrganizationApplicants(placementId);
-      setApplicants((prev) => ({ ...prev, [placementId]: apps }));
+      setInternshipApplicants((prev) => ({ ...prev, [placementId]: apps }));
     } catch (cause) {
-      console.error("Failed to load applicants:", cause);
+      console.error("Failed to load internship applicants:", cause);
     }
   }
 
-  const totalApplicants = Object.values(applicants).flat().length;
-  const shortlisted = Object.values(applicants)
-    .flat()
-    .filter((a) => a.status === "Accepted").length;
+  async function loadJobApplicants(jobId: string) {
+    try {
+      const data = await fetchJobApplicants(jobId);
+      setJobApplicants((prev) => ({ ...prev, [jobId]: data.items }));
+    } catch (cause) {
+      console.error("Failed to load job applicants:", cause);
+    }
+  }
+
+  function handleSelectionChange(id: string) {
+    setSelectedId(id);
+    if (activeTab === "internships") {
+      if (id && !internshipApplicants[id]) loadInternshipApplicants(id);
+    } else {
+      if (id && !jobApplicants[id]) loadJobApplicants(id);
+    }
+  }
+
+  async function handleStatusUpdate(applicationId: string, status: string) {
+    setUpdating(applicationId);
+    try {
+      await updateJobApplicationStatus(applicationId, status);
+      // Refresh the current list
+      if (activeTab === "jobs") {
+        loadJobApplicants(selectedId);
+      }
+    } catch (cause) {
+      console.error("Failed to update status:", cause);
+    } finally {
+      setUpdating(null);
+    }
+  }
+
+  const currentItems = activeTab === "internships" ? placements : jobs;
+  const currentApplicants = activeTab === "internships" 
+    ? internshipApplicants[selectedId] || [] 
+    : jobApplicants[selectedId] || [];
+
+  const totalApplicants = Object.values(
+    activeTab === "internships" ? internshipApplicants : jobApplicants
+  ).flat().length;
+  const shortlisted = Object.values(
+    activeTab === "internships" ? internshipApplicants : jobApplicants
+  ).flat().filter((a) => a.status === "Accepted").length;
+
+  function StatusBadge({ status }: { status: string }) {
+    const colors: Record<string, string> = {
+      Submitted: "blue",
+      "In Review": "amber",
+      Accepted: "green",
+      Rejected: "red",
+      Withdrawn: "ink",
+    };
+    return (
+      <span
+        className="tg"
+        style={{
+          background: `var(--${colors[status] || "ink"}-1)`,
+          color: `var(--${colors[status] || "ink"})`,
+        }}
+      >
+        {status}
+      </span>
+    );
+  }
 
   return (
     <>
@@ -66,33 +143,40 @@ export function EmployerApplicants() {
             {shortlisted} shortlisted
           </p>
         </div>
-        <button
-          type="button"
-          className="btn btn-sm"
-          onClick={() => console.log("Export")}
-        >
-          Export
-        </button>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button
+            type="button"
+            className={`btn btn-sm ${activeTab === "internships" ? "btn-blue" : ""}`}
+            onClick={() => setActiveTab("internships")}
+          >
+            Internships
+          </button>
+          <button
+            type="button"
+            className={`btn btn-sm ${activeTab === "jobs" ? "btn-blue" : ""}`}
+            onClick={() => setActiveTab("jobs")}
+          >
+            Jobs
+          </button>
+        </div>
       </div>
 
       <div className="panel" style={{ marginBottom: "14px" }}>
         <div className="ph">
-          <span className="lbl">Select placement</span>
+          <span className="lbl">Select {activeTab === "internships" ? "placement" : "job"}</span>
         </div>
         <div className="pb">
           <select
-            value={selectedPlacementId}
-            onChange={(e) => {
-              const id = e.target.value;
-              setSelectedPlacementId(id);
-              if (id && !applicants[id]) loadApplicants(id);
-            }}
+            value={selectedId}
+            onChange={(e) => handleSelectionChange(e.target.value)}
             className="field"
             style={{ maxWidth: "400px" }}
           >
-            {(placements || []).map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.title} ({p.applicants} applicants)
+            {currentItems.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.title} ({activeTab === "internships" 
+                  ? (item as Placement).applicants 
+                  : (item as Job).applicants} applicants)
               </option>
             ))}
           </select>
@@ -105,8 +189,8 @@ export function EmployerApplicants() {
             <thead>
               <tr>
                 <th>Candidate</th>
-                <th>Course</th>
-                <th>Grade</th>
+                <th>{activeTab === "internships" ? "Course" : "Applied"}</th>
+                <th>{activeTab === "internships" ? "Grade" : "Status"}</th>
                 <th className="hide-xs">Documents</th>
                 <th>Fit</th>
                 <th></th>
@@ -114,38 +198,86 @@ export function EmployerApplicants() {
             </thead>
             <tbody>
               {loading ? (
+                <tr><td colSpan={6}>Loading...</td></tr>
+              ) : currentItems.length === 0 ? (
                 <tr>
-                  <td colSpan={6}>Loading...</td>
+                  <td colSpan={6}>
+                    No {activeTab === "internships" ? "placements" : "jobs"} posted yet.
+                  </td>
                 </tr>
-              ) : placements.length === 0 ? (
+              ) : currentApplicants.length === 0 ? (
                 <tr>
-                  <td colSpan={6}>No placements posted yet.</td>
-                </tr>
-              ) : applicants[selectedPlacementId]?.length === 0 ? (
-                <tr>
-                  <td colSpan={6}>No applicants for this placement.</td>
+                  <td colSpan={6}>
+                    No applicants for this {activeTab === "internships" ? "placement" : "job"}.
+                  </td>
                 </tr>
               ) : (
-                (applicants[selectedPlacementId] || []).map((app, i) => (
+                currentApplicants.map((app, i) => (
                   <tr key={app.id}>
                     <td className="who">
                       <b>{app.user_id.slice(0, 8)}…</b>
-                      <span>Year 3</span>
+                      <span>
+                        {activeTab === "internships" ? "Year 3" : app.created_at}
+                      </span>
                     </td>
-                    <td>{app.placement_id}</td>
-                    <td className="num">3.7</td>
+                    <td>
+                      {activeTab === "internships" 
+                        ? (app as ApplicationDto).placement_id 
+                        : app.created_at}
+                    </td>
+                    <td className="num">
+                      {activeTab === "internships" ? "3.7" : (
+                        <StatusBadge status={app.status} />
+                      )}
+                    </td>
                     <td className="hide-xs">
-                      <span className="tg green">3 of 3 verified</span>
+                      {activeTab === "internships" ? (
+                        <span className="tg green">3 of 3 verified</span>
+                      ) : (
+                        <span className="tg blue">View CV</span>
+                      )}
                     </td>
-                    <td className="num">93%</td>
+                    <td className="num">
+                      {activeTab === "internships" ? "93%" : "—"}
+                    </td>
                     <td className="act">
-                      <button
-                        type="button"
-                        className="btn btn-sm"
-                        onClick={() => console.log("Invite", app.id)}
-                      >
-                        Invite
-                      </button>
+                      {activeTab === "jobs" && ["Submitted", "In Review"].includes(app.status) && (
+                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-blue"
+                            disabled={updating === app.id}
+                            onClick={() => handleStatusUpdate(app.id, "Accepted")}
+                          >
+                            Accept
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            disabled={updating === app.id}
+                            onClick={() => handleStatusUpdate(app.id, "Rejected")}
+                          >
+                            Reject
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            disabled={updating === app.id}
+                            onClick={() => handleStatusUpdate(app.id, "In Review")}
+                          >
+                            Review
+                          </button>
+                        </div>
+                      )}
+                      {activeTab === "internships" && (
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          onClick={() => console.log("Invite", app.id)}
+                        >
+                          Invite
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))

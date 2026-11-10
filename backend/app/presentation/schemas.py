@@ -90,6 +90,31 @@ class JobPostingListResponse(JobListResponse):
     pass
 
 
+class JobApplicationRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    user_id: str
+    job_id: str
+    status: str
+    statement: str
+    created_at: str
+    updated_at: str | None = None
+
+
+class JobApplicationCreate(BaseModel):
+    statement: str = ""
+
+
+class JobApplicationListResponse(BaseModel):
+    total: int
+    items: list[JobApplicationRead]
+
+
+class JobApplicationStatusUpdate(BaseModel):
+    status: str
+
+
 class JobReviewRequest(BaseModel):
     decision: str
     reason: str = ""

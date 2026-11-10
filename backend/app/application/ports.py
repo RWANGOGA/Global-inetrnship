@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 from app.domain.entities import (
     Application, Job, Placement, Resume, StudentDocument,
-    StudentProfile, Subscription, User, Invoice, Transaction, StudentUsage
+    StudentProfile, Subscription, User, Invoice, Transaction, StudentUsage, JobApplication
 )
 
 
@@ -97,6 +97,28 @@ class ApplicationRepository(ABC):
 
     @abstractmethod
     def withdraw(self, user_id: str, application_id: str) -> Optional[Application]: ...
+
+
+class JobApplicationRepository(ABC):
+    """Submissions jobseekers make to job postings."""
+
+    @abstractmethod
+    def add(self, application: JobApplication) -> JobApplication: ...
+
+    @abstractmethod
+    def find(self, user_id: str, job_id: str) -> Optional[JobApplication]: ...
+
+    @abstractmethod
+    def find_by_id(self, application_id: str) -> Optional[JobApplication]: ...
+
+    @abstractmethod
+    def list_for_user(self, user_id: str) -> list[JobApplication]: ...
+
+    @abstractmethod
+    def list_for_job(self, job_id: str) -> list[JobApplication]: ...
+
+    @abstractmethod
+    def update_status(self, application_id: str, status: str) -> Optional[JobApplication]: ...
 
 
 class StudentProfileRepository(ABC):

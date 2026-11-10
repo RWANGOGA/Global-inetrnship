@@ -141,6 +141,19 @@ class Application:
 
 
 @dataclass(frozen=True)
+class JobApplication:
+    """A jobseeker's submission to a job posting. One row per (user, job)."""
+
+    id: str
+    user_id: str
+    job_id: str
+    status: str = "Submitted"
+    statement: str = ""
+    created_at: str = ""
+    updated_at: str = ""
+
+
+@dataclass(frozen=True)
 class Subscription:
     """A host organisation's live billing state (placement-fee plan).
 
