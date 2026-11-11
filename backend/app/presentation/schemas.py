@@ -468,6 +468,7 @@ class AdminDashboardMetrics(BaseModel):
     total_applications: int
     total_revenue_cents: int
     verification_rate: float  # percentage
+    org_types: dict[str, int]
 
 
 class AdminActivityItem(BaseModel):
@@ -643,3 +644,99 @@ class AdminActionLogRead(BaseModel):
 class AdminActionLogListResponse(BaseModel):
     total: int
     items: list[AdminActionLogRead]
+
+
+# ---------------- Admin Reports ------------------------------------
+
+class ReportFilters(BaseModel):
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    org_id: Optional[str] = None
+    placement_id: Optional[str] = None
+
+
+class PlacementReportItem(BaseModel):
+    placement_id: str
+    title: str
+    organization: str
+    org_type: str
+    status: str
+    review_status: str
+    published_at: str
+    closes_at: str
+    starts_at: str
+    slots: int
+    applicants: int
+    filled: int
+    stipend: str
+    location: str
+    mode: str
+
+
+class PlacementReportResponse(BaseModel):
+    total: int
+    items: list[PlacementReportItem]
+    summary: dict
+
+
+class ApplicationReportItem(BaseModel):
+    application_id: str
+    type: str
+    user_id: str
+    user_name: str
+    user_email: str
+    user_role: str
+    placement_id: Optional[str] = None
+    placement_title: Optional[str] = None
+    job_id: Optional[str] = None
+    job_title: Optional[str] = None
+    organization: Optional[str] = None
+    status: str
+    created_at: str
+    updated_at: str
+
+
+class ApplicationReportResponse(BaseModel):
+    total: int
+    items: list[ApplicationReportItem]
+    summary: dict
+
+
+class HireReportItem(BaseModel):
+    application_id: str
+    user_id: str
+    user_name: str
+    user_email: str
+    placement_id: str
+    placement_title: str
+    organization: str
+    org_type: str
+    hired_at: str
+    stipend: str
+    duration: str
+
+
+class HireReportResponse(BaseModel):
+    total: int
+    items: list[HireReportItem]
+    summary: dict
+
+
+class VerificationReportItem(BaseModel):
+    document_id: str
+    user_id: str
+    user_name: str
+    user_email: str
+    document_type: str
+    filename: str
+    status: str
+    uploaded_at: str
+    verified_at: Optional[str] = None
+    verified_by: Optional[str] = None
+    rejection_reason: str
+
+
+class VerificationReportResponse(BaseModel):
+    total: int
+    items: list[VerificationReportItem]
+    summary: dict

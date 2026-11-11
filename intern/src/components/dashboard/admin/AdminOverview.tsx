@@ -19,6 +19,7 @@ export function AdminOverview() {
     total_applications: number;
     total_revenue_cents: number;
     verification_rate: number;
+    org_types: Record<string, number>;
   } | null>(null);
   const [queue, setQueue] = useState<AdminQueueItem[]>([]);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
@@ -86,26 +87,23 @@ export function AdminOverview() {
 
       <div className="kpis">
         <div className="kpi">
-          <span className="delta">+6</span>
-          <b>{metrics?.open_placements ?? 42}</b>
+          <b>{metrics?.open_placements ?? 0}</b>
           <span className="lbl">open placements</span>
         </div>
         <div className="kpi alert">
-          <span className="delta">{metrics?.pending_documents ?? 23} due</span>
-          <b>{metrics?.pending_documents ?? 23}</b>
+          <span className="delta">{metrics?.pending_documents ?? 0} due</span>
+          <b>{metrics?.pending_documents ?? 0}</b>
           <span className="lbl">documents to verify</span>
         </div>
         <div className="kpi">
-          <span className="delta">+18</span>
-          <b>{metrics?.students_placed ?? 186}</b>
+          <b>{metrics?.students_placed ?? 0}</b>
           <span className="lbl">students placed</span>
         </div>
         <div className="kpi">
-          <b>{metrics?.placement_record_complete ?? 94}%</b>
+          <b>{metrics?.placement_record_complete ?? 0}%</b>
           <span className="lbl">placement record complete</span>
         </div>
         <div className="kpi">
-          <span className="delta">{metrics?.total_users ?? 0}</span>
           <b>{metrics?.total_users ?? 0}</b>
           <span className="lbl">total users</span>
         </div>
@@ -222,43 +220,24 @@ export function AdminOverview() {
               <span className="lbl">Placements by organisation type</span>
             </div>
             <div className="pb bars">
-              <div className="bar-row">
-                <span>Companies</span>
-                <div className="bar-track">
-                  <div className="bar-fill" style={{ width: "64%" }}></div>
+              {Object.entries(metrics?.org_types || {}).map(([type, count]) => (
+                <div key={type} className="bar-row">
+                  <span>{type}</span>
+                  <div className="bar-track">
+                    <div
+                      className="bar-fill"
+                      style={{
+                        width: `${metrics?.total_organizations ? (count / metrics.total_organizations) * 100 : 0}%`,
+                        background: `var(--${type === "Company" ? "blue" : type === "Government" ? "green" : type === "NGO" ? "red" : "gold"})`
+                      }}
+                    ></div>
+                  </div>
+                  <b>{count}</b>
                 </div>
-                <b>27</b>
-              </div>
-              <div className="bar-row">
-                <span>Government</span>
-                <div className="bar-track">
-                  <div
-                    className="bar-fill"
-                    style={{ width: "38%", background: "var(--green)" }}
-                  ></div>
-                </div>
-                <b>9</b>
-              </div>
-              <div className="bar-row">
-                <span>NGOs</span>
-                <div className="bar-track">
-                  <div
-                    className="bar-fill"
-                    style={{ width: "22%", background: "var(--red)" }}
-                  ></div>
-                </div>
-                <b>4</b>
-              </div>
-              <div className="bar-row">
-                <span>Universities</span>
-                <div className="bar-track">
-                  <div
-                    className="bar-fill"
-                    style={{ width: "12%", background: "var(--gold)" }}
-                  ></div>
-                </div>
-                <b>2</b>
-              </div>
+              ))}
+              {(metrics?.org_types && Object.keys(metrics.org_types).length === 0) && (
+                <div className="muted">No organisations yet.</div>
+              )}
             </div>
           </div>
 

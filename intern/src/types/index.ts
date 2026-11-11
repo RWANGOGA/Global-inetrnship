@@ -309,7 +309,8 @@ export type DashboardView =
   | "organizations"
   | "users"
   | "jobs"
-  | "action-logs";
+  | "action-logs"
+  | "reports";
 
 export interface OrganizationRead {
   id: string;

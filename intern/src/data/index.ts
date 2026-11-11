@@ -359,6 +359,7 @@ admin: [
     ["organizations", "Organizations", "08"],
     ["users", "Users", "09"],
     ["action-logs", "Action Logs", "10"],
+    ["reports", "Reports", "11"],
   ],
   employee: [
     ["overview", "Overview", "01"],

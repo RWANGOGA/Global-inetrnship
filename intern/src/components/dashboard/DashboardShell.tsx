@@ -17,6 +17,7 @@ import { AdminTestimonial } from "./admin/AdminTestimonial";
 import { OrganizationManagement } from "./admin/OrganizationManagement";
 import { UserManagement } from "./admin/UserManagement";
 import { AdminActionLogs } from "./admin/AdminActionLogs";
+import { AdminReports } from "./admin/AdminReports";
 
 import { StudentOverview } from "./student/StudentOverview";
 import { StudentApplications } from "./student/StudentApplications";
@@ -80,6 +81,10 @@ export function DashboardShell() {
     roles: "Graduate roles",
     apps: "Applications",
     applicants: "Applicants",
+    organizations: "Organizations",
+    users: "Users",
+    "action-logs": "Action Logs",
+    reports: "Reports",
   };
 
   const currentTitle = titles[dash] || "Overview";
@@ -108,6 +113,8 @@ export function DashboardShell() {
           return <UserManagement />;
         case "action-logs":
           return <AdminActionLogs />;
+        case "reports":
+          return <AdminReports />;
         default:
           return <AdminOverview />;
       }

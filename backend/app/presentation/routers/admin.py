@@ -92,6 +92,12 @@ def get_admin_metrics(
         TransactionORM.status == "succeeded"
     ).scalar() or 0
     
+    # Organisations by type
+    org_types = {}
+    for org_type in ["Company", "Government", "NGO", "University"]:
+        count = session.query(OrganisationORM).filter(OrganisationORM.type == org_type).count()
+        org_types[org_type] = count
+
     # Verification rate
     verified_docs = session.query(StudentDocumentORM).filter(StudentDocumentORM.status == "verified").count()
     total_docs = session.query(StudentDocumentORM).count()
@@ -108,6 +114,7 @@ def get_admin_metrics(
         total_applications=total_applications,
         total_revenue_cents=total_revenue_cents,
         verification_rate=round(verification_rate, 1),
+        org_types=org_types,
     )
 
 
@@ -1105,6 +1112,592 @@ def list_all_applications(
     return ApplicationsResponse(
         total=total,
         items=[ApplicationRead.model_validate(a) for a in paginated]
+    )
+
+
+# ---------------- Reports ------------------------------------
+
+from pydantic import BaseModel
+from typing import Optional
+from datetime import datetime, timedelta
+
+class ReportFilters(BaseModel):
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    org_id: Optional[str] = None
+    placement_id: Optional[str] = None
+
+class PlacementReportItem(BaseModel):
+    placement_id: str
+    title: str
+    organization: str
+    org_type: str
+    status: str
+    review_status: str
+    published_at: str
+    closes_at: str
+    starts_at: str
+    slots: int
+    applicants: int
+    filled: int
+    stipend: str
+    location: str
+    mode: str
+
+class PlacementReportResponse(BaseModel):
+    total: int
+    items: list[PlacementReportItem]
+    summary: dict
+
+class ApplicationReportItem(BaseModel):
+    application_id: str
+    type: str
+    user_id: str
+    user_name: str
+    user_email: str
+    user_role: str
+    placement_id: Optional[str] = None
+    placement_title: Optional[str] = None
+    job_id: Optional[str] = None
+    job_title: Optional[str] = None
+    organization: Optional[str] = None
+    status: str
+    created_at: str
+    updated_at: str
+
+class ApplicationReportResponse(BaseModel):
+    total: int
+    items: list[ApplicationReportItem]
+    summary: dict
+
+class HireReportItem(BaseModel):
+    application_id: str
+    user_id: str
+    user_name: str
+    user_email: str
+    placement_id: str
+    placement_title: str
+    organization: str
+    org_type: str
+    hired_at: str
+    stipend: str
+    duration: str
+
+class HireReportResponse(BaseModel):
+    total: int
+    items: list[HireReportItem]
+    summary: dict
+
+class VerificationReportItem(BaseModel):
+    document_id: str
+    user_id: str
+    user_name: str
+    user_email: str
+    document_type: str
+    filename: str
+    status: str
+    uploaded_at: str
+    verified_at: Optional[str] = None
+    verified_by: Optional[str] = None
+    rejection_reason: str
+
+class VerificationReportResponse(BaseModel):
+    total: int
+    items: list[VerificationReportItem]
+    summary: dict
+
+@router.post("/reports/placements", response_model=PlacementReportResponse)
+def get_placements_report(
+    filters: ReportFilters,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> PlacementReportResponse:
+    _require_admin(current_user)
+    
+    query = session.query(PlacementORM).join(OrganisationORM, PlacementORM.org_id == OrganisationORM.id)
+    
+    if filters.start_date:
+        query = query.filter(PlacementORM.published_at >= filters.start_date)
+    if filters.end_date:
+        query = query.filter(PlacementORM.published_at <= filters.end_date)
+    if filters.org_id:
+        query = query.filter(PlacementORM.org_id == filters.org_id)
+    if filters.placement_id:
+        query = query.filter(PlacementORM.id == filters.placement_id)
+    
+    rows = query.order_by(PlacementORM.published_at.desc()).all()
+    
+    items = []
+    for p in rows:
+        org = session.query(OrganisationORM).filter_by(id=p.org_id).first()
+        filled = session.query(ApplicationORM).filter(
+            ApplicationORM.placement_id == p.id,
+            ApplicationORM.status == "Accepted"
+        ).count()
+        items.append(PlacementReportItem(
+            placement_id=p.id,
+            title=p.title,
+            organization=org.name if org else "",
+            org_type=org.type if org else "",
+            status=p.status,
+            review_status=p.review_status,
+            published_at=p.published_at,
+            closes_at=p.closes_at,
+            starts_at=p.starts_at,
+            slots=p.slots,
+            applicants=p.applicants,
+            filled=filled,
+            stipend=p.stipend,
+            location=p.loc,
+            mode=p.mode,
+        ))
+    
+    total_placements = len(items)
+    open_placements = sum(1 for i in items if i.status == "Open")
+    total_slots = sum(i.slots for i in items)
+    total_applicants = sum(i.applicants for i in items)
+    total_filled = sum(i.filled for i in items)
+    fill_rate = round((total_filled / total_slots * 100) if total_slots > 0 else 0, 1)
+    
+    return PlacementReportResponse(
+        total=total_placements,
+        items=items,
+        summary={
+            "total_placements": total_placements,
+            "open_placements": open_placements,
+            "total_slots": total_slots,
+            "total_applicants": total_applicants,
+            "total_filled": total_filled,
+            "fill_rate_percent": fill_rate,
+        }
+    )
+
+
+@router.post("/reports/applications", response_model=ApplicationReportResponse)
+def get_applications_report(
+    filters: ReportFilters,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> ApplicationReportResponse:
+    _require_admin(current_user)
+    
+    # Internship applications
+    internship_query = session.query(ApplicationORM).join(UserORM, ApplicationORM.user_id == UserORM.id)
+    if filters.start_date:
+        internship_query = internship_query.filter(ApplicationORM.created_at >= filters.start_date)
+    if filters.end_date:
+        internship_query = internship_query.filter(ApplicationORM.created_at <= filters.end_date)
+    if filters.placement_id:
+        internship_query = internship_query.filter(ApplicationORM.placement_id == filters.placement_id)
+    
+    internship_apps = internship_query.order_by(ApplicationORM.created_at.desc()).all()
+    
+    # Job applications
+    job_query = session.query(JobApplicationORM).join(UserORM, JobApplicationORM.user_id == UserORM.id)
+    if filters.start_date:
+        job_query = job_query.filter(JobApplicationORM.created_at >= filters.start_date)
+    if filters.end_date:
+        job_query = job_query.filter(JobApplicationORM.created_at <= filters.end_date)
+    if filters.placement_id:
+        job_query = job_query.filter(JobApplicationORM.job_id == filters.placement_id)
+    
+    job_apps = job_query.order_by(JobApplicationORM.created_at.desc()).all()
+    
+    users = {u.id: u for u in session.query(UserORM).all()}
+    
+    items = []
+    for app in internship_apps:
+        user = users.get(app.user_id)
+        placement = session.query(PlacementORM).filter_by(id=app.placement_id).first()
+        org = session.query(OrganisationORM).filter_by(id=placement.org_id).first() if placement else None
+        items.append(ApplicationReportItem(
+            application_id=app.id,
+            type="internship",
+            user_id=app.user_id,
+            user_name=user.name if user else "",
+            user_email=user.email if user else "",
+            user_role=user.role if user else "",
+            placement_id=app.placement_id,
+            placement_title=placement.title if placement else "",
+            job_id=None,
+            job_title=None,
+            organization=org.name if org else "",
+            status=app.status,
+            created_at=app.created_at,
+            updated_at=app.updated_at,
+        ))
+    
+    for app in job_apps:
+        user = users.get(app.user_id)
+        job = session.query(JobORM).filter_by(id=app.job_id).first()
+        org = session.query(OrganisationORM).filter_by(id=job.org_id).first() if job else None
+        items.append(ApplicationReportItem(
+            application_id=app.id,
+            type="job",
+            user_id=app.user_id,
+            user_name=user.name if user else "",
+            user_email=user.email if user else "",
+            user_role=user.role if user else "",
+            placement_id=None,
+            placement_title=None,
+            job_id=app.job_id,
+            job_title=job.title if job else "",
+            organization=org.name if org else "",
+            status=app.status,
+            created_at=app.created_at,
+            updated_at=app.updated_at,
+        ))
+    
+    items.sort(key=lambda x: x.created_at, reverse=True)
+    
+    total = len(items)
+    by_status = {}
+    for item in items:
+        by_status[item.status] = by_status.get(item.status, 0) + 1
+    by_type = {"internship": 0, "job": 0}
+    for item in items:
+        by_type[item.type] += 1
+    
+    return ApplicationReportResponse(
+        total=total,
+        items=items,
+        summary={
+            "total_applications": total,
+            "by_status": by_status,
+            "by_type": by_type,
+        }
+    )
+
+
+@router.post("/reports/hires", response_model=HireReportResponse)
+def get_hires_report(
+    filters: ReportFilters,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> HireReportResponse:
+    _require_admin(current_user)
+    
+    query = session.query(ApplicationORM).join(UserORM, ApplicationORM.user_id == UserORM.id).join(
+        PlacementORM, ApplicationORM.placement_id == PlacementORM.id
+    ).join(OrganisationORM, PlacementORM.org_id == OrganisationORM.id).filter(
+        ApplicationORM.status == "Accepted"
+    )
+    
+    if filters.start_date:
+        query = query.filter(ApplicationORM.updated_at >= filters.start_date)
+    if filters.end_date:
+        query = query.filter(ApplicationORM.updated_at <= filters.end_date)
+    if filters.org_id:
+        query = query.filter(OrganisationORM.id == filters.org_id)
+    if filters.placement_id:
+        query = query.filter(PlacementORM.id == filters.placement_id)
+    
+    rows = query.order_by(ApplicationORM.updated_at.desc()).all()
+    
+    items = []
+    for app in rows:
+        user = session.query(UserORM).filter_by(id=app.user_id).first()
+        placement = session.query(PlacementORM).filter_by(id=app.placement_id).first()
+        org = session.query(OrganisationORM).filter_by(id=placement.org_id).first() if placement else None
+        items.append(HireReportItem(
+            application_id=app.id,
+            user_id=app.user_id,
+            user_name=user.name if user else "",
+            user_email=user.email if user else "",
+            placement_id=app.placement_id,
+            placement_title=placement.title if placement else "",
+            organization=org.name if org else "",
+            org_type=org.type if org else "",
+            hired_at=app.updated_at,
+            stipend=placement.stipend if placement else "",
+            duration=placement.duration if placement else "",
+        ))
+    
+    total = len(items)
+    by_org_type = {}
+    for item in items:
+        by_org_type[item.org_type] = by_org_type.get(item.org_type, 0) + 1
+    
+    return HireReportResponse(
+        total=total,
+        items=items,
+        summary={
+            "total_hires": total,
+            "by_org_type": by_org_type,
+        }
+    )
+
+
+@router.post("/reports/verification", response_model=VerificationReportResponse)
+def get_verification_report(
+    filters: ReportFilters,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> VerificationReportResponse:
+    _require_admin(current_user)
+    
+    query = session.query(StudentDocumentORM).join(UserORM, StudentDocumentORM.user_id == UserORM.id)
+    
+    if filters.start_date:
+        query = query.filter(StudentDocumentORM.uploaded_at >= filters.start_date)
+    if filters.end_date:
+        query = query.filter(StudentDocumentORM.uploaded_at <= filters.end_date)
+    if filters.placement_id:
+        # Filter documents for users who applied to this placement
+        user_ids = session.query(ApplicationORM.user_id).filter(
+            ApplicationORM.placement_id == filters.placement_id
+        ).subquery()
+        query = query.filter(StudentDocumentORM.user_id.in_(user_ids))
+    
+    rows = query.order_by(StudentDocumentORM.uploaded_at.desc()).all()
+    
+    items = []
+    for doc in rows:
+        user = session.query(UserORM).filter_by(id=doc.user_id).first()
+        items.append(VerificationReportItem(
+            document_id=doc.id,
+            user_id=doc.user_id,
+            user_name=user.name if user else "",
+            user_email=user.email if user else "",
+            document_type=doc.document_type,
+            filename=doc.filename,
+            status=doc.status,
+            uploaded_at=doc.uploaded_at,
+            verified_at=None,  # Not tracked in current schema
+            verified_by=None,
+            rejection_reason=doc.rejection_reason,
+        ))
+    
+    total = len(items)
+    by_status = {}
+    by_type = {}
+    for item in items:
+        by_status[item.status] = by_status.get(item.status, 0) + 1
+        by_type[item.document_type] = by_type.get(item.document_type, 0) + 1
+    verification_rate = round((by_status.get("verified", 0) / total * 100) if total > 0 else 0, 1)
+    
+    return VerificationReportResponse(
+        total=total,
+        items=items,
+        summary={
+            "total_documents": total,
+            "by_status": by_status,
+            "by_type": by_type,
+            "verification_rate_percent": verification_rate,
+        }
+    )
+
+
+# ---------------- CSV Exports for Reports ------------------------------------
+
+@router.post("/export/reports/placements.csv")
+def export_placements_report_csv(
+    filters: ReportFilters,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    _require_admin(current_user)
+    
+    query = session.query(PlacementORM).join(OrganisationORM, PlacementORM.org_id == OrganisationORM.id)
+    
+    if filters.start_date:
+        query = query.filter(PlacementORM.published_at >= filters.start_date)
+    if filters.end_date:
+        query = query.filter(PlacementORM.published_at <= filters.end_date)
+    if filters.org_id:
+        query = query.filter(PlacementORM.org_id == filters.org_id)
+    if filters.placement_id:
+        query = query.filter(PlacementORM.id == filters.placement_id)
+    
+    rows = query.order_by(PlacementORM.published_at.desc()).all()
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Placement ID", "Title", "Organization", "Organization Type", "Status",
+        "Review Status", "Published At", "Closes At", "Starts At",
+        "Slots", "Applicants", "Filled", "Stipend", "Location", "Mode"
+    ])
+    
+    for p in rows:
+        org = session.query(OrganisationORM).filter_by(id=p.org_id).first()
+        filled = session.query(ApplicationORM).filter(
+            ApplicationORM.placement_id == p.id,
+            ApplicationORM.status == "Accepted"
+        ).count()
+        writer.writerow([
+            p.id, p.title, org.name if org else "", org.type if org else "",
+            p.status, p.review_status, p.published_at, p.closes_at, p.starts_at,
+            p.slots, p.applicants, filled, p.stipend, p.loc, p.mode
+        ])
+    
+    output.seek(0)
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode()),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=placements_report.csv"}
+    )
+
+
+@router.post("/export/reports/applications.csv")
+def export_applications_report_csv(
+    filters: ReportFilters,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    _require_admin(current_user)
+    
+    internship_query = session.query(ApplicationORM).join(UserORM, ApplicationORM.user_id == UserORM.id)
+    if filters.start_date:
+        internship_query = internship_query.filter(ApplicationORM.created_at >= filters.start_date)
+    if filters.end_date:
+        internship_query = internship_query.filter(ApplicationORM.created_at <= filters.end_date)
+    if filters.placement_id:
+        internship_query = internship_query.filter(ApplicationORM.placement_id == filters.placement_id)
+    
+    job_query = session.query(JobApplicationORM).join(UserORM, JobApplicationORM.user_id == UserORM.id)
+    if filters.start_date:
+        job_query = job_query.filter(JobApplicationORM.created_at >= filters.start_date)
+    if filters.end_date:
+        job_query = job_query.filter(JobApplicationORM.created_at <= filters.end_date)
+    if filters.placement_id:
+        job_query = job_query.filter(JobApplicationORM.job_id == filters.placement_id)
+    
+    internship_apps = internship_query.order_by(ApplicationORM.created_at.desc()).all()
+    job_apps = job_query.order_by(JobApplicationORM.created_at.desc()).all()
+    
+    users = {u.id: u for u in session.query(UserORM).all()}
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Application ID", "Type", "User ID", "User Name", "User Email", "User Role",
+        "Placement ID", "Placement Title", "Job ID", "Job Title", "Organization",
+        "Status", "Created At", "Updated At"
+    ])
+    
+    for app in internship_apps:
+        user = users.get(app.user_id)
+        placement = session.query(PlacementORM).filter_by(id=app.placement_id).first()
+        org = session.query(OrganisationORM).filter_by(id=placement.org_id).first() if placement else None
+        writer.writerow([
+            app.id, "internship", app.user_id, user.name if user else "", user.email if user else "", user.role if user else "",
+            app.placement_id, placement.title if placement else "", "", "", org.name if org else "",
+            app.status, app.created_at, app.updated_at
+        ])
+    
+    for app in job_apps:
+        user = users.get(app.user_id)
+        job = session.query(JobORM).filter_by(id=app.job_id).first()
+        org = session.query(OrganisationORM).filter_by(id=job.org_id).first() if job else None
+        writer.writerow([
+            app.id, "job", app.user_id, user.name if user else "", user.email if user else "", user.role if user else "",
+            "", "", app.job_id, job.title if job else "", org.name if org else "",
+            app.status, app.created_at, app.updated_at
+        ])
+    
+    output.seek(0)
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode()),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=applications_report.csv"}
+    )
+
+
+@router.post("/export/reports/hires.csv")
+def export_hires_report_csv(
+    filters: ReportFilters,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    _require_admin(current_user)
+    
+    query = session.query(ApplicationORM).join(UserORM, ApplicationORM.user_id == UserORM.id).join(
+        PlacementORM, ApplicationORM.placement_id == PlacementORM.id
+    ).join(OrganisationORM, PlacementORM.org_id == OrganisationORM.id).filter(
+        ApplicationORM.status == "Accepted"
+    )
+    
+    if filters.start_date:
+        query = query.filter(ApplicationORM.updated_at >= filters.start_date)
+    if filters.end_date:
+        query = query.filter(ApplicationORM.updated_at <= filters.end_date)
+    if filters.org_id:
+        query = query.filter(OrganisationORM.id == filters.org_id)
+    if filters.placement_id:
+        query = query.filter(PlacementORM.id == filters.placement_id)
+    
+    rows = query.order_by(ApplicationORM.updated_at.desc()).all()
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Application ID", "User ID", "User Name", "User Email",
+        "Placement ID", "Placement Title", "Organization", "Organization Type",
+        "Hired At", "Stipend", "Duration"
+    ])
+    
+    for app in rows:
+        user = session.query(UserORM).filter_by(id=app.user_id).first()
+        placement = session.query(PlacementORM).filter_by(id=app.placement_id).first()
+        org = session.query(OrganisationORM).filter_by(id=placement.org_id).first() if placement else None
+        writer.writerow([
+            app.id, app.user_id, user.name if user else "", user.email if user else "",
+            app.placement_id, placement.title if placement else "", org.name if org else "", org.type if org else "",
+            app.updated_at, placement.stipend if placement else "", placement.duration if placement else ""
+        ])
+    
+    output.seek(0)
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode()),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=hires_report.csv"}
+    )
+
+
+@router.post("/export/reports/verification.csv")
+def export_verification_report_csv(
+    filters: ReportFilters,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    _require_admin(current_user)
+    
+    query = session.query(StudentDocumentORM).join(UserORM, StudentDocumentORM.user_id == UserORM.id)
+    
+    if filters.start_date:
+        query = query.filter(StudentDocumentORM.uploaded_at >= filters.start_date)
+    if filters.end_date:
+        query = query.filter(StudentDocumentORM.uploaded_at <= filters.end_date)
+    if filters.placement_id:
+        user_ids = session.query(ApplicationORM.user_id).filter(
+            ApplicationORM.placement_id == filters.placement_id
+        ).subquery()
+        query = query.filter(StudentDocumentORM.user_id.in_(user_ids))
+    
+    rows = query.order_by(StudentDocumentORM.uploaded_at.desc()).all()
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Document ID", "User ID", "User Name", "User Email",
+        "Document Type", "Filename", "Status", "Uploaded At",
+        "Rejection Reason"
+    ])
+    
+    for doc in rows:
+        user = session.query(UserORM).filter_by(id=doc.user_id).first()
+        writer.writerow([
+            doc.id, doc.user_id, user.name if user else "", user.email if user else "",
+            doc.document_type, doc.filename, doc.status, doc.uploaded_at,
+            doc.rejection_reason
+        ])
+    
+    output.seek(0)
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode()),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=verification_report.csv"}
     )
 
 

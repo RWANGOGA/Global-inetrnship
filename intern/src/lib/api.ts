@@ -1127,6 +1127,7 @@ export interface AdminDashboardMetrics {
   total_applications: number;
   total_revenue_cents: number;
   verification_rate: number;
+  org_types: Record<string, number>;
 }
 
 export interface AdminQueueItemRead {
@@ -1160,6 +1161,174 @@ export async function fetchAdminQueue(): Promise<AdminQueueListResponse> {
 
 export async function fetchAdminActivity(): Promise<AdminActivityItem[]> {
   return getJson<AdminActivityItem[]>("/admin/activity");
+}
+
+// ---- Admin Reports ------------------------------------------------------
+
+export interface ReportFilters {
+  start_date?: string;
+  end_date?: string;
+  org_id?: string;
+  placement_id?: string;
+}
+
+export interface PlacementReportItem {
+  placement_id: string;
+  title: string;
+  organization: string;
+  org_type: string;
+  status: string;
+  review_status: string;
+  published_at: string;
+  closes_at: string;
+  starts_at: string;
+  slots: number;
+  applicants: number;
+  filled: number;
+  stipend: string;
+  location: string;
+  mode: string;
+}
+
+export interface PlacementReportResponse {
+  total: number;
+  items: PlacementReportItem[];
+  summary: Record<string, any>;
+}
+
+export interface ApplicationReportItem {
+  application_id: string;
+  type: string;
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  user_role: string;
+  placement_id?: string;
+  placement_title?: string;
+  job_id?: string;
+  job_title?: string;
+  organization?: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApplicationReportResponse {
+  total: number;
+  items: ApplicationReportItem[];
+  summary: Record<string, any>;
+}
+
+export interface HireReportItem {
+  application_id: string;
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  placement_id: string;
+  placement_title: string;
+  organization: string;
+  org_type: string;
+  hired_at: string;
+  stipend: string;
+  duration: string;
+}
+
+export interface HireReportResponse {
+  total: number;
+  items: HireReportItem[];
+  summary: Record<string, any>;
+}
+
+export interface VerificationReportItem {
+  document_id: string;
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  document_type: string;
+  filename: string;
+  status: string;
+  uploaded_at: string;
+  verified_at?: string;
+  verified_by?: string;
+  rejection_reason: string;
+}
+
+export interface VerificationReportResponse {
+  total: number;
+  items: VerificationReportItem[];
+  summary: Record<string, any>;
+}
+
+export async function fetchPlacementsReport(filters?: ReportFilters): Promise<PlacementReportResponse> {
+  return postJson<PlacementReportResponse>("/admin/reports/placements", filters || {});
+}
+
+export async function fetchApplicationsReport(filters?: ReportFilters): Promise<ApplicationReportResponse> {
+  return postJson<ApplicationReportResponse>("/admin/reports/applications", filters || {});
+}
+
+export async function fetchHiresReport(filters?: ReportFilters): Promise<HireReportResponse> {
+  return postJson<HireReportResponse>("/admin/reports/hires", filters || {});
+}
+
+export async function fetchVerificationReport(filters?: ReportFilters): Promise<VerificationReportResponse> {
+  return postJson<VerificationReportResponse>("/admin/reports/verification", filters || {});
+}
+
+export async function exportPlacementsReportCsv(filters?: ReportFilters): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/admin/export/reports/placements.csv`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "text/csv",
+      ...authHeader(),
+    },
+    body: JSON.stringify(filters || {}),
+  });
+  if (!res.ok) throw new Error("Failed to export placements report");
+  return res.blob();
+}
+
+export async function exportApplicationsReportCsv(filters?: ReportFilters): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/admin/export/reports/applications.csv`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "text/csv",
+      ...authHeader(),
+    },
+    body: JSON.stringify(filters || {}),
+  });
+  if (!res.ok) throw new Error("Failed to export applications report");
+  return res.blob();
+}
+
+export async function exportHiresReportCsv(filters?: ReportFilters): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/admin/export/reports/hires.csv`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "text/csv",
+      ...authHeader(),
+    },
+    body: JSON.stringify(filters || {}),
+  });
+  if (!res.ok) throw new Error("Failed to export hires report");
+  return res.blob();
+}
+
+export async function exportVerificationReportCsv(filters?: ReportFilters): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/admin/export/reports/verification.csv`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "text/csv",
+      ...authHeader(),
+    },
+    body: JSON.stringify(filters || {}),
+  });
+  if (!res.ok) throw new Error("Failed to export verification report");
+  return res.blob();
 }
 
 export interface OrganizationRead {
@@ -1230,6 +1399,7 @@ export interface AdminDashboardMetrics {
   total_applications: number;
   total_revenue_cents: number;
   verification_rate: number;
+  org_types: Record<string, number>;
 }
 
 // ---- Organization Management ----------------------------------------------
