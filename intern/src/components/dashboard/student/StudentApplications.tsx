@@ -4,6 +4,7 @@ import React from "react";
 import { useApp } from "../../../context/AppContext";
 import { ApplicationDto } from "../../../types";
 import { Icon } from "../../icons/Icons";
+import { SimpleDataState } from "../../../components/common/DataState";
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {

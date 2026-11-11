@@ -15,6 +15,7 @@ import {
 } from "../../../lib/api";
 import { Placement } from "../../../types";
 import { Icon } from "../../icons/Icons";
+import { DataState } from "../../../components/common/DataState";
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
@@ -267,73 +268,72 @@ export function AdminPlacements() {
                 </tr>
               </thead>
               <tbody>
-                {status === "loading" ? (
-                  <tr><td colSpan={10}>Loading placements...</td></tr>
-                ) : status === "error" ? (
-                  <tr><td colSpan={10} className="error">{error}</td></tr>
-                ) : placements.length === 0 ? (
-                  <tr><td colSpan={10} style={{ textAlign: "center", padding: "40px", color: "var(--muted)" }}>
-                    <span style={{ opacity: 0.3, marginBottom: "12px", display: "block" }}>
-                      <Icon name="brief" size={48} />
-                    </span>
-                    <div>No placements found</div>
-                  </td></tr>
-                ) : placements.map((p) => {
-                  const o = getOrg(p.orgId);
-                  return (
-                    <tr key={p.id}>
-                      <td className="who">
-                        <b>{p.title}</b>
-                        <span>{p.slots} slots · {p.duration}</span>
-                      </td>
-                      <td>{o?.name}</td>
-                      <td>
-                        <span
-                          className={`tg ${
-                            o?.type === "Government" ? "blue"
-                            : o?.type === "NGO" ? "green"
-                            : o?.type === "University" ? "gold"
-                            : ""
-                          }`}
-                        >
-                          {o?.type}
-                        </span>
-                      </td>
-                      <td className="hide-xs" style={{ fontSize: "11px", color: "var(--ink-2)" }}>
-                        {p.courses.length} courses
-                      </td>
-                      <td className="num">{p.grade}</td>
-                      <td className="hide-xs">
-                        <span className="num">{p.docs.length} required</span>
-                      </td>
-                      <td><ReviewStatusBadge status={p.reviewStatus} /></td>
-                      <td><StatusBadge status={p.status} /></td>
-                      <td className="num">{p.deadline}</td>
-                      <td className="act">
-                        {p.reviewStatus === "pending_review" && (
-                          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-blue"
-                              disabled={actionId === p.id}
-                              onClick={() => decide(p.id, "approved")}
-                            >
-                              <Icon name="check" size={12} /> Approve
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-red"
-                              disabled={actionId === p.id}
-                              onClick={() => setRejecting(p.id)}
-                            >
-                              <Icon name="x" size={12} /> Reject
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                <DataState
+                  state={status}
+                  error={error}
+                  items={placements}
+                  colSpan={10}
+                  emptyMessage="No placements found"
+                  emptyIcon="brief"
+                  loadingMessage="Loading placements..."
+                  errorMessage="Unable to load placements"
+                  children={(p: Placement) => {
+                    const o = getOrg(p.orgId);
+                    return (
+                      <tr key={p.id}>
+                        <td className="who">
+                          <b>{p.title}</b>
+                          <span>{p.slots} slots · {p.duration}</span>
+                        </td>
+                        <td>{o?.name}</td>
+                        <td>
+                          <span
+                            className={`tg ${
+                              o?.type === "Government" ? "blue"
+                              : o?.type === "NGO" ? "green"
+                              : o?.type === "University" ? "gold"
+                              : ""
+                            }`}
+                          >
+                            {o?.type}
+                          </span>
+                        </td>
+                        <td className="hide-xs" style={{ fontSize: "11px", color: "var(--ink-2)" }}>
+                          {p.courses.length} courses
+                        </td>
+                        <td className="num">{p.grade}</td>
+                        <td className="hide-xs">
+                          <span className="num">{p.docs.length} required</span>
+                        </td>
+                        <td><ReviewStatusBadge status={p.reviewStatus} /></td>
+                        <td><StatusBadge status={p.status} /></td>
+                        <td className="num">{p.deadline}</td>
+                        <td className="act">
+                          {p.reviewStatus === "pending_review" && (
+                            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-blue"
+                                disabled={actionId === p.id}
+                                onClick={() => decide(p.id, "approved")}
+                              >
+                                <Icon name="check" size={12} /> Approve
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-red"
+                                disabled={actionId === p.id}
+                                onClick={() => setRejecting(p.id)}
+                              >
+                                <Icon name="x" size={12} /> Reject
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  }}
+                />
               </tbody>
             </table>
           </div>

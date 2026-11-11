@@ -13,6 +13,7 @@ import {
 } from "../../../lib/api";
 import { Job } from "../../../types";
 import { Icon } from "../../icons/Icons";
+import { DataState } from "../../../components/common/DataState";
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
@@ -310,51 +311,55 @@ export function JobSeekerRoles() {
                 <th></th>
               </tr>
             </thead>
-            <tbody>
-              {state === "loading" ? (
-                <tr><td colSpan={7}>Loading jobs...</td></tr>
-              ) : state === "error" ? (
-                <tr><td colSpan={7} className="error">{error}</td></tr>
-              ) : jobs.length === 0 ? (
-                <tr><td colSpan={7}>No open jobs are available.</td></tr>
-              ) : jobs.map((r) => {
-                const isSaved = savedJobIds.has(r.id);
-                return (
-                  <tr key={r.id}>
-                    <td className="who">
-                      <b>{r.title}</b>
-                      <span>{r.employmentType}</span>
-                    </td>
-                    <td>{r.orgName}</td>
-                    <td className="hide-xs">{r.loc}</td>
-                    <td className="num">{r.salary}</td>
-                    <td className="num">{r.closesAt}</td>
-                    <td className="act" style={{ textAlign: "center" }}>
-                      <SaveButton
-                        isSaved={isSaved}
-                        onClick={() => handleToggleSaved(r.id)}
-                        disabled={applying}
-                        title={isSaved ? "Remove from saved" : "Save job"}
-                      />
-                    </td>
-                    <td className="act">
-                      {r.status === "Open" ? (
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-blue"
-                          disabled={applying}
-                          onClick={() => openApply(r.id)}
-                        >
-                          <Icon name="send" size={13} /> Apply
-                        </button>
-                      ) : (
-                        <StatusBadge status={r.status} />
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
+<tbody>
+                <DataState
+                  state={state}
+                  error={error}
+                  items={jobs}
+                  colSpan={7}
+                  emptyMessage="No open jobs are available."
+                  emptyIcon="brief"
+                  loadingMessage="Loading jobs..."
+                  errorMessage="Unable to load jobs"
+                  children={(r: Job) => {
+                    const isSaved = savedJobIds.has(r.id);
+                    return (
+                      <tr key={r.id}>
+                        <td className="who">
+                          <b>{r.title}</b>
+                          <span>{r.employmentType}</span>
+                        </td>
+                        <td>{r.orgName}</td>
+                        <td className="hide-xs">{r.loc}</td>
+                        <td className="num">{r.salary}</td>
+                        <td className="num">{r.closesAt}</td>
+                        <td className="act" style={{ textAlign: "center" }}>
+                          <SaveButton
+                            isSaved={isSaved}
+                            onClick={() => handleToggleSaved(r.id)}
+                            disabled={applying}
+                            title={isSaved ? "Remove from saved" : "Save job"}
+                          />
+                        </td>
+                        <td className="act">
+                          {r.status === "Open" ? (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-blue"
+                              disabled={applying}
+                              onClick={() => openApply(r.id)}
+                            >
+                              <Icon name="send" size={13} /> Apply
+                            </button>
+                          ) : (
+                            <StatusBadge status={r.status} />
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  }}
+                />
+              </tbody>
           </table>
         </div>
       </div>

@@ -10,6 +10,7 @@ import {
 } from "../../../lib/api";
 import { ApplicationDto } from "../../../types";
 import { Icon } from "../../icons/Icons";
+import { DataState } from "../../../components/common/DataState";
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
@@ -197,39 +198,38 @@ export function AdminApplications() {
                 </tr>
               </thead>
               <tbody>
-                {status === "loading" ? (
-                  <tr><td colSpan={7}>Loading applications...</td></tr>
-                ) : status === "error" ? (
-                  <tr><td colSpan={7} className="error">{error}</td></tr>
-                ) : applications.length === 0 ? (
-                  <tr><td colSpan={7} style={{ textAlign: "center", padding: "40px", color: "var(--muted)" }}>
-                    <span style={{ opacity: 0.3, marginBottom: "12px", display: "block" }}>
-                      <Icon name="file-text" size={48} />
-                    </span>
-                    <div>No applications found</div>
-                  </td></tr>
-                ) : applications.map((app) => (
-                  <tr key={app.id}>
-                    <td className="who">
-                      <b>{app.user_name || app.user_id.slice(0, 8) + "…"}</b>
-                      <span>{app.user_email}</span>
-                    </td>
-                    <td><TypeBadge type={app.type || "internship"} /></td>
-                    <td>{app.type === "internship" ? app.placement_title : app.job_title}</td>
-                    <td>{app.type === "internship" ? "Placement" : "Job"}</td>
-                    <td><StatusBadge status={app.status} /></td>
-                    <td className="num">{app.created_at.split("T")[0]}</td>
-                    <td className="act">
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-ghost"
-                        onClick={() => console.log("View details", app.id)}
-                      >
-                        <Icon name="eye" size={13} /> View
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                <DataState
+                  state={status}
+                  error={error}
+                  items={applications}
+                  colSpan={7}
+                  emptyMessage="No applications found"
+                  emptyIcon="file-text"
+                  loadingMessage="Loading applications..."
+                  errorMessage="Unable to load applications"
+                  children={(app: ApplicationDto) => (
+                    <tr key={app.id}>
+                      <td className="who">
+                        <b>{app.user_name || app.user_id.slice(0, 8) + "…"}</b>
+                        <span>{app.user_email}</span>
+                      </td>
+                      <td><TypeBadge type={app.type || "internship"} /></td>
+                      <td>{app.type === "internship" ? app.placement_title : app.job_title}</td>
+                      <td>{app.type === "internship" ? "Placement" : "Job"}</td>
+                      <td><StatusBadge status={app.status} /></td>
+                      <td className="num">{app.created_at.split("T")[0]}</td>
+                      <td className="act">
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-ghost"
+                          onClick={() => console.log("View details", app.id)}
+                        >
+                          <Icon name="eye" size={13} /> View
+                        </button>
+                      </td>
+                    </tr>
+                  )}
+                />
               </tbody>
             </table>
           </div>

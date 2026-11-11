@@ -28,7 +28,10 @@ export type IconName =
   | "menu"
   | "save"
   | "pin"
-  | "home";
+  | "home"
+  | "spinner"
+  | "alert-triangle"
+  | "inbox";
 
 export function SvgDefs() {
   return (
@@ -136,6 +139,18 @@ export function SvgDefs() {
         <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
           <path d="M3 11l9-7 9 7" />
           <path d="M5 10v10h14V10" />
+        </symbol>
+        <symbol id="i-spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M12 4v4M12 16v4M4 12h4M16 12h4M7 7l3 3M17 17l3 3M7 17l3-3M17 7l-3 3" />
+        </symbol>
+        <symbol id="i-alert-triangle" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
+          <path d="M12 2l11 18H3z" />
+          <path d="M12 9v4M12 17h.01" />
+        </symbol>
+        <symbol id="i-inbox" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
+          <path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" />
+          <path d="M4 12h16" />
+          <path d="M12 4v8" />
         </symbol>
       </defs>
     </svg>
