@@ -308,7 +308,8 @@ export type DashboardView =
   | "applicants"
   | "organizations"
   | "users"
-  | "jobs";
+  | "jobs"
+  | "action-logs";
 
 export interface OrganizationRead {
   id: string;
@@ -377,6 +378,18 @@ export interface AdvisorAction {
   type: string;
   label: string;
   payload: Record<string, unknown>;
+}
+
+export interface AdminActionLogRead {
+  id: string;
+  admin_id: string;
+  admin_email: string;
+  target_user_id: string | null;
+  target_user_email: string | null;
+  action: string;
+  reason: string;
+  details: string | null;
+  created_at: string;
 }
 
 export interface ModalConfig {

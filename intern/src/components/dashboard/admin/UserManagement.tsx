@@ -46,9 +46,10 @@ export function UserManagement() {
   const pageSize = 20;
   const [roleFilter, setRoleFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [deletedFilter, setDeletedFilter] = useState<"false" | "true" | "all">("false");
   const [search, setSearch] = useState("");
   const [view, setView] = useState<"list" | "detail" | "action">("list");
-  const [actionType, setActionType] = useState<"suspend" | "activate" | "change_role">("suspend");
+  const [actionType, setActionType] = useState<"suspend" | "activate" | "change_role" | "delete">("suspend");
   const [actionReason, setActionReason] = useState("");
   const [newRole, setNewRole] = useState<string>("");
   const [actionLoading, setActionLoading] = useState(false);
@@ -60,7 +61,7 @@ export function UserManagement() {
       return;
     }
     loadUsers();
-  }, [session, page, roleFilter, statusFilter, search]);
+  }, [session, page, roleFilter, statusFilter, deletedFilter, search]);
 
   async function loadUsers() {
     setStatus("loading");
@@ -68,6 +69,7 @@ export function UserManagement() {
       const res = await fetchUserList({
         role: roleFilter || undefined,
         status: statusFilter,
+        deleted: deletedFilter === "all" ? undefined : deletedFilter,
         search: search || undefined,
         page,
         pageSize,
@@ -229,8 +231,24 @@ export function UserManagement() {
                 <option value="inactive">Inactive</option>
               </select>
             </div>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <span className="lbl">Deleted:</span>
+              <select
+                value={deletedFilter}
+                onChange={(e) => {
+                  setDeletedFilter(e.target.value as "false" | "true" | "all");
+                  setPage(1);
+                }}
+                className="field"
+                style={{ minWidth: "140px" }}
+              >
+                <option value="false">Not Deleted</option>
+                <option value="true">Deleted</option>
+                <option value="all">All</option>
+              </select>
+            </div>
+            </div>
           </div>
-        </div>
 
         <div className="panel">
           <div className="pb" style={{ padding: 0 }}>
@@ -579,11 +597,11 @@ export function UserManagement() {
           </div>
           <div className="pb">
             <div className="row2" style={{ display: "flex", gap: "12px", marginBottom: "16px" }}>
-              {(["suspend", "activate", "change_role"] as const).map((action) => (
+              {(["suspend", "activate", "change_role", "delete"] as const).map((action) => (
                 <button
                   key={action}
                   type="button"
-                  className={`btn btn-sm ${actionType === action ? "btn-blue" : ""}`}
+                  className={`btn btn-sm ${actionType === action ? "btn-blue" : action === "delete" ? "btn-red" : ""}`}
                   onClick={() => setActionType(action)}
                   style={{ flex: 1 }}
                 >

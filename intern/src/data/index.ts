@@ -358,6 +358,7 @@ admin: [
     ["testimonial", "Testimonial", "07"],
     ["organizations", "Organizations", "08"],
     ["users", "Users", "09"],
+    ["action-logs", "Action Logs", "10"],
   ],
   employee: [
     ["overview", "Overview", "01"],

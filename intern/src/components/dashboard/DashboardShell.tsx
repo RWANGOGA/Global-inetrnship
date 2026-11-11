@@ -16,6 +16,7 @@ import { AdminDocuments } from "./admin/AdminDocuments";
 import { AdminTestimonial } from "./admin/AdminTestimonial";
 import { OrganizationManagement } from "./admin/OrganizationManagement";
 import { UserManagement } from "./admin/UserManagement";
+import { AdminActionLogs } from "./admin/AdminActionLogs";
 
 import { StudentOverview } from "./student/StudentOverview";
 import { StudentApplications } from "./student/StudentApplications";
@@ -105,6 +106,8 @@ export function DashboardShell() {
           return <OrganizationManagement />;
         case "users":
           return <UserManagement />;
+        case "action-logs":
+          return <AdminActionLogs />;
         default:
           return <AdminOverview />;
       }

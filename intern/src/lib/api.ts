@@ -7,7 +7,7 @@
 //
 // The backend speaks snake_case; the UI types are camelCase. This module is the
 // single translation boundary, so components never learn about either shape.
-import { Job, Org, Placement, ApplicationDto, JobApplicationDto, CompanyProfile } from "../types";
+import { Job, Org, Placement, ApplicationDto, JobApplicationDto, CompanyProfile, AdminActionLogRead } from "../types";
 
 export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(
   /\/+$/,
@@ -500,6 +500,37 @@ export async function exportAdminApplicationsCsv(): Promise<Blob> {
 export interface ApplicationsResponse {
   total: number;
   items: ApplicationDto[];
+}
+
+export type { AdminActionLogRead } from "../types";
+
+// Admin Action Logs
+export interface AdminActionLogsParams {
+  admin_id?: string;
+  target_user_id?: string;
+  action?: string;
+  start_date?: string;
+  end_date?: string;
+  page?: number;
+  page_size?: number;
+}
+
+export interface AdminActionLogListResponse {
+  total: number;
+  items: AdminActionLogRead[];
+}
+
+export async function fetchAdminActionLogs(params?: AdminActionLogsParams): Promise<AdminActionLogListResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.admin_id) searchParams.append("admin_id", params.admin_id);
+  if (params?.target_user_id) searchParams.append("target_user_id", params.target_user_id);
+  if (params?.action) searchParams.append("action", params.action);
+  if (params?.start_date) searchParams.append("start_date", params.start_date);
+  if (params?.end_date) searchParams.append("end_date", params.end_date);
+  if (params?.page) searchParams.append("page", String(params.page));
+  if (params?.page_size) searchParams.append("page_size", String(params.page_size));
+  const query = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  return getJson<AdminActionLogListResponse>(`/admin/action-logs${query}`);
 }
 
 export interface InternshipPostingInput {
@@ -1428,6 +1459,7 @@ export interface UserListResponse {
 export async function fetchUserList(params?: {
   role?: string;
   status?: string;
+  deleted?: "false" | "true" | "all";
   search?: string;
   page?: number;
   pageSize?: number;
@@ -1435,6 +1467,7 @@ export async function fetchUserList(params?: {
   const searchParams = new URLSearchParams();
   if (params?.role) searchParams.append("role", params.role);
   if (params?.status) searchParams.append("status", params.status);
+  if (params?.deleted && params.deleted !== "all") searchParams.append("deleted", params.deleted);
   if (params?.search) searchParams.append("search", params.search);
   if (params?.page) searchParams.append("page", String(params.page));
   if (params?.pageSize) searchParams.append("page_size", String(params.pageSize));
@@ -1450,7 +1483,7 @@ export async function fetchUserDetail(
 
 export async function userAction(
   userId: string,
-  payload:  { action: "suspend" | "activate" | "change_role"; reason: string; new_role?: string 
+  payload:  { action: "suspend" | "activate" | "change_role" | "delete"; reason: string; new_role?: string 
 }
 ): Promise<UserActionResponse> {
   return patchJson<UserActionResponse>(`/admin/users/${userId}/action`, payload);
