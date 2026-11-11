@@ -14,12 +14,12 @@ import { Icon, IconName } from "../../icons/Icons";
 function Field({ label, required, children, error, hint, fullWidth }: { label: string; required?: boolean; children: React.ReactNode; error?: string; hint?: string; fullWidth?: boolean }) {
   return (
     <div className="field" style={fullWidth ? { gridColumn: "1 / -1" } : {}}>
-      <label className="lbl" style={{ fontWeight: 600, fontSize: "12px", marginBottom: "6px", display: "block" }}>
-        {label} {required && <span style={{ color: "var(--red)" }}>*</span>}
+      <label className="lbl" style={{ fontWeight: 600, fontSize: "12.5px", marginBottom: "6px", display: "block", color: "var(--ink-2)", letterSpacing: "0.01em" }}>
+        {label} {required && <span style={{ color: "var(--red)", marginLeft: "2px" }}>*</span>}
       </label>
       {children}
-      {error && <span className="error" style={{ fontSize: "11px", marginTop: "4px", display: "block", color: "var(--red)" }}>{error}</span>}
-      {hint && <span className="hint" style={{ fontSize: "10.5px", color: "var(--muted)", marginTop: "4px", display: "block" }}>{hint}</span>}
+      {error && <span className="error" style={{ fontSize: "11.5px", marginTop: "6px", display: "block", color: "var(--red)", fontWeight: 500 }}>{error}</span>}
+      {hint && !error && <span className="hint" style={{ fontSize: "11px", color: "var(--muted)", marginTop: "6px", display: "block" }}>{hint}</span>}
     </div>
   );
 }
@@ -30,18 +30,18 @@ function Input({ className = "field-input", style, ...props }: React.InputHTMLAt
       className={className}
       style={{
         border: "1px solid var(--rule-2)",
-        borderRadius: "var(--r-sm)",
+        borderRadius: "var(--r-md)",
         background: "var(--white)",
-        height: "44px",
-        padding: "0 14px",
-        fontSize: "13.5px",
+        height: "48px",
+        padding: "0 16px",
+        fontSize: "14px",
         outline: 0,
         width: "100%",
-        transition: "border-color 0.15s, box-shadow 0.15s",
+        transition: "border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease",
         ...style,
       }}
-      onFocus={(e) => { e.currentTarget.style.borderColor = "var(--blue)"; e.currentTarget.style.boxShadow = "0 0 0 3px var(--blue-tint)"; }}
-      onBlur={(e) => { e.currentTarget.style.borderColor = "var(--rule-2)"; e.currentTarget.style.boxShadow = "none"; }}
+      onFocus={(e) => { e.currentTarget.style.borderColor = "var(--blue)"; e.currentTarget.style.boxShadow = "0 0 0 3px var(--blue-tint)"; e.currentTarget.style.background = "var(--white)"; }}
+      onBlur={(e) => { e.currentTarget.style.borderColor = "var(--rule-2)"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.background = "var(--white)"; }}
       {...props}
     />
   );
@@ -53,20 +53,21 @@ function Textarea({ className = "field-input", style, ...props }: React.Textarea
       className={className}
       style={{
         border: "1px solid var(--rule-2)",
-        borderRadius: "var(--r-sm)",
+        borderRadius: "var(--r-md)",
         background: "var(--white)",
-        minHeight: "96px",
-        padding: "12px 14px",
-        fontSize: "13.5px",
+        minHeight: "112px",
+        padding: "14px 16px",
+        fontSize: "14px",
         outline: 0,
         width: "100%",
         resize: "vertical",
         fontFamily: "inherit",
-        transition: "border-color 0.15s, box-shadow 0.15s",
+        lineHeight: 1.55,
+        transition: "border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease",
         ...style,
       }}
-      onFocus={(e) => { e.currentTarget.style.borderColor = "var(--blue)"; e.currentTarget.style.boxShadow = "0 0 0 3px var(--blue-tint)"; }}
-      onBlur={(e) => { e.currentTarget.style.borderColor = "var(--rule-2)"; e.currentTarget.style.boxShadow = "none"; }}
+      onFocus={(e) => { e.currentTarget.style.borderColor = "var(--blue)"; e.currentTarget.style.boxShadow = "0 0 0 3px var(--blue-tint)"; e.currentTarget.style.background = "var(--white)"; }}
+      onBlur={(e) => { e.currentTarget.style.borderColor = "var(--rule-2)"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.background = "var(--white)"; }}
       {...props}
     />
   );
@@ -78,54 +79,78 @@ function Select({ className = "field-input", style, ...props }: React.SelectHTML
       className={className}
       style={{
         border: "1px solid var(--rule-2)",
-        borderRadius: "var(--r-sm)",
+        borderRadius: "var(--r-md)",
         background: "var(--white)",
-        height: "44px",
-        padding: "0 14px",
-        fontSize: "13.5px",
+        height: "48px",
+        padding: "0 16px",
+        fontSize: "14px",
         outline: 0,
         width: "100%",
-        transition: "border-color 0.15s, box-shadow 0.15s",
+        transition: "border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease",
         appearance: "none",
         backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='1.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")",
         backgroundRepeat: "no-repeat",
-        backgroundPosition: "right 12px center",
-        paddingRight: "40px",
+        backgroundPosition: "right 14px center",
+        paddingRight: "44px",
         ...style,
       }}
-      onFocus={(e) => { e.currentTarget.style.borderColor = "var(--blue)"; e.currentTarget.style.boxShadow = "0 0 0 3px var(--blue-tint)"; }}
-      onBlur={(e) => { e.currentTarget.style.borderColor = "var(--rule-2)"; e.currentTarget.style.boxShadow = "none"; }}
+      onFocus={(e) => { e.currentTarget.style.borderColor = "var(--blue)"; e.currentTarget.style.boxShadow = "0 0 0 3px var(--blue-tint)"; e.currentTarget.style.background = "var(--white)"; }}
+      onBlur={(e) => { e.currentTarget.style.borderColor = "var(--rule-2)"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.background = "var(--white)"; }}
       {...props}
     />
   );
 }
 
-function SectionCard({ title, children, icon }: { title: string; children: React.ReactNode; icon?: IconName }) {
+function SectionCard({ title, children, icon, description }: { title: string; children: React.ReactNode; icon?: IconName; description?: string }) {
   return (
-    <div style={{ background: "var(--white)", border: "1px solid var(--rule)", borderRadius: "var(--r-lg)", padding: "24px", boxShadow: "0 1px 3px var(--shadow-1)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px", paddingBottom: "16px", borderBottom: "1px solid var(--rule)" }}>
-        {icon && <span style={{ color: "var(--blue)" }}><Icon name={icon} size={20} /></span>}
-        <h3 style={{ fontWeight: 700, fontSize: "16px", margin: 0, color: "var(--ink)" }}>{title}</h3>
+    <div className="section-card">
+      <div className="section-header">
+        {icon && <span className="section-icon"><Icon name={icon} size={20} /></span>}
+        <div>
+          <h3 className="section-title">{title}</h3>
+          {description && <p className="section-description">{description}</p>}
+        </div>
       </div>
-      <div style={{ display: "grid", gap: "16px", gridTemplateColumns: "repeat(2, 1fr)" }}>{children}</div>
+      <div className="section-content">{children}</div>
     </div>
   );
 }
 
 function FormError({ message }: { message: string }) {
   return (
-    <div style={{ background: "var(--red-tint)", border: "1px solid var(--red)", borderRadius: "var(--r-md)", padding: "14px 16px", color: "var(--red)", display: "flex", alignItems: "flex-start", gap: "10px" }}>
-      <span style={{ marginTop: "2px", flexShrink: 0 }}><Icon name="bell" size={16} /></span>
-      <span style={{ fontSize: "13.5px", fontWeight: 500 }}>{message}</span>
+    <div className="form-alert error">
+      <span className="alert-icon"><Icon name="bell" size={16} /></span>
+      <span className="alert-message">{message}</span>
     </div>
   );
 }
 
 function FormSuccess({ message }: { message: string }) {
   return (
-    <div style={{ background: "var(--green-tint)", border: "1px solid var(--green)", borderRadius: "var(--r-md)", padding: "14px 16px", color: "var(--green)", display: "flex", alignItems: "flex-start", gap: "10px" }}>
-      <span style={{ marginTop: "2px", flexShrink: 0 }}><Icon name="check" size={16} /></span>
-      <span style={{ fontSize: "13.5px", fontWeight: 500 }}>{message}</span>
+    <div className="form-alert success">
+      <span className="alert-icon"><Icon name="check" size={16} /></span>
+      <span className="alert-message">{message}</span>
+    </div>
+  );
+}
+
+function LoadingSpinner({ size = 32, color = "var(--blue)", text }: { size?: number; color?: string; text?: string }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "60px", color: "var(--muted)" }}>
+      <div className="spinner" style={{ width: size, height: size, border: `3px solid var(--rule-2)`, borderTopColor: color, borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+      {text && <span style={{ marginTop: "12px", fontSize: "14px", color: "var(--ink-2)" }}>{text}</span>}
+    </div>
+  );
+}
+
+function EmptyState({ icon, title, description }: { icon: IconName; title: string; description: string }) {
+  return (
+    <div style={{ textAlign: "center", padding: "60px 40px", color: "var(--muted)" }}>
+      <div style={{ opacity: 0.25, marginBottom: "20px" }}>
+        <Icon name={icon} size={56} />
+      </div>
+      <h3 style={{ fontWeight: 700, fontSize: "18px", marginBottom: "8px", color: "var(--ink)" }}>{title}</h3>
+      <p style={{ fontSize: "14.5px", lineHeight: 1.6, maxWidth: "320px", margin: "0 auto" }}>{description}</p>
     </div>
   );
 }
@@ -158,6 +183,7 @@ export function EmployerProfile() {
 
   async function loadProfile() {
     setLoading(true);
+    setError("");
     try {
       const data = await fetchOrganizationProfile();
       setProfile(data);
@@ -198,6 +224,7 @@ export function EmployerProfile() {
       });
       setSuccess("Profile saved successfully!");
       toast("Profile updated");
+      setTimeout(() => setSuccess(""), 4000);
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : "Failed to save profile");
     } finally {
@@ -205,66 +232,64 @@ export function EmployerProfile() {
     }
   }
 
+  function handleReset() {
+    if (profile) {
+      setForm({
+        name: profile.name,
+        type: profile.type,
+        sector: profile.sector,
+        loc: profile.loc,
+        seal: profile.seal,
+        about: profile.about,
+        billing_email: profile.billing_email || "",
+        tax_id: profile.tax_id || "",
+      });
+      setError("");
+      setSuccess("");
+      toast("Form reset to saved values");
+    }
+  }
+
   const orgTypes = ["Company", "Government", "NGO", "University"];
 
   if (loading) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "60px", color: "var(--muted)" }}>
-        <div className="spinner" style={{ width: "32px", height: "32px", border: "3px solid var(--rule-2)", borderTopColor: "var(--blue)", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
-        <span style={{ marginTop: "12px" }}>Loading profile...</span>
-      </div>
-    );
+    return <LoadingSpinner text="Loading profile..." />;
   }
 
   if (!profile) {
-    return (
-      <div style={{ textAlign: "center", padding: "60px", color: "var(--muted)" }}>
-        <div style={{ opacity: 0.3, marginBottom: "16px" }}>
-          <Icon name="bldg" size={48} />
-        </div>
-        <h3 style={{ fontWeight: 700, fontSize: "18px", marginBottom: "8px", color: "var(--ink)" }}>No organization profile</h3>
-        <p>Your organization profile could not be loaded.</p>
-      </div>
-    );
+    return <EmptyState icon="bldg" title="No organization profile" description="Your organization profile could not be loaded. Please contact support if this persists." />;
   }
 
   return (
     <>
-      <div className="dpane-h" style={{ 
-        flexWrap: "wrap", 
-        gap: "20px", 
-        alignItems: "center",
-        marginBottom: "8px",
-        paddingBottom: "20px",
-        borderBottom: "2px solid var(--rule)",
-      }}>
-        <div style={{ flex: 1, minWidth: "280px" }}>
-          <h1 style={{ 
-            fontWeight: 800, 
-            fontSize: "32px", 
-            marginBottom: "8px",
-            color: "var(--ink)",
-            letterSpacing: "-0.5px",
-          }}>
-            Organization Profile
-          </h1>
-          <p style={{ color: "var(--ink-2)", fontSize: "15px", fontWeight: 500 }}>
-            Manage your organization's public profile shown on placement and job detail pages.
-          </p>
+      <div className="page-header">
+        <div className="header-content">
+          <div>
+            <h1 className="page-title">Organization Profile</h1>
+            <p className="page-subtitle">Manage your organization's public profile shown on placement and job detail pages.</p>
+          </div>
+          <div className="header-badge">
+            <span className="tg blue"><Icon name="bldg" size={12} /> {profile.type}</span>
+          </div>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="profile-form">
         {error && <FormError message={error} />}
         {success && <FormSuccess message={success} />}
 
-        <SectionCard title="Basic Information" icon="bldg">
+        <SectionCard 
+          title="Basic Information" 
+          icon="bldg"
+          description="Core details that appear across the platform"
+        >
           <Field label="Organization Name" required>
             <Input
               required
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="e.g., Lumen Labs"
+              autoComplete="organization"
             />
           </Field>
           <Field label="Organization Type" required>
@@ -292,18 +317,23 @@ export function EmployerProfile() {
               placeholder="Kampala, Uganda"
             />
           </Field>
-          <Field label="Logo / Seal" hint="Emoji or short text shown as avatar">
+          <Field label="Logo / Seal" hint="Emoji or short text shown as avatar (max 4 chars)">
             <Input
               value={form.seal}
               onChange={(e) => setForm({ ...form, seal: e.target.value })}
               placeholder="🏢"
               maxLength={4}
+              style={{ textAlign: "center", fontSize: "20px" }}
             />
           </Field>
         </SectionCard>
 
-        <SectionCard title="About Your Organization" icon="doc">
-          <Field fullWidth label="Description" hint="This appears on placement and job detail pages">
+        <SectionCard 
+          title="About Your Organization" 
+          icon="doc"
+          description="This description appears on placement and job detail pages visible to candidates"
+        >
+          <Field fullWidth label="Description" hint="Describe your mission, culture, and what makes you a great place to work">
             <Textarea
               rows={5}
               value={form.about}
@@ -313,13 +343,18 @@ export function EmployerProfile() {
           </Field>
         </SectionCard>
 
-        <SectionCard title="Billing & Legal (Optional)" icon="doc">
+        <SectionCard 
+          title="Billing & Legal (Optional)" 
+          icon="doc"
+          description="Used for invoicing and compliance purposes"
+        >
           <Field label="Billing Email" hint="For invoices and receipts">
             <Input
               type="email"
               value={form.billing_email}
               onChange={(e) => setForm({ ...form, billing_email: e.target.value })}
               placeholder="billing@company.com"
+              autoComplete="email"
             />
           </Field>
           <Field label="Tax ID / Registration Number">
@@ -331,20 +366,12 @@ export function EmployerProfile() {
           </Field>
         </SectionCard>
 
-        <div style={{ 
-          display: "flex", 
-          gap: "12px", 
-          justifyContent: "flex-end", 
-          borderTop: "1px solid var(--rule)", 
-          paddingTop: "24px", 
-          marginTop: "8px" 
-        }}>
+        <div className="form-actions">
           <button 
             type="button" 
-            className="btn btn-sm" 
-            onClick={loadProfile}
+            className="btn btn-sm btn-ghost" 
+            onClick={handleReset}
             disabled={saving}
-            style={{ height: "44px" }}
           >
             <span style={{ marginRight: "8px" }}><Icon name="arrow" size={14} /></span> Reset
           </button>
@@ -352,11 +379,10 @@ export function EmployerProfile() {
             type="submit" 
             className="btn btn-sm btn-blue" 
             disabled={saving}
-            style={{ height: "44px" }}
           >
             {saving ? (
               <>
-                <div className="spinner" style={{ width: "16px", height: "16px", border: "2px solid currentColor", borderRightColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite", marginRight: "10px" }} />
+                <span className="btn-spinner" style={{ width: "16px", height: "16px", border: "2px solid currentColor", borderRightColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite", marginRight: "10px", display: "inline-block" }} />
                 Saving...
               </>
             ) : (
@@ -372,80 +398,173 @@ export function EmployerProfile() {
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
-        .panel {
+        .page-header {
+          padding: 8px 0 24px;
+          border-bottom: 2px solid var(--rule);
+          margin-bottom: 8px;
+        }
+        .header-content {
+          display: flex;
+          alignItems: center;
+          justifyContent: space-between;
+          flexWrap: wrap;
+          gap: 16px;
+        }
+        .page-title {
+          fontWeight: 800;
+          fontSize: 32px;
+          marginBottom: 6px;
+          color: var(--ink);
+          letterSpacing: -0.5px;
+          lineHeight: 1.15;
+        }
+        .page-subtitle {
+          color: var(--ink-2);
+          fontSize: 15px;
+          fontWeight: 500;
+          margin: 0;
+        }
+        .header-badge {
+          flexShrink: 0;
+        }
+        .profile-form {
+          display: flex;
+          flexDirection: column;
+          gap: 24px;
+        }
+        .section-card {
           background: var(--white);
           border: 1px solid var(--rule);
-          border-radius: var(--r-lg);
+          borderRadius: var(--r-xl);
+          padding: 28px;
+          boxShadow: 0 1px 3px var(--shadow-1), 0 0 0 1px var(--rule-2);
         }
-        .ph {
-          padding: 16px 20px;
-          border-bottom: 1px solid var(--rule);
-          background: var(--paper-2);
-          border-radius: var(--r-lg) var(--r-lg) 0 0;
+        .section-header {
+          display: flex;
+          alignItems: flex-start;
+          gap: 12px;
+          marginBottom: 24px;
+          paddingBottom: 18px;
+          borderBottom: 1px solid var(--rule);
         }
-        .pb {
-          padding: 20px;
+        .section-icon {
+          color: var(--blue);
+          flexShrink: 0;
+          marginTop: 2px;
+        }
+        .section-title {
+          fontWeight: 700;
+          fontSize: 17px;
+          margin: 0 0 4px;
+          color: var(--ink);
+          letterSpacing: -0.01em;
+        }
+        .section-description {
+          fontSize: 13px;
+          color: var(--muted);
+          margin: 0;
+          fontWeight: 400;
+        }
+        .section-content {
+          display: grid;
+          gap: 20px;
+          gridTemplateColumns: repeat(2, 1fr);
+        }
+        .field {
+          minWidth: 0;
         }
         .lbl {
           display: block;
-          font-size: 12px;
-          font-weight: 600;
+          fontWeight: 600;
+          fontSize: 12.5px;
+          marginBottom: 6px;
           color: var(--ink-2);
-          margin-bottom: 6px;
+          letterSpacing: 0.01em;
         }
         .field-input {
           border: 1px solid var(--rule-2);
-          border-radius: var(--r-sm);
+          borderRadius: var(--r-md);
           background: var(--white);
-          height: 44px;
-          padding: 0 14px;
-          font-size: 13.5px;
+          height: 48px;
+          padding: 0 16px;
+          fontSize: 14px;
           outline: 0;
           width: 100%;
-          transition: border-color 0.15s, box-shadow 0.15s;
+          transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
         }
         .field-input:focus {
           border-color: var(--blue);
           box-shadow: 0 0 0 3px var(--blue-tint);
+          background: var(--white);
+        }
+        .field-input::placeholder {
+          color: var(--muted);
         }
         .field textarea.field-input {
-          min-height: 96px;
-          padding: 12px 14px;
+          min-height: 112px;
+          padding: 14px 16px;
           resize: vertical;
+          lineHeight: 1.55;
         }
-        .tg {
-          display: inline-block;
-          padding: 4px 10px;
-          border-radius: var(--r-pill);
-          font-size: 11px;
-          font-weight: 600;
+        .form-alert {
+          display: flex;
+          alignItems: flex-start;
+          gap: 12px;
+          padding: 16px 18px;
+          borderRadius: var(--r-md);
+          fontSize: 13.5px;
+          fontWeight: 500;
         }
-        .tg.blue { background: var(--blue-tint); color: var(--blue); }
-        .tg.gold { background: var(--gold-tint); color: var(--gold); }
-        .tg.green { background: var(--green-tint); color: var(--green); }
-        .tg.red { background: var(--red-tint); color: var(--red); }
-        .tg.dark { background: var(--ink-1); color: var(--ink); }
+        .form-alert.error {
+          background: var(--red-tint);
+          border: 1px solid var(--red);
+          color: var(--red);
+        }
+        .form-alert.success {
+          background: var(--green-tint);
+          border: 1px solid var(--green);
+          color: var(--green);
+        }
+        .alert-icon {
+          flexShrink: 0;
+          marginTop: 1px;
+        }
+        .form-actions {
+          display: flex;
+          gap: 12px;
+          justifyContent: flex-end;
+          borderTop: 1px solid var(--rule);
+          paddingTop: 28px;
+          marginTop: 8px;
+        }
         .btn {
           display: inline-flex;
-          align-items: center;
-          justify-content: center;
+          alignItems: center;
+          justifyContent: center;
           gap: 8px;
-          padding: 0 16px;
-          border-radius: var(--r-sm);
-          font-size: 13px;
-          font-weight: 600;
+          padding: 0 20px;
+          borderRadius: var(--r-md);
+          fontSize: 13.5px;
+          fontWeight: 600;
           border: 1px solid transparent;
           cursor: pointer;
-          transition: all 0.15s;
+          transition: all 0.15s ease;
         }
-        .btn-sm { height: 40px; padding: 0 14px; font-size: 12.5px; }
+        .btn-sm { height: 44px; padding: 0 18px; font-size: 13px; }
         .btn-blue { background: var(--blue); color: white; border-color: var(--blue); }
-        .btn-blue:hover { background: var(--blue-2); }
+        .btn-blue:hover:not(:disabled) { background: var(--blue-2); }
         .btn-blue:disabled { opacity: 0.6; cursor: not-allowed; }
         .btn-ghost { background: transparent; color: var(--ink); border-color: var(--rule); }
-        .btn-ghost:hover { background: var(--paper-2); }
-        .spinner {
-          animation: spin 0.8s linear infinite;
+        .btn-ghost:hover:not(:disabled) { background: var(--paper-2); }
+        .btn-ghost:disabled { opacity: 0.6; cursor: not-allowed; }
+        .btn-spinner { animation: spin 0.8s linear infinite; }
+        
+        @media (max-width: 768px) {
+          .section-content {
+            gridTemplateColumns: 1fr;
+          }
+          .page-title { fontSize: 26px; }
+          .header-content { flexDirection: column; alignItems: flex-start; }
         }
       `}</style>
     </>
