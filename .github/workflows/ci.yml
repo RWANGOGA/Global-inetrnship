@@ -74,20 +74,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Deploy to staging
-        run: |
-          echo "Deploying to staging environment..."
-          # Add your staging deployment commands here
-          # Example: docker compose -f docker-compose.staging.yml up -d
-          # Example: kubectl apply -f k8s/staging/
-          echo "Staging deployment would happen here"
+      - name: Build & start staging DB
+        run: docker compose -f docker-compose.staging.yml up -d
 
       - name: Smoke tests
-        run: |
-          echo "Running smoke tests against staging..."
-          # Add smoke test commands here
-          # Example: curl -f https://staging.example.com/health || exit 1
-          echo "Smoke tests would run here"
+        run: curl -f http://localhost:8000/health || exit 1
 
   notify:
     name: Notify
@@ -100,3 +91,12 @@ jobs:
         run: |
           echo "CI pipeline failed!"
           # Add notification logic here (Slack, email, etc.)
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+    steps:
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
