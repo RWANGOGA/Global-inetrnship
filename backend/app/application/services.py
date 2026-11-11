@@ -815,6 +815,7 @@ class StudentProfileService:
         cgpa: float,
         university: str,
         skills: list[str],
+        talent_search_opt_in: bool = False,
     ) -> StudentProfile:
         return self._repo.save(
             StudentProfile(
@@ -826,6 +827,7 @@ class StudentProfileService:
                 skills=list(
                     dict.fromkeys(skill.strip() for skill in skills if skill.strip())
                 ),
+                talent_search_opt_in=talent_search_opt_in,
             )
         )
 

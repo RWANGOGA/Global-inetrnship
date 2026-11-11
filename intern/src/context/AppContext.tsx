@@ -332,6 +332,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     cgpa: 0,
     uni: "",
     skills: [],
+    talent_search_opt_in: false,
   });
   const [docs, setDocs] = useState<DocItem[]>([]);
   const [adminQueue, setAdminQueue] = useState<AdminQueueItem[]>([]);
@@ -1387,6 +1388,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           cgpa: profile.cgpa,
           uni: profile.university,
           skills: profile.skills,
+          talent_search_opt_in: profile.talent_search_opt_in || false,
         };
         if (cancelled) return;
         setStudent(nextStudent);

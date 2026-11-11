@@ -55,6 +55,7 @@ export const INITIAL_STUDENT: Student = {
   cgpa: 3.7,
   uni: "Makerere University",
   skills: ["Figma", "UI Design", "Prototyping", "Communication", "Teamwork"],
+  talent_search_opt_in: false,
 };
 export const INITIAL_DOCS: DocItem[] = [
   { name: "Transcript", status: "verified", file: "transcript-2026.pdf", size: "1.2 MB" },
@@ -346,8 +347,9 @@ export const NAV: Record<UserRole, [string, string, string][]> = {
     ["placements", "My placements", "02"],
     ["jobs", "My jobs", "03"],
     ["applicants", "Applicants", "04"],
-    ["profile", "Profile", "05"],
-    ["testimonial", "Testimonial", "06"],
+    ["talent-search", "Talent search", "05"],
+    ["profile", "Profile", "06"],
+    ["testimonial", "Testimonial", "07"],
   ],
 admin: [
     ["overview", "Overview", "01"],

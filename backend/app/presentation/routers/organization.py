@@ -23,7 +23,11 @@ from app.presentation.schemas import (
     OrganizationUpdate,
     ApplicationRead,
     JobApplicationRead,
+    StudentProfileRead,
 )
+from pydantic import BaseModel
+from typing import Optional
+from app.infrastructure.orm import StudentProfileORM, UserORM
 from app.infrastructure.repositories import SqlAlchemyPlacementRepository
 
 router = APIRouter(prefix="/organization", tags=["organization"])
@@ -457,3 +461,110 @@ def get_shortlisted_job_applications(
     )
     
     return [JobApplicationRead.model_validate(app, from_attributes=True) for app in apps]
+
+
+# ---- Talent Search -------------------------------------------
+
+class TalentSearchFilters(BaseModel):
+    skill: Optional[str] = None
+    course: Optional[str] = None
+    location: Optional[str] = None
+    university: Optional[str] = None
+    limit: int = 20
+    offset: int = 0
+
+
+@router.post("/talent-search", response_model=list[StudentProfileRead])
+def search_student_profiles(
+    filters: TalentSearchFilters,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> list[StudentProfileRead]:
+    """Search verified student profiles who opted into talent search.
+    
+    Only returns students with talent_search_opt_in=True.
+    Filters by skill, course, location, and university.
+    """
+    org_id = _require_employer(current_user)
+    
+    # Query student profiles that opted into talent search
+    query = session.query(StudentProfileORM).filter(
+        StudentProfileORM.talent_search_opt_in == True
+    )
+    
+    # Join with users to get location/university info
+    query = query.join(UserORM, StudentProfileORM.user_id == UserORM.id)
+    
+    if filters.skill:
+        # Search in skills JSON array
+        query = query.filter(StudentProfileORM.skills.op("@>")([filters.skill]))
+    
+    if filters.course:
+        query = query.filter(StudentProfileORM.course.ilike(f"%{filters.course}%"))
+    
+    if filters.university:
+        query = query.filter(StudentProfileORM.university.ilike(f"%{filters.university}%"))
+    
+    if filters.location:
+        # Filter by user location (org location or student location)
+        query = query.filter(UserORM.loc.ilike(f"%{filters.location}%"))
+    
+    query = query.offset(filters.offset).limit(filters.limit)
+    
+    profiles = query.all()
+    return [StudentProfileRead.model_validate(p, from_attributes=True) for p in profiles]
+
+
+@router.get("/talent-search/courses", response_model=list[str])
+def get_talent_search_courses(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> list[str]:
+    """Get unique courses from students who opted into talent search."""
+    _require_employer(current_user)
+    
+    courses = (
+        session.query(StudentProfileORM.course)
+        .filter(StudentProfileORM.talent_search_opt_in == True)
+        .filter(StudentProfileORM.course != "")
+        .distinct()
+        .all()
+    )
+    return sorted([c[0] for c in courses if c[0]])
+
+
+@router.get("/talent-search/locations", response_model=list[str])
+def get_talent_search_locations(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> list[str]:
+    """Get unique locations from students who opted into talent search."""
+    _require_employer(current_user)
+    
+    locations = (
+        session.query(UserORM.loc)
+        .join(StudentProfileORM, UserORM.id == StudentProfileORM.user_id)
+        .filter(StudentProfileORM.talent_search_opt_in == True)
+        .filter(UserORM.loc != "")
+        .distinct()
+        .all()
+    )
+    return sorted([l[0] for l in locations if l[0]])
+
+
+@router.get("/talent-search/universities", response_model=list[str])
+def get_talent_search_universities(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> list[str]:
+    """Get unique universities from students who opted into talent search."""
+    _require_employer(current_user)
+    
+    unis = (
+        session.query(StudentProfileORM.university)
+        .filter(StudentProfileORM.talent_search_opt_in == True)
+        .filter(StudentProfileORM.university != "")
+        .distinct()
+        .all()
+    )
+    return sorted([u[0] for u in unis if u[0]])

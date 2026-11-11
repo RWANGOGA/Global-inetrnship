@@ -123,6 +123,7 @@ export interface Student {
   // Confirmed skills on the profile. Seeded, then edited by the student from
   // pasted projects/CV text. Drives the match score.
   skills: string[];
+  talent_search_opt_in: boolean;
 }
 
 export interface DocItem {
@@ -313,7 +314,8 @@ export type DashboardView =
   | "jobs"
   | "action-logs"
   | "reports"
-  | "profile";
+  | "profile"
+  | "talent-search";
 
 export interface OrganizationRead {
   id: string;

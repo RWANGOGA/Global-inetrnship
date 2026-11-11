@@ -99,6 +99,7 @@ class StudentProfile:
     cgpa: float = 0.0
     university: str = ""
     skills: list[str] = field(default_factory=list)
+    talent_search_opt_in: bool = False
 
 
 @dataclass(frozen=True)

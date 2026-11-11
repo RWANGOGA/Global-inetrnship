@@ -180,6 +180,7 @@ class StudentProfileORM(Base):
     cgpa: Mapped[float] = mapped_column(default=0.0)
     university: Mapped[str] = mapped_column(String, default="")
     skills: Mapped[list] = mapped_column(JSON, default=list)
+    talent_search_opt_in: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class ApplicationPackORM(Base):

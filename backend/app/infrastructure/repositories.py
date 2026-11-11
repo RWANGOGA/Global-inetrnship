@@ -741,6 +741,7 @@ class SqlAlchemyStudentProfileRepository(StudentProfileRepository):
             cgpa=float(row.cgpa or 0.0),
             university=row.university or "",
             skills=list(row.skills or []),
+            talent_search_opt_in=bool(row.talent_search_opt_in),
         )
 
     def get(self, user_id: str) -> StudentProfile:
@@ -761,6 +762,7 @@ class SqlAlchemyStudentProfileRepository(StudentProfileRepository):
         row.cgpa = profile.cgpa
         row.university = profile.university
         row.skills = profile.skills
+        row.talent_search_opt_in = profile.talent_search_opt_in
         self._session.commit()
         return profile
 

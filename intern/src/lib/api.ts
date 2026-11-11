@@ -713,6 +713,7 @@ export interface StudentProfileDto {
   cgpa: number;
   university: string;
   skills: string[];
+  talent_search_opt_in?: boolean;
 }
 
 export interface ApplicationPackDto {
@@ -1471,6 +1472,43 @@ export async function updateOrganizationProfile(
   payload: OrganizationProfileUpdate
 ): Promise<CompanyProfile> {
   return patchJson<CompanyProfile>("/organization/profile", payload);
+}
+
+export interface TalentSearchFilters {
+  skill?: string;
+  course?: string;
+  location?: string;
+  university?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface StudentProfileSearchResult {
+  user_id: string;
+  course: string;
+  year: string;
+  cgpa: number;
+  university: string;
+  skills: string[];
+  talent_search_opt_in: boolean;
+}
+
+export async function searchStudentProfiles(
+  filters: TalentSearchFilters
+): Promise<StudentProfileSearchResult[]> {
+  return postJson<StudentProfileSearchResult[]>("/organization/talent-search", filters);
+}
+
+export async function fetchTalentSearchCourses(): Promise<string[]> {
+  return getJson<string[]>("/organization/talent-search/courses");
+}
+
+export async function fetchTalentSearchLocations(): Promise<string[]> {
+  return getJson<string[]>("/organization/talent-search/locations");
+}
+
+export async function fetchTalentSearchUniversities(): Promise<string[]> {
+  return getJson<string[]>("/organization/talent-search/universities");
 }
 
 export async function fetchJobApplications(): Promise<ApplicationDto[]> {

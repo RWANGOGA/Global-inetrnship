@@ -370,6 +370,7 @@ class StudentProfileRead(BaseModel):
     cgpa: float
     university: str
     skills: list[str]
+    talent_search_opt_in: bool = False
 
 
 class StudentProfileUpdate(BaseModel):
@@ -378,6 +379,7 @@ class StudentProfileUpdate(BaseModel):
     cgpa: float = 0.0
     university: str = ""
     skills: list[str] = []
+    talent_search_opt_in: bool = False
 
 
 class ApplicationPackRead(BaseModel):
