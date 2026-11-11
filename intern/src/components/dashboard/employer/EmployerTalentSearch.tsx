@@ -189,7 +189,7 @@ function LoadingSpinner({ size = 32, text }: { size?: number; text?: string }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "60px", color: "var(--muted)" }}>
       <div className="spinner" style={{ width: size, height: size, border: "3px solid var(--rule-2)", borderTopColor: "var(--blue)", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
-      {text && <span style={{ marginTop: "12px", fontSize: "14px", color: "var(--ink-2)" }}>{text}</span>
+      {text && <span style={{ marginTop: "12px", fontSize: "14px", color: "var(--ink-2)" }}>{text}</span>}
     </div>
   );
 }
