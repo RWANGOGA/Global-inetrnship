@@ -317,16 +317,16 @@ export function EmployerJobs() {
                   </td></tr>
                 ) : jobs.map((j) => (
                   <tr key={j.id}>
-                    <td className="who">
+                    <td className="who" data-label="Role">
                       <b>{j.title}</b>
                       <span>{j.employmentType}</span>
                     </td>
-                    <td>{j.loc}</td>
-                    <td>{j.mode}</td>
-                    <td className="num">{j.salary}</td>
-                    <td className="num">{j.closesAt}</td>
-                    <td><StatusBadge status={j.status} /></td>
-                    <td className="num">{j.applicants || 0}</td>
+                    <td data-label="Location">{j.loc}</td>
+                    <td data-label="Type">{j.mode}</td>
+                    <td className="num" data-label="Pay">{j.salary}</td>
+                    <td className="num" data-label="Closes">{j.closesAt}</td>
+                    <td data-label="Status"><StatusBadge status={j.status} /></td>
+                    <td className="num" data-label="Applicants">{j.applicants || 0}</td>
                   </tr>
                 ))}
               </tbody>

@@ -328,11 +328,11 @@ export function EmployerApplicants() {
                 ) : (
                   currentApplicants.map((app, i) => (
                     <tr key={app.id}>
-                      <td className="who">
+                      <td className="who" data-label="Candidate">
                         <b>{app.user_id.slice(0, 8)}…</b>
                         <span>{app.created_at.split("T")[0]}</span>
                       </td>
-                      <td>
+                      <td data-label={activeTab === "shortlisted" ? "Type" : activeTab === "internships" ? "Placement" : "Job"}>
                         {activeTab === "shortlisted"
                           ? (app as ApplicationDto).placement_id
                             ? (
@@ -349,10 +349,10 @@ export function EmployerApplicants() {
                           ? (app as ApplicationDto).placement_id
                           : (app as JobApplicationDto).job_id}
                       </td>
-                      <td>
+                      <td data-label="Status">
                         <StatusBadge status={app.status} />
                       </td>
-                      <td className="hide-xs">
+                      <td className="hide-xs" data-label="Documents">
                         {activeTab === "internships" || (activeTab === "shortlisted" && (app as ApplicationDto).placement_id) ? (
                           <span className="tg green">
                             <Icon name="check" size={10} /> 3 of 3 verified
@@ -363,10 +363,10 @@ export function EmployerApplicants() {
                           </span>
                         )}
                       </td>
-                      <td className="hide-xs num">
+                      <td className="hide-xs num" data-label="Fit">
                         {activeTab === "internships" || (activeTab === "shortlisted" && (app as ApplicationDto).placement_id) ? "93%" : "—"}
                       </td>
-                      <td className="act">
+                      <td className="act" data-label="Actions">
                         {activeTab === "jobs" && ["Submitted", "In Review"].includes(app.status) && (
                           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                             <button

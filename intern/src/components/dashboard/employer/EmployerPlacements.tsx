@@ -768,7 +768,7 @@ export function EmployerPlacements() {
                 </tr>
               ) : employerPlacements.map((p) => (
                 <tr key={p.id} style={{ borderTop: "1px solid var(--rule)", transition: "background 0.15s" }}>
-                  <td style={{ padding: "18px 20px" }}>
+                  <td data-label="Placement" style={{ padding: "18px 20px" }}>
                     <div className="who" style={{ fontWeight: 700, fontSize: "15px", color: "var(--ink)" }}>
                       {p.title}
                     </div>
@@ -776,25 +776,25 @@ export function EmployerPlacements() {
                       {p.slots} slots · {p.opportunityType.charAt(0).toUpperCase() + p.opportunityType.slice(1)}
                     </div>
                   </td>
-                  <td style={{ padding: "18px 20px" }}>
+                  <td data-label="Status" style={{ padding: "18px 20px" }}>
                     <StatusBadge status={p.reviewStatus} />
                   </td>
-                  <td className="hide-xs" style={{ padding: "18px 20px" }}>
+                  <td className="hide-xs" data-label="Type" style={{ padding: "18px 20px" }}>
                     <TypeBadge type={p.opportunityType} />
                   </td>
-                  <td className="hide-xs" style={{ padding: "18px 20px", fontSize: "13px", color: "var(--ink-2)" }}>
+                  <td className="hide-xs" data-label="Courses" style={{ padding: "18px 20px", fontSize: "13px", color: "var(--ink-2)" }}>
                     {p.courses.join(", ")}
                   </td>
-                  <td style={{ padding: "18px 20px", fontWeight: 600, fontSize: "14px", color: "var(--ink)" }}>
+                  <td data-label="Grade" style={{ padding: "18px 20px", fontWeight: 600, fontSize: "14px", color: "var(--ink)" }}>
                     {p.grade}
                   </td>
-                  <td style={{ padding: "18px 20px", fontWeight: 600, fontSize: "14px", color: "var(--blue)" }}>
+                  <td data-label="Applicants" style={{ padding: "18px 20px", fontWeight: 600, fontSize: "14px", color: "var(--blue)" }}>
                     {p.applicants}
                   </td>
-                  <td style={{ padding: "18px 20px", fontSize: "13px", color: "var(--ink-2)" }}>
+                  <td data-label="Closes" style={{ padding: "18px 20px", fontSize: "13px", color: "var(--ink-2)" }}>
                     {p.closesAt || p.deadline}
                   </td>
-                  <td style={{ padding: "18px 20px" }}>
+                  <td data-label="Starts" style={{ padding: "18px 20px" }}>
                     {p.startsAt && <span style={{ fontSize: "12px", color: "var(--muted)", background: "var(--paper-2)", padding: "4px 10px", borderRadius: "var(--r-pill)" }}>Starts {p.startsAt}</span>}
                   </td>
                 </tr>

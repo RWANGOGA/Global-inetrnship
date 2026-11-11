@@ -281,12 +281,12 @@ export function AdminPlacements() {
                     const o = getOrg(p.orgId);
                     return (
                       <tr key={p.id}>
-                        <td className="who">
+                        <td className="who" data-label="Placement">
                           <b>{p.title}</b>
                           <span>{p.slots} slots · {p.duration}</span>
                         </td>
-                        <td>{o?.name}</td>
-                        <td>
+                        <td data-label="Organisation">{o?.name}</td>
+                        <td data-label="Type">
                           <span
                             className={`tg ${
                               o?.type === "Government" ? "blue"
@@ -298,17 +298,17 @@ export function AdminPlacements() {
                             {o?.type}
                           </span>
                         </td>
-                        <td className="hide-xs" style={{ fontSize: "11px", color: "var(--ink-2)" }}>
+                        <td className="hide-xs" data-label="Courses" style={{ fontSize: "11px", color: "var(--ink-2)" }}>
                           {p.courses.length} courses
                         </td>
-                        <td className="num">{p.grade}</td>
-                        <td className="hide-xs">
+                        <td className="num" data-label="Grade">{p.grade}</td>
+                        <td className="hide-xs" data-label="Docs">
                           <span className="num">{p.docs.length} required</span>
                         </td>
-                        <td><ReviewStatusBadge status={p.reviewStatus} /></td>
-                        <td><StatusBadge status={p.status} /></td>
-                        <td className="num">{p.deadline}</td>
-                        <td className="act">
+                        <td data-label="Review"><ReviewStatusBadge status={p.reviewStatus} /></td>
+                        <td data-label="Status"><StatusBadge status={p.status} /></td>
+                        <td className="num" data-label="Closes">{p.deadline}</td>
+                        <td className="act" data-label="Actions">
                           {p.reviewStatus === "pending_review" && (
                             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                               <button

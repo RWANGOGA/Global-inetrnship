@@ -645,6 +645,255 @@ nav[aria-label="Primary"]{display:flex}
   .dtable .hide-xs{display:none}
   .quote .seal{width:58px;height:58px;font-size:6.5px}
 }
+
+/* ================ MOBILE TABLE RESPONSIVE ================ */
+/* Card-based layout for tables on mobile (max-width: 620px) */
+@media (max-width: 620px) {
+  /* Hide table headers and use card layout */
+  .dtable thead,
+  .ptable thead {
+    display: none;
+  }
+  
+  .dtable tbody,
+  .ptable tbody {
+    display: block;
+  }
+  
+  .dtable tr,
+  .ptable tr {
+    display: block;
+    border: 1px solid var(--rule);
+    border-radius: var(--r-md);
+    margin-bottom: 12px;
+    padding: 12px;
+    background: var(--white);
+  }
+  
+  .dtable td,
+  .ptable td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 4px;
+    border: none;
+    border-bottom: 1px solid var(--rule-2);
+  }
+  
+  .dtable td:last-child,
+  .ptable td:last-child {
+    border-bottom: none;
+  }
+  
+  .dtable td::before,
+  .ptable td::before {
+    content: attr(data-label);
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 500;
+    flex-shrink: 0;
+    margin-right: 12px;
+  }
+  
+  /* Actions column - stack buttons */
+  .dtable .act,
+  .ptable .act {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  
+  .dtable .act .btn,
+  .ptable .act .btn {
+    flex: 1;
+    min-width: 120px;
+  }
+  
+  /* Hide columns marked with hide-xs on mobile card view */
+  .dtable .hide-xs,
+  .ptable .hide-xs {
+    display: none;
+  }
+  
+  /* Who column styling in card view */
+  .dtable .who,
+  .ptable .who {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  
+  .dtable .who::before,
+  .ptable .who::before {
+    display: none;
+  }
+  
+  .dtable .who b,
+  .ptable .who b {
+    font-size: 14px;
+  }
+  
+  .dtable .who span,
+  .ptable .who span {
+    font-size: 11px;
+  }
+  
+  /* Number columns */
+  .dtable .num,
+  .ptable .num {
+    font-family: var(--mono);
+  }
+  
+  /* Status badges */
+  .dtable .tg,
+  .ptable .tg {
+    white-space: nowrap;
+  }
+}
+
+/* ================ MODAL RESPONSIVE ================ */
+@media (max-width: 620px) {
+  .modal {
+    padding: 12px;
+    align-items: flex-start;
+  }
+  
+  .mcard {
+    max-height: 100vh;
+    border-radius: var(--r-lg);
+    width: 100%;
+    max-width: 100%;
+  }
+  
+  .mcard .mh {
+    padding: 14px 16px;
+  }
+  
+  .mcard .mh h3 {
+    font-size: 18px;
+  }
+  
+  .mcard .mb {
+    padding: 16px;
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+  }
+  
+  .mcard .mf {
+    padding: 12px 16px;
+    flex-wrap: wrap;
+  }
+  
+  .mcard .mf .btn {
+    flex: 1;
+    min-width: 120px;
+  }
+}
+
+/* ================ FORM RESPONSIVE ================ */
+@media (max-width: 620px) {
+  .form .row2,
+  .form .row3 {
+    grid-template-columns: 1fr;
+  }
+  
+  .field-input {
+    height: 44px;
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+  
+  .field textarea.field-input {
+    min-height: 100px;
+  }
+  
+  .btn {
+    height: 44px;
+    font-size: 14px;
+  }
+  
+  .btn-sm {
+    height: 40px;
+    font-size: 13px;
+  }
+  
+  .dpane {
+    padding: 14px 12px 70px;
+  }
+  
+  .panel .ph {
+    padding: 12px 14px;
+  }
+  
+  .panel .pb {
+    padding: 12px 14px;
+  }
+  
+  .dpane-h {
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  
+  .dpane-h h2 {
+    font-size: 22px;
+  }
+}
+
+/* ================ SIDEBAR/DRAWER RESPONSIVE ================ */
+@media (max-width: 620px) {
+  .sidedrawer {
+    width: 100%;
+    max-width: 300px;
+  }
+}
+
+/* ================ SELECT/DROPDOWN RESPONSIVE ================ */
+@media (max-width: 620px) {
+  select.field-input {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+}
+
+/* ================ TABS/BUTTON GROUPS RESPONSIVE ================ */
+@media (max-width: 620px) {
+  .dpane-h > div:last-child {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+    justify-content: flex-start;
+  }
+  
+  .dpane-h > div:last-child .btn {
+    flex: 1;
+    min-width: 100px;
+    text-align: center;
+    padding: 0 8px;
+  }
+}
+
+/* ================ KPI RESPONSIVE ================ */
+@media (max-width: 480px) {
+  .kpis {
+    grid-template-columns: 1fr 1fr;
+  }
+  
+  .kpi {
+    padding: 12px 10px;
+  }
+  
+  .kpi b {
+    font-size: 24px;
+  }
+  
+  .kpi .lbl {
+    font-size: 10px;
+  }
+}
+
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
 /* ===================== IMAGERY ===================== */

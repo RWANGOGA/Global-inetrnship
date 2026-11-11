@@ -206,7 +206,7 @@ export function JobSeekerApps() {
                   const appAny = app as ApplicationDto | JobApplicationDto | Job;
                   return (
                     <tr key={app.id}>
-                      <td className="who">
+                      <td className="who" data-label="Role">
                         <b>
                           {isInternship
                             ? (appAny as ApplicationDto).placement_id
@@ -222,26 +222,26 @@ export function JobSeekerApps() {
                             : (appAny as Job).employmentType}
                         </span>
                       </td>
-                      <td>
+                      <td data-label="Organisation">
                         {isInternship
                           ? "Employer"
                           : isJob
                           ? "Employer"
                           : (appAny as Job).orgName}
                       </td>
-                      <td className="num">
+                      <td className="num" data-label={activeTab === "saved" ? "Closes" : "Applied"}>
                         {isInternship || isJob
                           ? (appAny as ApplicationDto | JobApplicationDto).created_at.split("T")[0]
                           : (appAny as Job).closesAt}
                       </td>
-                      <td>
+                      <td data-label="Status">
                         {isSaved ? (
                           <span className="tg green">Saved</span>
                         ) : (
                           <StatusBadge status={app.status} />
                         )}
                       </td>
-                      <td className="act">
+                      <td className="act" data-label="Actions">
                         {isSaved && (
                           <button
                             type="button"

@@ -209,16 +209,16 @@ export function AdminApplications() {
                   errorMessage="Unable to load applications"
                   children={(app: ApplicationDto) => (
                     <tr key={app.id}>
-                      <td className="who">
+                      <td className="who" data-label="Applicant">
                         <b>{app.user_name || app.user_id.slice(0, 8) + "…"}</b>
                         <span>{app.user_email}</span>
                       </td>
-                      <td><TypeBadge type={app.type || "internship"} /></td>
-                      <td>{app.type === "internship" ? app.placement_title : app.job_title}</td>
-                      <td>{app.type === "internship" ? "Placement" : "Job"}</td>
-                      <td><StatusBadge status={app.status} /></td>
-                      <td className="num">{app.created_at.split("T")[0]}</td>
-                      <td className="act">
+                      <td data-label="Type"><TypeBadge type={app.type || "internship"} /></td>
+                      <td data-label="Role">{app.type === "internship" ? app.placement_title : app.job_title}</td>
+                      <td data-label="Organization">{app.type === "internship" ? "Placement" : "Job"}</td>
+                      <td data-label="Status"><StatusBadge status={app.status} /></td>
+                      <td className="num" data-label="Applied">{app.created_at.split("T")[0]}</td>
+                      <td className="act" data-label="Actions">
                         <button
                           type="button"
                           className="btn btn-sm btn-ghost"

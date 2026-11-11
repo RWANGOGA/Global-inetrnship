@@ -161,14 +161,14 @@ export function StudentPlacements() {
                   const typeColor = typeColors[p.opportunityType] || "var(--blue)";
                   return (
                     <tr key={p.id}>
-                      <td className="who">
+                      <td className="who" data-label="Placement">
                         <b>{p.title}</b>
                         <span>
                           {p.duration} · {p.stipend}
                         </span>
                       </td>
-                      <td>{o?.name}</td>
-                      <td className="hide-xs">
+                      <td data-label="Organisation">{o?.name}</td>
+                      <td className="hide-xs" data-label="Type">
                         <span
                           className="tg"
                           style={{ background: typeColors[p.opportunityType] || "var(--blue)" }}
@@ -176,7 +176,7 @@ export function StudentPlacements() {
                           {p.opportunityType.charAt(0).toUpperCase() + p.opportunityType.slice(1)}
                         </span>
                       </td>
-                      <td style={{ minWidth: 120 }}>
+                      <td data-label="Match" style={{ minWidth: 120 }}>
                         <div
                           className="bar-track"
                           title={`${tone.label} match — missing: ${
@@ -192,15 +192,15 @@ export function StudentPlacements() {
                           {match.score}% · {tone.label}
                         </span>
                       </td>
-                      <td className="hide-xs">
+                      <td className="hide-xs" data-label="Skills you bring">
                         <span style={{ fontSize: 12 }}>
                           {match.matched.length
                             ? match.matched.join(", ")
                             : "No overlapping skills yet"}
                         </span>
                       </td>
-                      <td className="num">{p.deadline}</td>
-                      <td className="act">
+                      <td className="num" data-label="Closes">{p.deadline}</td>
+                      <td className="act" data-label="Actions">
                         {eligible ? (
                           <button
                             type="button"
