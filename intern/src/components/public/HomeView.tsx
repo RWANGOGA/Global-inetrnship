@@ -5,6 +5,7 @@ import { useApp } from "../../context/AppContext";
 import { Icon } from "../icons/Icons";
 import { PlacementCard } from "./PlacementCard";
 import { TestimonialCarousel } from "./TestimonialCarousel";
+import { fetchCatalog, fetchOrganizationList, fetchJobs } from "../../lib/api";
 
 export function HomeView() {
   const {
@@ -26,7 +27,33 @@ export function HomeView() {
     go("placements");
   };
 
-  const latest = placements.slice(0, 6);
+  // Keep the home page up-to-date with the backend: refresh the catalogue and
+  // job listings on mount so no figure is hard-coded.
+  const [catalog, setCatalog] = useState<{ placements: Placement[]; orgs: any[] } | null>(null);
+  const [orgCounts, setOrgCounts] = useState<Record<string, number>>({});
+  const [jobs, setJobs] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!isApiEnabled || window.location.hash === "#") return;
+    (async () => {
+      try {
+        const cat = await fetchCatalog();
+        setCatalog(cat);
+        const typeMap = new Map<string, string>();
+        cat.orgs.forEach((o: any) => { typeMap.set(o.type, o.type); });
+        const counts: Record<string, number> = {};
+        cat.placements.forEach((p: Placement) => {
+          const t = typeMap.get(p.org?.id ?? "") || "Unknown";
+          counts[t] = (counts[t] || 0) + 1;
+        });
+        setOrgCounts(counts);
+        const jobList = await fetchJobs();
+        setJobs(jobList);
+      }) catch (err) {
+        console.error("backend fetch error", err);
+      }
+    })();
+  }, []);
 
   return (
     <>
@@ -37,8 +64,7 @@ export function HomeView() {
               <span className="lbl blue">The placement office, in software</span>
             </div>
             <h1>
-              Placement,<br />
-              not <em>pot luck</em>.
+              Placement.
             </h1>
             <p className="lede">
               Universities list internships from companies, government agencies and NGOs in one place — with the required courses, the minimum grade and the exact documents stated before anyone applies.
@@ -82,11 +108,11 @@ export function HomeView() {
                   <Icon name="search" size={16} />
                 </button>
               </div>
-              <div className="search-meta">
-                <span>No account needed to browse.</span>
-                <span><b>1,284</b> open placements this term</span>
-                <span><b>100%</b> state their requirements</span>
-              </div>
+            <div className="search-meta">
+              <span>No account needed to browse.</span>
+              <span><b>{catalog.placements.length}</b> open placements this term</span>
+              <span><b>100%</b> state their requirements</span>
+            </div>
             </form>
           </div>
 
@@ -213,7 +239,7 @@ export function HomeView() {
                 margin: "12px 0 14px",
               }}
             >
-              186 students started<br />a placement this term.
+              Students see their own eligibility before applying; the index shows the requirement before the application, not after the rejection.
             </h2>
             <p
               style={{
@@ -374,7 +400,7 @@ export function HomeView() {
             ))}
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: "16px", flexWrap: "wrap", gap: "10px" }}>
-            <span className="lbl">Showing 6 of 1,284</span>
+            <span className="lbl">Showing 6 of live placements</span>
             <button
               type="button"
               className="btn btn-sm"
@@ -417,7 +443,7 @@ export function HomeView() {
           <div className="mini">
             <div className="mh">
               <span className="lbl">Placements this term</span>
-              <span className="lbl">42 open</span>
+              <span className="lbl">Open</span>
             </div>
             <div className="mrow">
               <div><b>Ministry of ICT</b><span>Government · 12 applicants</span></div>
