@@ -551,6 +551,18 @@ class OrganizationRead(BaseModel):
     is_active: bool = True
 
 
+class OrganizationUpdate(BaseModel):
+    name: Optional[str] = None
+    type: Optional[str] = None
+    sector: Optional[str] = None
+    loc: Optional[str] = None
+    seal: Optional[str] = None
+    about: Optional[str] = None
+    billing_email: Optional[str] = None
+    tax_id: Optional[str] = None
+    billing_address: Optional[dict] = None
+
+
 class OrganizationListResponse(BaseModel):
     total: int
     items: list[OrganizationRead]

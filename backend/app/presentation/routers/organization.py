@@ -20,6 +20,9 @@ from app.presentation.schemas import (
     JobPostingListResponse,
     JobRead,
     OrganizationRead,
+    OrganizationUpdate,
+    ApplicationRead,
+    JobApplicationRead,
 )
 from app.infrastructure.repositories import SqlAlchemyPlacementRepository
 
@@ -360,3 +363,97 @@ def get_public_organization(
         seal=org.seal,
         about=org.about,
     )
+
+
+# ---- Employer Organization Profile -------------------------------------------
+
+@router.get("/profile", response_model=OrganizationRead)
+def get_organization_profile(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> OrganizationRead:
+    """Get the current employer's organization profile."""
+    org_id = _require_employer(current_user)
+    org = session.query(OrganisationORM).filter_by(id=org_id).first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    return OrganizationRead.model_validate(org, from_attributes=True)
+
+
+@router.patch("/profile", response_model=OrganizationRead)
+def update_organization_profile(
+    payload: OrganizationUpdate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> OrganizationRead:
+    """Update the current employer's organization profile."""
+    org_id = _require_employer(current_user)
+    org = session.query(OrganisationORM).filter_by(id=org_id).first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    update_data = payload.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(org, field, value)
+    
+    session.commit()
+    session.refresh(org)
+    return OrganizationRead.model_validate(org, from_attributes=True)
+
+
+# ---- Shortlisted Applications -------------------------------------------
+
+@router.get("/shortlisted", response_model=list[ApplicationRead])
+def get_shortlisted_internship_applications(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> list[ApplicationRead]:
+    """Get all shortlisted internship applications for the employer's organization."""
+    org_id = _require_employer(current_user)
+    
+    # Get all placement IDs for this organization
+    placement_ids = [
+        p.id for p in session.query(PlacementORM.id).filter(PlacementORM.org_id == org_id).all()
+    ]
+    
+    if not placement_ids:
+        return []
+    
+    # Get shortlisted applications for these placements
+    apps = (
+        session.query(ApplicationORM)
+        .filter(ApplicationORM.placement_id.in_(placement_ids))
+        .filter(ApplicationORM.shortlisted == True)
+        .order_by(ApplicationORM.updated_at.desc())
+        .all()
+    )
+    
+    return [ApplicationRead.model_validate(app, from_attributes=True) for app in apps]
+
+
+@router.get("/shortlisted/jobs", response_model=list[JobApplicationRead])
+def get_shortlisted_job_applications(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> list[JobApplicationRead]:
+    """Get all shortlisted job applications for the employer's organization."""
+    org_id = _require_employer(current_user)
+    
+    # Get all job IDs for this organization
+    job_ids = [
+        j.id for j in session.query(JobORM.id).filter(JobORM.org_id == org_id).all()
+    ]
+    
+    if not job_ids:
+        return []
+    
+    # Get shortlisted applications for these jobs
+    apps = (
+        session.query(JobApplicationORM)
+        .filter(JobApplicationORM.job_id.in_(job_ids))
+        .filter(JobApplicationORM.shortlisted == True)
+        .order_by(JobApplicationORM.updated_at.desc())
+        .all()
+    )
+    
+    return [JobApplicationRead.model_validate(app, from_attributes=True) for app in apps]

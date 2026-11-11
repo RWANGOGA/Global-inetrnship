@@ -109,6 +109,44 @@ export function PlacementDetailView() {
               <h3>About the placement</h3>
               <p>{p.about}</p>
 
+              {o?.about && (
+                <>
+                  <h3>About {o.name}</h3>
+                  <p style={{ color: "var(--ink-2)", lineHeight: 1.6 }}>{o.about}</p>
+                  <div
+                    style={{
+                      marginTop: "16px",
+                      padding: "12px 16px",
+                      background: "var(--paper-2)",
+                      borderRadius: "var(--r-md)",
+                      border: "1px solid var(--rule)",
+                      fontSize: "13px",
+                    }}
+                  >
+                    <div style={{ display: "flex", gap: "24px", flexWrap: "wrap" }}>
+                      {o.sector && (
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <span style={{ color: "var(--muted)" }}><Icon name="bldg" size={13} /></span>
+                          <span>{o.sector}</span>
+                        </div>
+                      )}
+                      {o.loc && (
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <span style={{ color: "var(--muted)" }}><Icon name="pin" size={13} /></span>
+                          <span>{o.loc}</span>
+                        </div>
+                      )}
+                      {o.type && o.type !== "Company" && (
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <span style={{ color: "var(--muted)" }}><Icon name="shield-check" size={13} /></span>
+                          <span>{o.type}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+
               <h3>What you will do</h3>
               <ul>
                 {p.duties.map((d, i) => (

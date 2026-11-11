@@ -14,6 +14,8 @@ import {
   exportOrgJobApplicantsCsv,
   toggleJobApplicationShortlist,
   toggleInternshipApplicationShortlist,
+  fetchOrganizationShortlistedInternships,
+  fetchOrganizationShortlistedJobs,
 } from "../../../lib/api";
 import { Placement, ApplicationDto, Job, JobApplicationDto } from "../../../types";
 import { Icon } from "../../icons/Icons";
@@ -52,11 +54,14 @@ export function EmployerApplicants() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [internshipApplicants, setInternshipApplicants] = useState<Record<string, ApplicationDto[]>>({});
   const [jobApplicants, setJobApplicants] = useState<Record<string, JobApplicationDto[]>>({});
+  const [shortlistedInternships, setShortlistedInternships] = useState<ApplicationDto[]>([]);
+  const [shortlistedJobs, setShortlistedJobs] = useState<JobApplicationDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState<"internships" | "jobs" | "shortlisted">("internships");
   const [selectedId, setSelectedId] = useState<string>("");
   const [updating, setUpdating] = useState<string | null>(null);
+  const [loadingShortlisted, setLoadingShortlisted] = useState(false);
 
   const handleExportPlacementApplicants = async (id: string) => {
     try {
@@ -104,6 +109,12 @@ export function EmployerApplicants() {
         setSelectedId(jobsData[0].id);
         loadJobApplicants(jobsData[0].id);
       }
+      
+      // Load shortlisted applications if on shortlisted tab
+      if (activeTab === "shortlisted") {
+        await loadShortlistedApplications();
+      }
+      
       setLoading(false);
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : "Unable to load data");
@@ -129,11 +140,29 @@ export function EmployerApplicants() {
     }
   }
 
+  async function loadShortlistedApplications() {
+    setLoadingShortlisted(true);
+    try {
+      const [internshipApps, jobApps] = await Promise.all([
+        fetchOrganizationShortlistedInternships(),
+        fetchOrganizationShortlistedJobs(),
+      ]);
+      setShortlistedInternships(internshipApps);
+      setShortlistedJobs(jobApps);
+    } catch (cause) {
+      console.error("Failed to load shortlisted applications:", cause);
+    } finally {
+      setLoadingShortlisted(false);
+    }
+  }
+
   async function handleShortlistInternship(applicationId: string, shortlist: boolean) {
     try {
       await toggleInternshipApplicationShortlist(applicationId);
       // Reload the current placement's applicants
       if (selectedId) loadInternshipApplicants(selectedId);
+      // Refresh shortlisted list if on that tab
+      if (activeTab === "shortlisted") await loadShortlistedApplications();
       toast(shortlist ? "Applicant shortlisted" : "Applicant removed from shortlist");
     } catch {
       toast("Failed to update shortlist");
@@ -145,6 +174,8 @@ export function EmployerApplicants() {
       await toggleJobApplicationShortlist(applicationId);
       // Reload the current job's applicants
       if (selectedId) loadJobApplicants(selectedId);
+      // Refresh shortlisted list if on that tab
+      if (activeTab === "shortlisted") await loadShortlistedApplications();
       toast(shortlist ? "Applicant shortlisted" : "Applicant removed from shortlist");
     } catch {
       toast("Failed to update shortlist");
@@ -179,10 +210,7 @@ export function EmployerApplicants() {
     ? internshipApplicants[selectedId] || []
     : activeTab === "jobs"
     ? jobApplicants[selectedId] || []
-    : [
-        ...(internshipApplicants[selectedId] || []).filter((a) => a.shortlisted),
-        ...(jobApplicants[selectedId] || []).filter((a) => a.shortlisted),
-      ];
+    : [...shortlistedInternships, ...shortlistedJobs];
 
   const totalApplicants = Object.values(
     activeTab === "internships" ? internshipApplicants : jobApplicants
@@ -244,27 +272,29 @@ export function EmployerApplicants() {
         </div>
       </div>
 
-      <div className="panel" style={{ marginBottom: "16px" }}>
-        <div className="ph">
-          <span className="lbl">Select {activeTab === "internships" ? "placement" : "job"}</span>
+      {activeTab !== "shortlisted" && (
+        <div className="panel" style={{ marginBottom: "16px" }}>
+          <div className="ph">
+            <span className="lbl">Select {activeTab === "internships" ? "placement" : "job"}</span>
+          </div>
+          <div className="pb" style={{ padding: "12px 16px" }}>
+            <select
+              value={selectedId}
+              onChange={(e) => handleSelectionChange(e.target.value)}
+              className="field-input"
+              style={{ maxWidth: "420px", height: "40px", padding: "0 12px", border: "1px solid var(--rule-2)", borderRadius: "var(--r-sm)", background: "var(--white)", fontSize: "13px" }}
+            >
+              {currentItems.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.title} ({activeTab === "internships"
+                    ? (item as Placement).applicants
+                    : (item as Job).applicants || 0} applicants)
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-        <div className="pb" style={{ padding: "12px 16px" }}>
-          <select
-            value={selectedId}
-            onChange={(e) => handleSelectionChange(e.target.value)}
-            className="field-input"
-            style={{ maxWidth: "420px", height: "40px", padding: "0 12px", border: "1px solid var(--rule-2)", borderRadius: "var(--r-sm)", background: "var(--white)", fontSize: "13px" }}
-          >
-            {currentItems.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.title} ({activeTab === "internships"
-                  ? (item as Placement).applicants
-                  : (item as Job).applicants || 0} applicants)
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+      )}
 
       <div className="panel">
         <div className="pb" style={{ padding: 0 }}>
@@ -273,7 +303,7 @@ export function EmployerApplicants() {
               <thead>
                 <tr>
                   <th>Candidate</th>
-                  <th>{activeTab === "internships" ? "Placement" : "Job"}</th>
+                  <th>{activeTab === "shortlisted" ? "Type" : activeTab === "internships" ? "Placement" : "Job"}</th>
                   <th>Status</th>
                   <th className="hide-xs">Documents</th>
                   <th className="hide-xs">Fit</th>
@@ -281,9 +311,9 @@ export function EmployerApplicants() {
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
+                {(activeTab === "shortlisted" ? loadingShortlisted : loading) ? (
                   <tr><td colSpan={6}>Loading...</td></tr>
-                ) : currentItems.length === 0 ? (
+                ) : currentItems.length === 0 && activeTab !== "shortlisted" ? (
                   <tr>
                     <td colSpan={6}>
                       No {activeTab === "internships" ? "placements" : "jobs"} posted yet.
@@ -292,7 +322,7 @@ export function EmployerApplicants() {
                 ) : currentApplicants.length === 0 ? (
                   <tr>
                     <td colSpan={6}>
-                      No applicants for this {activeTab === "internships" ? "placement" : "job"}.
+                      {activeTab === "shortlisted" ? "No shortlisted candidates yet." : `No applicants for this ${activeTab === "internships" ? "placement" : "job"}.`}
                     </td>
                   </tr>
                 ) : (
@@ -303,7 +333,19 @@ export function EmployerApplicants() {
                         <span>{app.created_at.split("T")[0]}</span>
                       </td>
                       <td>
-                        {activeTab === "internships"
+                        {activeTab === "shortlisted"
+                          ? (app as ApplicationDto).placement_id
+                            ? (
+                              <span className="tg blue">
+                                <Icon name="brief" size={10} /> Internship
+                              </span>
+                            )
+                            : (
+                              <span className="tg green">
+                                <Icon name="brief" size={10} /> Job
+                              </span>
+                            )
+                          : activeTab === "internships"
                           ? (app as ApplicationDto).placement_id
                           : (app as JobApplicationDto).job_id}
                       </td>
@@ -311,7 +353,7 @@ export function EmployerApplicants() {
                         <StatusBadge status={app.status} />
                       </td>
                       <td className="hide-xs">
-                        {activeTab === "internships" ? (
+                        {activeTab === "internships" || (activeTab === "shortlisted" && (app as ApplicationDto).placement_id) ? (
                           <span className="tg green">
                             <Icon name="check" size={10} /> 3 of 3 verified
                           </span>
@@ -322,7 +364,7 @@ export function EmployerApplicants() {
                         )}
                       </td>
                       <td className="hide-xs num">
-                        {activeTab === "internships" ? "93%" : "—"}
+                        {activeTab === "internships" || (activeTab === "shortlisted" && (app as ApplicationDto).placement_id) ? "93%" : "—"}
                       </td>
                       <td className="act">
                         {activeTab === "jobs" && ["Submitted", "In Review"].includes(app.status) && (
@@ -368,7 +410,7 @@ export function EmployerApplicants() {
                             className={`btn btn-sm ${app.shortlisted ? "btn-blue" : ""}`}
                             disabled={updating === app.id}
                             onClick={() => {
-                              if (activeTab === "internships") {
+                              if (activeTab === "internships" || (activeTab === "shortlisted" && (app as ApplicationDto).placement_id)) {
                                 handleShortlistInternship(app.id, !app.shortlisted);
                               } else {
                                 handleShortlistJob(app.id, !app.shortlisted);

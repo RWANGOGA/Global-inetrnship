@@ -32,6 +32,7 @@ import { EmployerPlacements } from "./employer/EmployerPlacements";
 import { EmployerApplicants } from "./employer/EmployerApplicants";
 import { EmployerJobs } from "./employer/EmployerJobs";
 import { EmployerTestimonial } from "./employer/EmployerTestimonial";
+import { EmployerProfile } from "./employer/EmployerProfile";
 
 import { EmployeeTestimonial } from "./employee/EmployeeTestimonial";
 
@@ -85,6 +86,7 @@ export function DashboardShell() {
     users: "Users",
     "action-logs": "Action Logs",
     reports: "Reports",
+    profile: "Organization Profile",
   };
 
   const currentTitle = titles[dash] || "Overview";
@@ -149,6 +151,8 @@ export function DashboardShell() {
           return <EmployerJobs />;
         case "testimonial":
           return <EmployerTestimonial />;
+        case "profile":
+          return <EmployerProfile />;
         default:
           return <EmployerOverview />;
       }

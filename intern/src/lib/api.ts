@@ -1443,6 +1443,36 @@ export async function fetchOrganizationApplicants(
   return data.items;
 }
 
+export async function fetchOrganizationShortlistedInternships(): Promise<ApplicationDto[]> {
+  return getJson<ApplicationDto[]>("/organization/shortlisted");
+}
+
+export async function fetchOrganizationShortlistedJobs(): Promise<JobApplicationDto[]> {
+  return getJson<JobApplicationDto[]>("/organization/shortlisted/jobs");
+}
+
+export async function fetchOrganizationProfile(): Promise<CompanyProfile> {
+  return getJson<CompanyProfile>("/organization/profile");
+}
+
+export interface OrganizationProfileUpdate {
+  name?: string;
+  type?: string;
+  sector?: string;
+  loc?: string;
+  seal?: string;
+  about?: string;
+  billing_email?: string;
+  tax_id?: string;
+  billing_address?: Record<string, unknown>;
+}
+
+export async function updateOrganizationProfile(
+  payload: OrganizationProfileUpdate
+): Promise<CompanyProfile> {
+  return patchJson<CompanyProfile>("/organization/profile", payload);
+}
+
 export async function fetchJobApplications(): Promise<ApplicationDto[]> {
   const data = await getJson<ApiListResponse<ApplicationDto>>("/applications");
   return data.items;

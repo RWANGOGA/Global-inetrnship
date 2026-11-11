@@ -20,6 +20,8 @@ export interface CompanyProfile {
   loc: string;
   seal: string;
   about: string;
+  billing_email?: string | null;
+  tax_id?: string | null;
 }
 
 export interface Placement {
@@ -310,7 +312,8 @@ export type DashboardView =
   | "users"
   | "jobs"
   | "action-logs"
-  | "reports";
+  | "reports"
+  | "profile";
 
 export interface OrganizationRead {
   id: string;
