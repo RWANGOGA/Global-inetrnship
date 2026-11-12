@@ -299,6 +299,51 @@ class ApplicationRead(BaseModel):
     shortlisted: bool = False
 
 
+class AdminApplicationRead(BaseModel):
+    """Extended application schema for admin views with user/placement/job details."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    type: str  # "internship" | "job"
+    user_id: str
+    user_name: str = ""
+    user_email: str = ""
+    placement_id: str | None = None
+    placement_title: str | None = None
+    job_id: str | None = None
+    job_title: str | None = None
+    organization: str | None = None
+    status: str
+    statement: str = ""
+    created_at: str
+    updated_at: str | None = None
+    # Rich application data
+    cv_url: str | None = None
+    cover_letter: str = ""
+    github_url: str | None = None
+    linkedin_url: str | None = None
+    portfolio_url: str | None = None
+    academic_papers: list = []
+    # References
+    reference_1_name: str = ""
+    reference_1_email: str = ""
+    reference_1_phone: str = ""
+    reference_1_relationship: str = ""
+    reference_2_name: str = ""
+    reference_2_email: str = ""
+    reference_2_phone: str = ""
+    reference_2_relationship: str = ""
+    # Document IDs
+    document_ids: list = []
+    # Shortlist flag
+    shortlisted: bool = False
+
+
+class AdminApplicationsResponse(BaseModel):
+    total: int
+    items: list[AdminApplicationRead]
+
+
 class ApplyRequest(BaseModel):
     placement_id: str
     statement: str = ""
