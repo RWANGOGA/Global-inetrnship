@@ -108,6 +108,55 @@ def required_skills_for(placement: Placement) -> list[str]:
     return REQUIRED_SKILLS.get(placement.id, [])
 
 
+@dataclass(frozen=True)
+class SkillSuggestion:
+    """A skill the student's course is likely to need, with live demand."""
+
+    name: str
+    category: str
+    demand: int
+    placement_ids: list[str]
+
+
+def suggest_skills_for_course(
+    placements: list[Placement],
+    course: str,
+    owned: set[str] | None = None,
+) -> list[SkillSuggestion]:
+    """Suggest missing skills required by placements open to ``course``.
+
+    Suggestions are derived from the live catalogue and the curated
+    ``REQUIRED_SKILLS`` table rather than a hardcoded course→skill map. They are
+    ordered by how many eligible placements need the skill, then taxonomy order.
+    """
+    if not course:
+        return []
+    already = owned or set()
+    hits: dict[str, list[str]] = {}
+    for placement in placements:
+        if course not in placement.courses:
+            continue
+        for skill in required_skills_for(placement):
+            if skill in already:
+                continue
+            hits.setdefault(skill, []).append(placement.id)
+
+    order = {skill.name: index for index, skill in enumerate(SKILLS)}
+    categories = {skill.name: skill.category for skill in SKILLS}
+    suggestions = [
+        SkillSuggestion(
+            name=name,
+            category=categories[name],
+            demand=len(placement_ids),
+            placement_ids=placement_ids,
+        )
+        for name, placement_ids in hits.items()
+        if name in order
+    ]
+    suggestions.sort(key=lambda s: (-s.demand, order[s.name], s.name))
+    return suggestions
+
+
 def extract_skills(text: str) -> list[str]:
     """Deterministic, whole-word-ish keyword match over the taxonomy.
 

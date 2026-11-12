@@ -806,6 +806,22 @@ export async function updateStudentProfile(
   });
 }
 
+export interface SkillSuggestionDto {
+  name: string;
+  category: string;
+  demand: number;
+  placement_ids: string[];
+}
+
+export interface SkillSuggestionListDto {
+  total: number;
+  items: SkillSuggestionDto[];
+}
+
+export async function fetchSkillSuggestions(): Promise<SkillSuggestionListDto> {
+  return getJson<SkillSuggestionListDto>("/profile/skill-suggestions");
+}
+
 export interface RankedPlacementDto {
   placement: ApiPlacement;
   match: {

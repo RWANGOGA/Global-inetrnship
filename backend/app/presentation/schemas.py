@@ -207,6 +207,18 @@ class MatchResponse(BaseModel):
     items: list[RankedPlacementRead]
 
 
+class SkillSuggestionRead(BaseModel):
+    name: str
+    category: str
+    demand: int
+    placement_ids: list[str]
+
+
+class SkillSuggestionListResponse(BaseModel):
+    total: int
+    items: list[SkillSuggestionRead]
+
+
 class ExtractRequest(BaseModel):
     text: str
 

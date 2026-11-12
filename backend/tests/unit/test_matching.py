@@ -6,6 +6,7 @@ from app.domain.matching import (
     extract_skills,
     match_placement,
     required_skills_for,
+    suggest_skills_for_course,
 )
 
 
@@ -93,6 +94,28 @@ def test_confidence_does_not_remove_a_matched_skill():
     assert res.missing == ["UI Design", "Prototyping", "Design Systems"]
     # 0.5 of 4 skills = 12.5% coverage -> 7.5 + 25 + 15 = 47.5 -> 48
     assert res.score == 48
+
+
+def test_suggest_skills_for_course_uses_live_requirements():
+    placements = [
+        _placement("p1", ["Design", "Computer Science"], "CGPA 3.0+"),
+        _placement("p5", ["Design"], "CGPA 3.0+"),
+    ]
+    suggestions = suggest_skills_for_course(
+        placements, "Design", owned={"Figma"}
+    )
+    names = [s.name for s in suggestions]
+    assert "Figma" not in names  # already owned
+    assert names[0] == "UI Design"
+    assert all(s.demand == 1 for s in suggestions)
+    assert all(s.placement_ids for s in suggestions)
+    assert suggestions[0].category == "Design"
+
+
+def test_suggest_skills_for_course_requires_a_course():
+    placements = [_placement("p1", ["Design"], "CGPA 3.0+")]
+    assert suggest_skills_for_course(placements, "") == []
+    assert suggest_skills_for_course(placements, "Law") == []
 
 
 def test_grade_threshold_from_second_class_upper():

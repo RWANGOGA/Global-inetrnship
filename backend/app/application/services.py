@@ -28,7 +28,9 @@ from app.domain.matching import (
     REQUIRED_SKILLS,
     SKILLS,
     RankedPlacement,
+    SkillSuggestion,
     match_placement,
+    suggest_skills_for_course,
 )
 
 
@@ -123,6 +125,13 @@ class MatchingService:
         ]
         ranked.sort(key=lambda r: (-r.match.score, r.placement.id))
         return ranked[:limit] if limit else ranked
+
+    def suggest_skills(
+        self, *, student_course: str, student_skills: list[str]
+    ) -> list[SkillSuggestion]:
+        return suggest_skills_for_course(
+            self._repo.list(), student_course, set(student_skills)
+        )
 
 
 class SavedService:

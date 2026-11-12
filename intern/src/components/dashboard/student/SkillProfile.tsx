@@ -11,8 +11,10 @@ import {
 } from "../../../lib/skills";
 import {
   fetchRecommendedInternships,
+  fetchSkillSuggestions,
   isApiEnabled,
   MatchResponse,
+  SkillSuggestionDto,
 } from "../../../lib/api";
 
 function scoreColor(score: number): string {
@@ -26,7 +28,6 @@ export function SkillProfile() {
     student,
     addSkill,
     removeSkill,
-    setSkills,
     setSkillConfidence,
     openPlacement,
     toast,
@@ -37,9 +38,49 @@ export function SkillProfile() {
   const [picked, setPicked] = useState("");
   const [matches, setMatches] = useState<MatchResponse["items"]>([]);
   const [loading, setLoading] = useState(false);
+  const [suggestions, setSuggestions] = useState<SkillSuggestionDto[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestionsError, setSuggestionsError] = useState(false);
+  const [dismissed, setDismissed] = useState<string[]>([]);
 
   const owned = student.skills;
   const rated = owned.filter((s) => student.skillsConfidence[s]).length;
+  const visibleSuggestions = suggestions.filter(
+    (s) => !owned.includes(s.name) && !dismissed.includes(s.name)
+  );
+
+  useEffect(() => {
+    if (!isApiEnabled || !student.course) {
+      setSuggestions([]);
+      setSuggestionsError(false);
+      return;
+    }
+    let cancelled = false;
+    setSuggestionsLoading(true);
+    setSuggestionsError(false);
+    fetchSkillSuggestions()
+      .then((res) => {
+        if (cancelled) return;
+        setSuggestions(res.items);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSuggestions([]);
+          setSuggestionsError(true);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setSuggestionsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [student.course, owned]);
+
+  const acceptSuggestion = (name: string) => {
+    addSkill(name, "course");
+    toast(`${name} added from your course`);
+  };
 
   const runExtract = () => {
     const found = extractSkills(text).filter((s) => !owned.includes(s));
@@ -50,7 +91,7 @@ export function SkillProfile() {
   };
 
   const addAllSuggested = () => {
-    setSkills([...owned, ...suggested]);
+    suggested.forEach((s) => addSkill(s, "project"));
     setSuggested([]);
     toast(`${suggested.length} skill${suggested.length === 1 ? "" : "s"} added to your profile`);
   };
@@ -156,7 +197,7 @@ export function SkillProfile() {
                         key={s}
                         type="button"
                         className="tg"
-                        onClick={() => addSkill(s)}
+                        onClick={() => addSkill(s, "project")}
                         title="Add to profile"
                       >
                         + {s}
@@ -172,6 +213,107 @@ export function SkillProfile() {
                     Add all {suggested.length}
                   </button>
                 </div>
+              )}
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="ph">
+              <span className="lbl">Suggested from your course</span>
+              <span className="lbl">{visibleSuggestions.length}</span>
+            </div>
+            <div className="pb">
+              {suggestionsLoading ? (
+                <p style={{ fontSize: "12px", color: "var(--muted)" }}>
+                  Reading live placement requirements…
+                </p>
+              ) : suggestionsError ? (
+                <p style={{ fontSize: "12px", color: "var(--red)" }}>
+                  Could not load suggestions. Check your connection and try again.
+                </p>
+              ) : !student.course ? (
+                <p style={{ fontSize: "12px", color: "var(--muted)" }}>
+                  Add your course to see skills that placements open to you
+                  usually require.
+                </p>
+              ) : visibleSuggestions.length === 0 ? (
+                <p style={{ fontSize: "12px", color: "var(--muted)" }}>
+                  No new course-based suggestions right now. You already cover
+                  the skills these placements ask for.
+                </p>
+              ) : (
+                <>
+                  <p
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--muted)",
+                      marginBottom: "10px",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    Required by placements open to {student.course}. Accept what
+                    you can evidence; dismiss the rest.
+                  </p>
+                  <div style={{ display: "grid", gap: "8px" }}>
+                    {visibleSuggestions.map((s) => (
+                      <div
+                        key={s.name}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          flexWrap: "wrap",
+                          border: "1px solid var(--rule)",
+                          borderRadius: "var(--r-sm)",
+                          padding: "8px 10px",
+                        }}
+                      >
+                        <div style={{ minWidth: 0 }}>
+                          <b style={{ fontSize: "12.5px" }}>{s.name}</b>
+                          <div style={{ fontSize: "10.5px", color: "var(--muted)" }}>
+                            {s.category} · needed by {s.demand} placement
+                            {s.demand === 1 ? "" : "s"}
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", gap: "5px", marginLeft: "auto" }}>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-blue"
+                            style={{ height: "28px", padding: "0 9px", fontSize: "10.5px" }}
+                            onClick={() => acceptSuggestion(s.name)}
+                          >
+                            Accept
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            style={{ height: "28px", padding: "0 9px", fontSize: "10.5px" }}
+                            onClick={() =>
+                              setDismissed((prev) => [...prev, s.name])
+                            }
+                          >
+                            Dismiss
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    style={{ marginTop: "10px" }}
+                    onClick={() => {
+                      visibleSuggestions.forEach((s) => addSkill(s.name, "course"));
+                      toast(
+                        `${visibleSuggestions.length} course skill${
+                          visibleSuggestions.length === 1 ? "" : "s"
+                        } added`
+                      );
+                    }}
+                  >
+                    Accept all {visibleSuggestions.length}
+                  </button>
+                </>
               )}
             </div>
           </div>
