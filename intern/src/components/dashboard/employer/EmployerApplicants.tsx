@@ -19,6 +19,7 @@ import {
 } from "../../../lib/api";
 import { Placement, ApplicationDto, Job, JobApplicationDto } from "../../../types";
 import { Icon, IconName } from "../../icons/Icons";
+import { ApplicantDetailView } from "./ApplicantDetailView";
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, { label: string; className: string }> = {
@@ -126,6 +127,8 @@ export function EmployerApplicants() {
   const [selectedId, setSelectedId] = useState<string>("");
   const [updating, setUpdating] = useState<string | null>(null);
   const [loadingShortlisted, setLoadingShortlisted] = useState(false);
+  // Applicant detail view
+  const [selectedApplicantId, setSelectedApplicantId] = useState<string | null>(null);
 
   const handleExportPlacementApplicants = async (id: string) => {
     try {
@@ -384,7 +387,7 @@ export function EmployerApplicants() {
                       student={app}
                       isInternship={isInternship}
                       onRemove={() => isInternship ? handleShortlistInternship(app.id, false) : handleShortlistJob(app.id, false)}
-                      onView={() => console.log("View", app.id)}
+                      onView={() => setSelectedApplicantId(app.id)}
                       onInvite={() => console.log("Invite", app.id)}
                     />
                   );
@@ -442,6 +445,14 @@ export function EmployerApplicants() {
                           {activeTab === "internships" ? "93%" : "—"}
                         </td>
                         <td className="actions-cell" data-label="Actions">
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-ghost"
+                            onClick={() => setSelectedApplicantId(app.id)}
+                            style={{ marginRight: "8px" }}
+                          >
+                            <Icon name="eye" size={12} /> View
+                          </button>
                           {activeTab === "jobs" && ["Submitted", "In Review"].includes(app.status) && (
                             <div className="action-group">
                               <button
@@ -811,6 +822,12 @@ export function EmployerApplicants() {
           .shortlisted-grid { gridTemplateColumns: 1fr; }
         }
       `}</style>
+      {selectedApplicantId && (
+        <ApplicantDetailView
+          applicationId={selectedApplicantId}
+          onClose={() => setSelectedApplicantId(null)}
+        />
+      )}
     </>
   );
 }

@@ -1536,6 +1536,61 @@ export async function fetchTalentSearchUniversities(): Promise<string[]> {
   return getJson<string[]>("/organization/talent-search/universities");
 }
 
+export interface ApplicantMatchScore {
+  score: number;
+  matched_skills: string[];
+  missing_skills: string[];
+  course_fit: boolean;
+  grade_fit: boolean;
+}
+
+export interface ApplicantDetail {
+  application_id: string;
+  application_type: "internship" | "job";
+  status: string;
+  statement: string;
+  cover_letter: string;
+  cv_url: string | null;
+  github_url: string | null;
+  linkedin_url: string | null;
+  portfolio_url: string | null;
+  academic_papers: any[];
+  reference_1_name: string;
+  reference_1_email: string;
+  reference_1_phone: string;
+  reference_1_relationship: string;
+  reference_2_name: string;
+  reference_2_email: string;
+  reference_2_phone: string;
+  reference_2_relationship: string;
+  document_ids: string[];
+  shortlisted: boolean;
+  created_at: string;
+  updated_at: string | null;
+  student_id: string;
+  student_name: string;
+  student_email: string;
+  student_course: string;
+  student_year: string;
+  student_cgpa: number;
+  student_university: string;
+  student_skills: string[];
+  talent_search_opt_in: boolean;
+  placement_id: string | null;
+  placement_title: string | null;
+  placement_opportunity_type: string | null;
+  job_id: string | null;
+  job_title: string | null;
+  documents: any[];
+  match_score: ApplicantMatchScore | null;
+}
+
+export async function fetchApplicantDetail(
+  applicationId: string
+): Promise<ApplicantDetail> {
+  return getJson<ApplicantDetail>(`/organization/applicants/${applicationId}/detail`);
+}
+
 export async function fetchJobApplications(): Promise<ApplicationDto[]> {
   const data = await getJson<ApiListResponse<ApplicationDto>>("/applications");
   return data.items;
