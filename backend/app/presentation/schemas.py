@@ -192,6 +192,8 @@ class MatchRequest(BaseModel):
     skills: list[str] = []
     course: str = ""
     cgpa: float = 0.0
+    # Proficiency per skill: 1 Beginner, 2 Intermediate, 3 Advanced.
+    skills_confidence: dict[str, int] = {}
     # optional catalogue filters (same as GET /placements)
     q: Optional[str] = None
     org_type: Optional[str] = None
@@ -370,6 +372,8 @@ class StudentProfileRead(BaseModel):
     cgpa: float
     university: str
     skills: list[str]
+    skills_confidence: dict[str, int] = {}
+    skills_source: dict[str, str] = {}
 
 
 class StudentProfileUpdate(BaseModel):
@@ -378,6 +382,8 @@ class StudentProfileUpdate(BaseModel):
     cgpa: float = 0.0
     university: str = ""
     skills: list[str] = []
+    skills_confidence: dict[str, int] = {}
+    skills_source: dict[str, str] = {}
 
 
 class ApplicationPackRead(BaseModel):

@@ -132,6 +132,12 @@ def ensure_schema() -> None:
             statements.append("ALTER TABLE student_documents ADD COLUMN author_role VARCHAR DEFAULT 'student'")
         if "author_id" not in doc_columns:
             statements.append("ALTER TABLE student_documents ADD COLUMN author_id VARCHAR")
+    if "student_profiles" in inspector.get_table_names():
+        profile_columns = {c["name"] for c in inspector.get_columns("student_profiles")}
+        if "skills_confidence" not in profile_columns:
+            statements.append("ALTER TABLE student_profiles ADD COLUMN skills_confidence JSON DEFAULT '{}'")
+        if "skills_source" not in profile_columns:
+            statements.append("ALTER TABLE student_profiles ADD COLUMN skills_source JSON DEFAULT '{}'")
     # New tables - create if not exists (handled by create_all, but we check here for completeness)
     new_tables = ["invoices", "transactions", "student_usage", "payment_gateways"]
     for table in new_tables:

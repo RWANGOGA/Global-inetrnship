@@ -27,6 +27,7 @@ export function SkillProfile() {
     addSkill,
     removeSkill,
     setSkills,
+    setSkillConfidence,
     openPlacement,
     toast,
   } = useApp();
@@ -38,6 +39,7 @@ export function SkillProfile() {
   const [loading, setLoading] = useState(false);
 
   const owned = student.skills;
+  const rated = owned.filter((s) => student.skillsConfidence[s]).length;
 
   const runExtract = () => {
     const found = extractSkills(text).filter((s) => !owned.includes(s));
@@ -70,7 +72,13 @@ export function SkillProfile() {
       return;
     }
     setLoading(true);
-    fetchRecommendedInternships(owned, student.course, student.cgpa, 6)
+    fetchRecommendedInternships(
+      owned,
+      student.course,
+      student.cgpa,
+      6,
+      student.skillsConfidence
+    )
       .then((res) => {
         setMatches(res.items);
         setLoading(false);
@@ -79,7 +87,7 @@ export function SkillProfile() {
         setMatches([]);
         setLoading(false);
       });
-  }, [owned, student.course, student.cgpa]);
+  }, [owned, student.course, student.cgpa, student.skillsConfidence]);
 
   return (
     <>
@@ -87,8 +95,8 @@ export function SkillProfile() {
         <div>
           <h2>Skills profile</h2>
           <p>
-            {owned.length} skill{owned.length === 1 ? "" : "s"} on record ·
-            ranked against {matches.length} live placements
+            {owned.length} skill{owned.length === 1 ? "" : "s"} on record ·{" "}
+            {rated} rated · ranked against {matches.length} live placements
           </p>
         </div>
       </div>
@@ -174,33 +182,83 @@ export function SkillProfile() {
               <span className="lbl">{owned.length}</span>
             </div>
             <div className="pb">
+              <p style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "12px", lineHeight: 1.6 }}>
+                Rate how comfortable you are with each skill. Beginner counts
+                half, Intermediate three quarters and Advanced the full
+                requirement in your match score.
+              </p>
               {owned.length === 0 ? (
                 <p style={{ fontSize: "12.5px", color: "var(--muted)" }}>
                   No skills yet. Extract from text above or add one below.
                 </p>
               ) : (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                  {owned.map((s) => (
-                    <span key={s} className="tg blue" style={{ gap: "6px" }}>
-                      {s}
-                      <button
-                        type="button"
-                        onClick={() => removeSkill(s)}
-                        aria-label={`Remove ${s}`}
+                <div style={{ display: "grid", gap: "8px" }}>
+                  {owned.map((s) => {
+                    const level = student.skillsConfidence[s];
+                    return (
+                      <div
+                        key={s}
                         style={{
-                          background: "none",
-                          border: 0,
-                          cursor: "pointer",
-                          color: "inherit",
-                          lineHeight: 1,
-                          fontSize: "13px",
-                          padding: 0,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          flexWrap: "wrap",
+                          padding: "8px 10px",
+                          border: "1px solid var(--rule)",
+                          borderRadius: "var(--r-sm)",
                         }}
                       >
-                        ×
-                      </button>
-                    </span>
-                  ))}
+                        <span className="tg blue" style={{ gap: "6px" }}>
+                          {s}
+                          <button
+                            type="button"
+                            onClick={() => removeSkill(s)}
+                            aria-label={`Remove ${s}`}
+                            style={{
+                              background: "none",
+                              border: 0,
+                              cursor: "pointer",
+                              color: "inherit",
+                              lineHeight: 1,
+                              fontSize: "13px",
+                              padding: 0,
+                            }}
+                          >
+                            ×
+                          </button>
+                        </span>
+                        <div
+                          style={{ display: "flex", gap: "4px", marginLeft: "auto" }}
+                          role="group"
+                          aria-label={`${s} confidence`}
+                        >
+                          {[
+                            [1, "Beginner"],
+                            [2, "Intermediate"],
+                            [3, "Advanced"],
+                          ].map(([value, label]) => (
+                            <button
+                              key={value}
+                              type="button"
+                              className={`btn btn-sm ${level === value ? "btn-blue" : ""}`}
+                              style={{
+                                height: "26px",
+                                padding: "0 8px",
+                                fontSize: "10px",
+                                fontWeight: 600,
+                                borderColor:
+                                  level === value ? "var(--blue)" : "var(--rule)",
+                              }}
+                              aria-pressed={level === value}
+                              onClick={() => setSkillConfidence(s, value as number)}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 

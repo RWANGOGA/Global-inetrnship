@@ -99,6 +99,11 @@ class StudentProfile:
     cgpa: float = 0.0
     university: str = ""
     skills: list[str] = field(default_factory=list)
+    # Optional proficiency per skill (1 = Beginner, 2 = Intermediate,
+    # 3 = Advanced). A skill with no rating contributes as a full match.
+    skills_confidence: dict[str, int] = field(default_factory=dict)
+    # How each skill entered the profile (manual, project, course, quiz).
+    skills_source: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

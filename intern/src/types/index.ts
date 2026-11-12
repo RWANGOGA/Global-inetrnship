@@ -121,6 +121,11 @@ export interface Student {
   // Confirmed skills on the profile. Seeded, then edited by the student from
   // pasted projects/CV text. Drives the match score.
   skills: string[];
+  // Optional proficiency per skill (1 Beginner, 2 Intermediate, 3 Advanced).
+  // A missing entry is treated as fully proficient by the matcher.
+  skillsConfidence: Record<string, number>;
+  // How each skill entered the profile (manual, project, course, quiz).
+  skillsSource: Record<string, string>;
 }
 
 export interface DocItem {

@@ -286,6 +286,8 @@ def update_profile(
         cgpa=payload.cgpa,
         university=payload.university,
         skills=payload.skills,
+        skills_confidence=payload.skills_confidence,
+        skills_source=payload.skills_source,
     )
     return StudentProfileRead.model_validate(profile, from_attributes=True)
 

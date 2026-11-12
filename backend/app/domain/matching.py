@@ -82,6 +82,16 @@ REQUIRED_SKILLS: dict[str, list[str]] = {
     "p12": ["Monitoring & Evaluation", "Data Analysis", "Report Writing", "Statistics"],
 }
 
+# Proficiency rating -> share of the skill requirement it satisfies.
+# Unrated skills count as fully met so profiles saved before confidence levels
+# existed keep their previous scores.
+CONFIDENCE_WEIGHTS: dict[int, float] = {
+    1: 0.5,   # Beginner
+    2: 0.75,  # Intermediate
+    3: 1.0,   # Advanced
+}
+DEFAULT_CONFIDENCE_WEIGHT = 1.0
+
 # Grade label -> minimum CGPA it implies (mirrors data/GRADE_RANK).
 GRADE_RANK: dict[str, float] = {
     "CGPA 3.6+": 3.6,
@@ -146,16 +156,23 @@ def match_placement(
     student_skills: list[str],
     student_course: str,
     student_cgpa: float,
+    student_confidence: dict[str, int] | None = None,
 ) -> MatchResult:
     required = required_skills_for(placement)
     have = set(student_skills)
     matched = [s for s in required if s in have]
     missing = [s for s in required if s not in have]
+    confidence = student_confidence or {}
 
-    if len(required) == 1:
-        coverage = 1.0 if matched else 0.0
-    elif required:
-        coverage = len(matched) / len(required)
+    if required:
+        # A skill's proficiency scales its contribution: Advanced counts in
+        # full, Intermediate 75%, Beginner 50%. An unrated skill counts in full
+        # so existing profiles keep their original score.
+        weighted = sum(
+            CONFIDENCE_WEIGHTS.get(confidence.get(skill, 0), DEFAULT_CONFIDENCE_WEIGHT)
+            for skill in matched
+        )
+        coverage = min(1.0, weighted / len(required))
     else:
         coverage = 0.0
 

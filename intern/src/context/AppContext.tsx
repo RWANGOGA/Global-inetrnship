@@ -209,10 +209,11 @@ interface AppContextType {
   setStatement: (statement: string) => void;
 
   // Skills profile
-  addSkill: (name: string) => void;
+  addSkill: (name: string, source?: string) => void;
   removeSkill: (name: string) => void;
   toggleSkill: (name: string) => void;
   setSkills: (skills: string[]) => void;
+  setSkillConfidence: (name: string, level: number) => void;
 
   go: (route: string) => void;
   enterPortal: (portal: Portal) => void;
@@ -332,6 +333,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     cgpa: 0,
     uni: "",
     skills: [],
+    skillsConfidence: {},
+    skillsSource: {},
   });
   const [docs, setDocs] = useState<DocItem[]>([]);
   const [adminQueue, setAdminQueue] = useState<AdminQueueItem[]>([]);
@@ -837,7 +840,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const ranked = placements
         .map((p) => ({
           p,
-          m: matchPlacement(p, student.skills, student.course, student.cgpa),
+          m: matchPlacement(
+            p,
+            student.skills,
+            student.course,
+            student.cgpa,
+            student.skillsConfidence
+          ),
         }))
         .sort((a, b) => b.m.score - a.m.score);
 
@@ -1387,6 +1396,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           cgpa: profile.cgpa,
           uni: profile.university,
           skills: profile.skills,
+          skillsConfidence: profile.skills_confidence || {},
+          skillsSource: profile.skills_source || {},
         };
         if (cancelled) return;
         setStudent(nextStudent);
@@ -1402,7 +1413,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const matches = await fetchRecommendedInternships(
           nextStudent.skills,
           nextStudent.course,
-          nextStudent.cgpa
+          nextStudent.cgpa,
+          6,
+          nextStudent.skillsConfidence
         );
         if (cancelled) return;
         setApplications(apps);
@@ -1481,6 +1494,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       cgpa: student.cgpa,
       university: student.uni,
       skills: student.skills,
+      skills_confidence: student.skillsConfidence,
+      skills_source: student.skillsSource,
     }).catch(() => {
       setDashboardDataStatus("error");
     });
@@ -1493,6 +1508,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     student.cgpa,
     student.uni,
     student.skills,
+    student.skillsConfidence,
+    student.skillsSource,
     student.year,
   ]);
 
@@ -1766,31 +1783,80 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Skills profile. Mutated on the student record so it persists across
-  // dashboard views for the session; the backend will own this eventually.
+  // dashboard views; the profile PUT effect above syncs it to the backend.
   const setSkills = useCallback((skills: string[]) => {
-    setStudent((prev) => ({ ...prev, skills }));
+    setStudent((prev) => {
+      const owned = new Set(skills);
+      const keep = (record: Record<string, string | number>) =>
+        Object.fromEntries(
+          Object.entries(record).filter(([name]) => owned.has(name))
+        );
+      return {
+        ...prev,
+        skills,
+        skillsConfidence: keep(prev.skillsConfidence) as Record<string, number>,
+        skillsSource: keep(prev.skillsSource) as Record<string, string>,
+      };
+    });
   }, []);
 
-  const addSkill = useCallback((name: string) => {
+  const addSkill = useCallback((name: string, source = "manual") => {
     setStudent((prev) =>
-      prev.skills.includes(name) ? prev : { ...prev, skills: [...prev.skills, name] }
+      prev.skills.includes(name)
+        ? prev
+        : {
+            ...prev,
+            skills: [...prev.skills, name],
+            skillsSource: { ...prev.skillsSource, [name]: source },
+          }
     );
   }, []);
 
   const removeSkill = useCallback((name: string) => {
-    setStudent((prev) => ({
-      ...prev,
-      skills: prev.skills.filter((s) => s !== name),
-    }));
+    setStudent((prev) => {
+      const skillsConfidence = { ...prev.skillsConfidence };
+      const skillsSource = { ...prev.skillsSource };
+      delete skillsConfidence[name];
+      delete skillsSource[name];
+      return {
+        ...prev,
+        skills: prev.skills.filter((s) => s !== name),
+        skillsConfidence,
+        skillsSource,
+      };
+    });
   }, []);
 
   const toggleSkill = useCallback((name: string) => {
-    setStudent((prev) => ({
-      ...prev,
-      skills: prev.skills.includes(name)
-        ? prev.skills.filter((s) => s !== name)
-        : [...prev.skills, name],
-    }));
+    setStudent((prev) => {
+      if (!prev.skills.includes(name)) {
+        return {
+          ...prev,
+          skills: [...prev.skills, name],
+          skillsSource: { ...prev.skillsSource, [name]: "manual" },
+        };
+      }
+      const skillsConfidence = { ...prev.skillsConfidence };
+      const skillsSource = { ...prev.skillsSource };
+      delete skillsConfidence[name];
+      delete skillsSource[name];
+      return {
+        ...prev,
+        skills: prev.skills.filter((s) => s !== name),
+        skillsConfidence,
+        skillsSource,
+      };
+    });
+  }, []);
+
+  const setSkillConfidence = useCallback((name: string, level: number) => {
+    setStudent((prev) => {
+      if (!prev.skills.includes(name)) return prev;
+      return {
+        ...prev,
+        skillsConfidence: { ...prev.skillsConfidence, [name]: level },
+      };
+    });
   }, []);
 
   const editPack = useCallback(() => {
@@ -2025,6 +2091,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         removeSkill,
         toggleSkill,
         setSkills,
+        setSkillConfidence,
 
         go,
         enterPortal,

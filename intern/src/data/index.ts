@@ -55,6 +55,8 @@ export const INITIAL_STUDENT: Student = {
   cgpa: 3.7,
   uni: "Makerere University",
   skills: ["Figma", "UI Design", "Prototyping", "Communication", "Teamwork"],
+  skillsConfidence: { Figma: 3, "UI Design": 3, Prototyping: 2 },
+  skillsSource: {},
 };
 export const INITIAL_DOCS: DocItem[] = [
   { name: "Transcript", status: "verified", file: "transcript-2026.pdf", size: "1.2 MB" },

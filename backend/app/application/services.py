@@ -98,6 +98,7 @@ class MatchingService:
         student_skills: list[str],
         student_course: str,
         student_cgpa: float,
+        student_confidence: Optional[dict[str, int]] = None,
         q: Optional[str] = None,
         org_type: Optional[str] = None,
         location: Optional[str] = None,
@@ -110,7 +111,13 @@ class MatchingService:
         ranked = [
             RankedPlacement(
                 placement=p,
-                match=match_placement(p, student_skills, student_course, student_cgpa),
+                match=match_placement(
+                    p,
+                    student_skills,
+                    student_course,
+                    student_cgpa,
+                    student_confidence,
+                ),
             )
             for p in candidates
         ]
@@ -815,7 +822,23 @@ class StudentProfileService:
         cgpa: float,
         university: str,
         skills: list[str],
+        skills_confidence: Optional[dict[str, int]] = None,
+        skills_source: Optional[dict[str, str]] = None,
     ) -> StudentProfile:
+        clean_skills = list(
+            dict.fromkeys(skill.strip() for skill in skills if skill.strip())
+        )
+        owned = set(clean_skills)
+        confidence = {
+            name: int(level)
+            for name, level in (skills_confidence or {}).items()
+            if name in owned and level in (1, 2, 3)
+        }
+        source = {
+            name: value
+            for name, value in (skills_source or {}).items()
+            if name in owned and value
+        }
         return self._repo.save(
             StudentProfile(
                 user_id=user_id,
@@ -823,9 +846,9 @@ class StudentProfileService:
                 year=year.strip(),
                 cgpa=max(0.0, cgpa),
                 university=university.strip(),
-                skills=list(
-                    dict.fromkeys(skill.strip() for skill in skills if skill.strip())
-                ),
+                skills=clean_skills,
+                skills_confidence=confidence,
+                skills_source=source,
             )
         )
 

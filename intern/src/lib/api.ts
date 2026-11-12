@@ -682,6 +682,8 @@ export interface StudentProfileDto {
   cgpa: number;
   university: string;
   skills: string[];
+  skills_confidence: Record<string, number>;
+  skills_source: Record<string, string>;
 }
 
 export interface ApplicationPackDto {
@@ -867,13 +869,15 @@ export async function fetchRecommendedInternships(
   skills: string[],
   course: string,
   cgpa: number,
-  limit = 6
+  limit = 6,
+  skillsConfidence: Record<string, number> = {}
 ): Promise<MatchResponse> {
   const data = await postJson<MatchDto>("/match", {
     skills,
     course,
     cgpa,
     limit,
+    skills_confidence: skillsConfidence,
   });
   return {
     total: data.total,

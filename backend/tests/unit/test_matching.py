@@ -64,6 +64,37 @@ def test_match_weighting_is_60_25_15():
     assert res.missing == ["UI Design", "Prototyping", "Design Systems"]
 
 
+def test_confidence_scales_skill_coverage():
+    p = _placement("p1", ["Design", "Computer Science"], "CGPA 3.0+")
+    skills = ["Figma", "UI Design", "Prototyping", "Design Systems"]
+
+    # Unrated skills count in full, preserving the pre-confidence score.
+    assert match_placement(p, skills, "Design", 3.0).score == 100
+    # Advanced is a full match; Beginner only half a match.
+    assert (
+        match_placement(p, skills, "Design", 3.0, {s: 3 for s in skills}).score == 100
+    )
+    beginner = match_placement(
+        p, skills, "Design", 3.0, {s: 1 for s in skills}
+    )
+    assert beginner.score == 70
+    assert beginner.matched == skills
+    assert beginner.missing == []
+    # Intermediate sits between the two extremes.
+    assert (
+        match_placement(p, skills, "Design", 3.0, {s: 2 for s in skills}).score == 85
+    )
+
+
+def test_confidence_does_not_remove_a_matched_skill():
+    p = _placement("p1", ["Design", "Computer Science"], "CGPA 3.0+")
+    res = match_placement(p, ["Figma"], "Design", 4.0, {"Figma": 1})
+    assert res.matched == ["Figma"]
+    assert res.missing == ["UI Design", "Prototyping", "Design Systems"]
+    # 0.5 of 4 skills = 12.5% coverage -> 7.5 + 25 + 15 = 47.5 -> 48
+    assert res.score == 48
+
+
 def test_grade_threshold_from_second_class_upper():
     p = _placement("p2", ["Statistics"], "Second Class Upper")  # threshold 3.3
     assert match_placement(p, [], "Statistics", 3.2).grade_fit is False
