@@ -877,3 +877,50 @@ class VerificationReportResponse(BaseModel):
     total: int
     items: list[VerificationReportItem]
     summary: dict
+
+
+# ---------------- Organization Team Management ------------------------------------
+
+class OrganizationMemberRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    org_id: str
+    user_id: str
+    user_name: str = ""
+    user_email: str = ""
+    role: str
+    invited_by: str | None = None
+    invited_at: str
+    joined_at: str | None = None
+    status: str
+    created_at: str
+    updated_at: str | None = None
+
+
+class OrganizationMemberListResponse(BaseModel):
+    total: int
+    items: list[OrganizationMemberRead]
+
+
+class InviteMemberRequest(BaseModel):
+    email: str
+    role: str = "member"  # owner, admin, recruiter, member
+
+
+class InviteMemberResponse(BaseModel):
+    member: OrganizationMemberRead
+    message: str
+
+
+class UpdateMemberRoleRequest(BaseModel):
+    role: str  # owner, admin, recruiter, member
+
+
+class UpdateMemberRoleResponse(BaseModel):
+    member: OrganizationMemberRead
+    message: str
+
+
+class RemoveMemberResponse(BaseModel):
+    message: str
