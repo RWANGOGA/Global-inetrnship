@@ -165,6 +165,7 @@ export function SkillProfile() {
       student.course,
       student.cgpa,
       6,
+      undefined,
       student.skillsConfidence
     )
       .then((res) => {

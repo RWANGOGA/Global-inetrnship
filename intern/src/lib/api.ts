@@ -1855,7 +1855,6 @@ export async function userAction(
   return patchJson<UserActionResponse>(`/admin/users/${userId}/action`, payload);
 }
 
-<<<<<<< HEAD
 // ---- Organization Team Management ------------------------------------
 
 export interface OrganizationMember {

@@ -801,7 +801,6 @@ class AdminActionLogListResponse(BaseModel):
     items: list[AdminActionLogRead]
 
 
-<<<<<<< HEAD
 # ---------------- Admin Reports ------------------------------------
 
 class ReportFilters(BaseModel):

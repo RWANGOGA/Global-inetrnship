@@ -1420,6 +1420,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           nextStudent.course,
           nextStudent.cgpa,
           6,
+          undefined,
           nextStudent.skillsConfidence
         );
         if (cancelled) return;
