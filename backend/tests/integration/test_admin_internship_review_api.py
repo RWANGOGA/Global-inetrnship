@@ -204,3 +204,27 @@ def test_close_reopen_validation(client):
     # Actually let me re-check: after the first close, it's closed. The second close failed.
     # So reopening the first one should work.
     # The test is a bit confused. Let me just verify the endpoint works.
+
+
+def test_admin_applications_endpoint_works(client):
+    """Admin can list all applications (internship + job)."""
+    admin = _login(client, ADMIN)
+    
+    # Test the endpoint returns successfully
+    resp = client.get("/admin/applications", headers=admin)
+    assert resp.status_code == 200
+    
+    data = resp.json()
+    assert "total" in data
+    assert "items" in data
+    assert isinstance(data["items"], list)
+    
+    # Each item should have the admin schema fields
+    if data["items"]:
+        item = data["items"][0]
+        assert "type" in item  # "internship" or "job"
+        assert "user_name" in item
+        assert "user_email" in item
+        assert "status" in item
+        # Internship apps have placement_id/placement_title
+        # Job apps have job_id/job_title

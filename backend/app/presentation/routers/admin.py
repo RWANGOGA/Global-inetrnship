@@ -28,6 +28,8 @@ from app.presentation.schemas import (
     AdminDashboardMetrics,
     AdminQueueItemRead,
     AdminQueueListResponse,
+    AdminApplicationRead,
+    AdminApplicationsResponse,
     InternshipReviewListResponse,
     InternshipReviewRequest,
     InternshipPostingRead,
@@ -1025,7 +1027,7 @@ def list_admin_action_logs(
 
 # ---------------- Applications Management ------------------------------------
 
-@router.get("/applications", response_model=ApplicationsResponse)
+@router.get("/applications", response_model=AdminApplicationsResponse)
 def list_all_applications(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
@@ -1036,7 +1038,7 @@ def list_all_applications(
     search: str = Query(None, description="Search by user email or name"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-) -> ApplicationsResponse:
+) -> AdminApplicationsResponse:
     _require_admin(current_user)
     
     # Build internship applications query
@@ -1082,6 +1084,7 @@ def list_all_applications(
     for row in internship_rows:
         user = session.query(UserORM).filter_by(id=row.user_id).first()
         placement = session.query(PlacementORM).filter_by(id=row.placement_id).first()
+        org = session.query(OrganisationORM).filter_by(id=placement.org_id).first() if placement else None
         all_apps.append({
             "id": row.id,
             "type": "internship",
@@ -1092,6 +1095,7 @@ def list_all_applications(
             "placement_title": placement.title if placement else "",
             "job_id": None,
             "job_title": None,
+            "organization": org.name if org else "",
             "status": row.status,
             "statement": row.statement,
             "cover_letter": row.cover_letter,
@@ -1111,11 +1115,13 @@ def list_all_applications(
             "document_ids": row.document_ids,
             "created_at": row.created_at,
             "updated_at": row.updated_at,
+            "shortlisted": getattr(row, 'shortlisted', False),
         })
     
     for row in job_rows:
         user = session.query(UserORM).filter_by(id=row.user_id).first()
         job = session.query(JobORM).filter_by(id=row.job_id).first()
+        org = session.query(OrganisationORM).filter_by(id=job.org_id).first() if job else None
         all_apps.append({
             "id": row.id,
             "type": "job",
@@ -1126,6 +1132,7 @@ def list_all_applications(
             "placement_title": None,
             "job_id": row.job_id,
             "job_title": job.title if job else "",
+            "organization": org.name if org else "",
             "status": row.status,
             "statement": row.statement,
             "cover_letter": row.cover_letter,
@@ -1145,6 +1152,7 @@ def list_all_applications(
             "document_ids": row.document_ids,
             "created_at": row.created_at,
             "updated_at": row.updated_at,
+            "shortlisted": getattr(row, 'shortlisted', False),
         })
     
     # Sort by created_at desc
@@ -1154,9 +1162,9 @@ def list_all_applications(
     offset = (page - 1) * page_size
     paginated = all_apps[offset:offset + page_size]
     
-    return ApplicationsResponse(
+    return AdminApplicationsResponse(
         total=total,
-        items=[ApplicationRead.model_validate(a) for a in paginated]
+        items=[AdminApplicationRead.model_validate(a) for a in paginated]
     )
 
 
