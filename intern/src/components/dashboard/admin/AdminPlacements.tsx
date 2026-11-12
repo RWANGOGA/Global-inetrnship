@@ -12,6 +12,8 @@ import {
   exportJobsCsv,
   exportPlacementApplicantsCsv,
   exportJobApplicantsCsv,
+  closePlacement,
+  reopenPlacement,
 } from "../../../lib/api";
 import { Placement } from "../../../types";
 import { Icon } from "../../icons/Icons";
@@ -160,6 +162,36 @@ export function AdminPlacements() {
       toast(decision === "approved" ? "Placement approved" : "Placement rejected");
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : "Unable to update placement");
+    } finally {
+      setActionId("");
+    }
+  }
+
+  async function handleClosePlacement(placementId: string) {
+    setActionId(placementId);
+    try {
+      await closePlacement(placementId);
+      setPlacements((items) =>
+        items.map((p) => (p.id === placementId ? { ...p, status: "Closed" } : p))
+      );
+      toast("Placement closed");
+    } catch (cause) {
+      setError(cause instanceof ApiError ? cause.message : "Unable to close placement");
+    } finally {
+      setActionId("");
+    }
+  }
+
+  async function handleReopenPlacement(placementId: string) {
+    setActionId(placementId);
+    try {
+      await reopenPlacement(placementId);
+      setPlacements((items) =>
+        items.map((p) => (p.id === placementId ? { ...p, status: "Open" } : p))
+      );
+      toast("Placement reopened");
+    } catch (cause) {
+      setError(cause instanceof ApiError ? cause.message : "Unable to reopen placement");
     } finally {
       setActionId("");
     }
@@ -328,6 +360,27 @@ export function AdminPlacements() {
                                 <Icon name="x" size={12} /> Reject
                               </button>
                             </div>
+                          )}
+                          {p.reviewStatus === "approved" && p.status === "Open" && (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-ghost"
+                              disabled={actionId === p.id}
+                              onClick={() => handleClosePlacement(p.id)}
+                              style={{ color: "var(--red)", borderColor: "var(--red)" }}
+                            >
+                              <Icon name="shield-check" size={12} /> Close
+                            </button>
+                          )}
+                          {p.reviewStatus === "approved" && p.status === "Closed" && (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-blue"
+                              disabled={actionId === p.id}
+                              onClick={() => handleReopenPlacement(p.id)}
+                            >
+                              <Icon name="arrow" size={12} /> Reopen
+                            </button>
                           )}
                         </td>
                       </tr>

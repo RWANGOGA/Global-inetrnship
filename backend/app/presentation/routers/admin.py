@@ -433,6 +433,51 @@ def list_placements(
     return PlacementListResponse(total=total, items=items)
 
 
+@router.patch("/placements/{placement_id}/close", response_model=InternshipPostingRead)
+def close_placement(
+    placement_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> InternshipPostingRead:
+    """Admin manually closes a placement (e.g., closing date reached, filled, or cancelled)."""
+    _require_admin(current_user)
+    row = session.get(PlacementORM, placement_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Placement not found")
+    if row.status == "Closed":
+        raise HTTPException(status_code=409, detail="Placement is already closed")
+    row.status = "Closed"
+    session.commit()
+    placement = SqlAlchemyPlacementRepository(session).get(placement_id)
+    if placement is None:
+        raise HTTPException(status_code=500, detail="Placement could not be loaded after close")
+    return InternshipPostingRead.model_validate(placement)
+
+
+@router.patch("/placements/{placement_id}/reopen", response_model=InternshipPostingRead)
+def reopen_placement(
+    placement_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> InternshipPostingRead:
+    """Admin reopens a closed placement (e.g., revisited, extended, or reopened for applications)."""
+    _require_admin(current_user)
+    row = session.get(PlacementORM, placement_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Placement not found")
+    if row.status == "Open":
+        raise HTTPException(status_code=409, detail="Placement is already open")
+    # Only reopen if it was previously approved
+    if row.review_status != "approved":
+        raise HTTPException(status_code=409, detail="Only approved placements can be reopened")
+    row.status = "Open"
+    session.commit()
+    placement = SqlAlchemyPlacementRepository(session).get(placement_id)
+    if placement is None:
+        raise HTTPException(status_code=500, detail="Placement could not be loaded after reopen")
+    return InternshipPostingRead.model_validate(placement)
+
+
 # ---------------- Organization Management ------------------------------------
 
 @router.get("/organizations", response_model=OrganizationListResponse)

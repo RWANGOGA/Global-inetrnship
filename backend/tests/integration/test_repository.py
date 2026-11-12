@@ -5,7 +5,7 @@ from app.infrastructure.repositories import SqlAlchemyPlacementRepository
 
 def test_repository_returns_full_seed(session):
     repo = SqlAlchemyPlacementRepository(session)
-    assert len(repo.list()) == 14
+    assert len(repo.list()) == 12  # Only Open status placements
 
 
 def test_repository_nests_organisation(session):
