@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useApp } from "../../context/AppContext";
 import { Icon } from "../icons/Icons";
 import { PlacementCard } from "./PlacementCard";
 import { TestimonialCarousel } from "./TestimonialCarousel";
-import { fetchCatalog, fetchOrganizationList, fetchJobs } from "../../lib/api";
+import { fetchCatalog, fetchJobs, isApiEnabled } from "../../lib/api";
+import type { Placement } from "../../types";
 
 export function HomeView() {
   const {
@@ -33,6 +34,8 @@ export function HomeView() {
   const [orgCounts, setOrgCounts] = useState<Record<string, number>>({});
   const [jobs, setJobs] = useState<any[]>([]);
 
+  const latest = placements.slice(0, 6);
+
   useEffect(() => {
     if (!isApiEnabled || window.location.hash === "#") return;
     (async () => {
@@ -49,7 +52,7 @@ export function HomeView() {
         setOrgCounts(counts);
         const jobList = await fetchJobs();
         setJobs(jobList);
-      }) catch (err) {
+      } catch (err) {
         console.error("backend fetch error", err);
       }
     })();
@@ -110,7 +113,7 @@ export function HomeView() {
               </div>
             <div className="search-meta">
               <span>No account needed to browse.</span>
-              <span><b>{catalog.placements.length}</b> open placements this term</span>
+              <span><b>{catalog ? catalog.placements.length : placements.length}</b> open placements this term</span>
               <span><b>100%</b> state their requirements</span>
             </div>
             </form>
