@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from app.application.ports import (
     ApplicationRepository,
+    LearningResourceRepository,
     PlacementRepository,
     SavedRepository,
     StudentProfileRepository,
@@ -18,17 +19,20 @@ from app.application.ports import (
     TransactionRepository,
     StudentUsageRepository,
 )
-from app.core.errors import PlacementNotFound, PlacementNotOpen
+from app.core.errors import LearningResourceNotFound, PlacementNotFound, PlacementNotOpen
 from app.domain.entities import (
-    Application, Placement, Resume, StudentDocument, StudentProfile, 
-    Subscription, Invoice, Transaction, StudentUsage
+    Application, LearningResource, Placement, Resume, StudentDocument,
+    StudentProfile, Subscription, Invoice, Transaction, StudentUsage
 )
 from app.domain.matching import (
     GRADE_RANK,
     REQUIRED_SKILLS,
     SKILLS,
+    SKILL_NAMES,
     RankedPlacement,
+    SkillSuggestion,
     match_placement,
+    suggest_skills_for_course,
 )
 
 
@@ -101,6 +105,7 @@ class MatchingService:
         student_skills: list[str],
         student_course: str,
         student_cgpa: float,
+        student_confidence: Optional[dict[str, int]] = None,
         q: Optional[str] = None,
         org_type: Optional[str] = None,
         location: Optional[str] = None,
@@ -114,12 +119,25 @@ class MatchingService:
         ranked = [
             RankedPlacement(
                 placement=p,
-                match=match_placement(p, student_skills, student_course, student_cgpa),
+                match=match_placement(
+                    p,
+                    student_skills,
+                    student_course,
+                    student_cgpa,
+                    student_confidence,
+                ),
             )
             for p in candidates
         ]
         ranked.sort(key=lambda r: (-r.match.score, r.placement.id))
         return ranked[:limit] if limit else ranked
+
+    def suggest_skills(
+        self, *, student_course: str, student_skills: list[str]
+    ) -> list[SkillSuggestion]:
+        return suggest_skills_for_course(
+            self._repo.list(), student_course, set(student_skills)
+        )
 
 
 class SavedService:
@@ -820,7 +838,23 @@ class StudentProfileService:
         university: str,
         skills: list[str],
         talent_search_opt_in: bool = False,
+        skills_confidence: Optional[dict[str, int]] = None,
+        skills_source: Optional[dict[str, str]] = None,
     ) -> StudentProfile:
+        clean_skills = list(
+            dict.fromkeys(skill.strip() for skill in skills if skill.strip())
+        )
+        owned = set(clean_skills)
+        confidence = {
+            name: int(level)
+            for name, level in (skills_confidence or {}).items()
+            if name in owned and level in (1, 2, 3)
+        }
+        source = {
+            name: value
+            for name, value in (skills_source or {}).items()
+            if name in owned and value
+        }
         return self._repo.save(
             StudentProfile(
                 user_id=user_id,
@@ -828,12 +862,146 @@ class StudentProfileService:
                 year=year.strip(),
                 cgpa=max(0.0, cgpa),
                 university=university.strip(),
-                skills=list(
-                    dict.fromkeys(skill.strip() for skill in skills if skill.strip())
-                ),
+                skills=clean_skills,
                 talent_search_opt_in=talent_search_opt_in,
+                skills_confidence=confidence,
+                skills_source=source,
             )
         )
+
+
+class LearningResourceService:
+    """Admin-curated resources that help students close skill gaps."""
+
+    LEVELS = {"Beginner", "Intermediate", "Advanced"}
+
+    def __init__(
+        self,
+        repo: LearningResourceRepository,
+        placements: PlacementRepository,
+    ) -> None:
+        self._repo = repo
+        self._placements = placements
+
+    def list(
+        self,
+        *,
+        skill: Optional[str] = None,
+        placement_id: Optional[str] = None,
+    ) -> list[LearningResource]:
+        return self._repo.list(skill=skill, placement_id=placement_id)
+
+    def create(
+        self,
+        *,
+        title: str,
+        url: str,
+        provider: str = "",
+        description: str = "",
+        skill: str = "",
+        placement_id: str = "",
+        level: str = "",
+        resource_type: str = "Course",
+        duration: str = "",
+    ) -> LearningResource:
+        fields = self._validate(
+            title=title,
+            url=url,
+            provider=provider,
+            description=description,
+            skill=skill,
+            placement_id=placement_id,
+            level=level,
+            resource_type=resource_type,
+            duration=duration,
+        )
+        return self._repo.add(
+            LearningResource(
+                id=uuid4().hex,
+                created_at=datetime.now(timezone.utc).isoformat(),
+                **fields,
+            )
+        )
+
+    def update(
+        self,
+        resource_id: str,
+        *,
+        title: str,
+        url: str,
+        provider: str = "",
+        description: str = "",
+        skill: str = "",
+        placement_id: str = "",
+        level: str = "",
+        resource_type: str = "Course",
+        duration: str = "",
+    ) -> LearningResource:
+        existing = self._repo.get(resource_id)
+        if existing is None:
+            raise LearningResourceNotFound(resource_id)
+        fields = self._validate(
+            title=title,
+            url=url,
+            provider=provider,
+            description=description,
+            skill=skill,
+            placement_id=placement_id,
+            level=level,
+            resource_type=resource_type,
+            duration=duration,
+        )
+        return self._repo.update(
+            LearningResource(
+                id=existing.id,
+                created_at=existing.created_at,
+                **fields,
+            )
+        )
+
+    def delete(self, resource_id: str) -> None:
+        if not self._repo.delete(resource_id):
+            raise LearningResourceNotFound(resource_id)
+
+    def _validate(
+        self,
+        *,
+        title: str,
+        url: str,
+        provider: str,
+        description: str,
+        skill: str,
+        placement_id: str,
+        level: str,
+        resource_type: str,
+        duration: str,
+    ) -> dict:
+        title = title.strip()
+        url = url.strip()
+        skill = skill.strip()
+        placement_id = placement_id.strip()
+        level = level.strip()
+        if not title:
+            raise ValueError("Title is required")
+        if not url.startswith(("http://", "https://")):
+            raise ValueError("URL must start with http:// or https://")
+        if skill and skill not in SKILL_NAMES:
+            raise ValueError("Choose a skill from the skills taxonomy")
+        if placement_id and self._placements.get(placement_id) is None:
+            raise ValueError("Placement not found")
+        if level and level not in self.LEVELS:
+            raise ValueError("Level must be Beginner, Intermediate or Advanced")
+        return {
+            "title": title,
+            "url": url,
+            "provider": provider.strip(),
+            "description": description.strip(),
+            "skill": skill,
+            "placement_id": placement_id,
+            "level": level,
+            "resource_type": (resource_type.strip() or "Course"),
+            "duration": duration.strip(),
+        }
 
 
 class ResumeService:

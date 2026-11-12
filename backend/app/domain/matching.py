@@ -88,6 +88,16 @@ REQUIRED_SKILLS: dict[str, list[str]] = {
     "p12": ["Monitoring & Evaluation", "Data Analysis", "Report Writing", "Statistics"],
 }
 
+# Proficiency rating -> share of the skill requirement it satisfies.
+# Unrated skills count as fully met so profiles saved before confidence levels
+# existed keep their previous scores.
+CONFIDENCE_WEIGHTS: dict[int, float] = {
+    1: 0.5,   # Beginner
+    2: 0.75,  # Intermediate
+    3: 1.0,   # Advanced
+}
+DEFAULT_CONFIDENCE_WEIGHT = 1.0
+
 # Grade label -> minimum CGPA it implies (mirrors data/GRADE_RANK).
 GRADE_RANK: dict[str, float] = {
     "CGPA 3.6+": 3.6,
@@ -114,6 +124,55 @@ def required_skills_for(placement: Placement) -> list[str]:
     for skill in skills:
         normalized.append(_SKILL_LOOKUP.get(skill.lower(), skill))
     return normalized
+
+
+@dataclass(frozen=True)
+class SkillSuggestion:
+    """A skill the student's course is likely to need, with live demand."""
+
+    name: str
+    category: str
+    demand: int
+    placement_ids: list[str]
+
+
+def suggest_skills_for_course(
+    placements: list[Placement],
+    course: str,
+    owned: set[str] | None = None,
+) -> list[SkillSuggestion]:
+    """Suggest missing skills required by placements open to ``course``.
+
+    Suggestions are derived from the live catalogue and the curated
+    ``REQUIRED_SKILLS`` table rather than a hardcoded course→skill map. They are
+    ordered by how many eligible placements need the skill, then taxonomy order.
+    """
+    if not course:
+        return []
+    already = owned or set()
+    hits: dict[str, list[str]] = {}
+    for placement in placements:
+        if course not in placement.courses:
+            continue
+        for skill in required_skills_for(placement):
+            if skill in already:
+                continue
+            hits.setdefault(skill, []).append(placement.id)
+
+    order = {skill.name: index for index, skill in enumerate(SKILLS)}
+    categories = {skill.name: skill.category for skill in SKILLS}
+    suggestions = [
+        SkillSuggestion(
+            name=name,
+            category=categories[name],
+            demand=len(placement_ids),
+            placement_ids=placement_ids,
+        )
+        for name, placement_ids in hits.items()
+        if name in order
+    ]
+    suggestions.sort(key=lambda s: (-s.demand, order[s.name], s.name))
+    return suggestions
 
 
 def extract_skills(text: str) -> list[str]:
@@ -165,17 +224,24 @@ def match_placement(
     student_skills: list[str],
     student_course: str,
     student_cgpa: float,
+    student_confidence: dict[str, int] | None = None,
 ) -> MatchResult:
     required = required_skills_for(placement)
     # Normalize student skills to taxonomy names for case-insensitive matching
     have = set(_SKILL_LOOKUP.get(s.lower(), s) for s in student_skills)
     matched = [s for s in required if s in have]
     missing = [s for s in required if s not in have]
+    confidence = student_confidence or {}
 
-    if len(required) == 1:
-        coverage = 1.0 if matched else 0.0
-    elif required:
-        coverage = len(matched) / len(required)
+    if required:
+        # A skill's proficiency scales its contribution: Advanced counts in
+        # full, Intermediate 75%, Beginner 50%. An unrated skill counts in full
+        # so existing profiles keep their original score.
+        weighted = sum(
+            CONFIDENCE_WEIGHTS.get(confidence.get(skill, 0), DEFAULT_CONFIDENCE_WEIGHT)
+            for skill in matched
+        )
+        coverage = min(1.0, weighted / len(required))
     else:
         coverage = 0.0
 

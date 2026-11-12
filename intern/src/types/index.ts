@@ -124,6 +124,11 @@ export interface Student {
   // pasted projects/CV text. Drives the match score.
   skills: string[];
   talent_search_opt_in: boolean;
+  // Optional proficiency per skill (1 Beginner, 2 Intermediate, 3 Advanced).
+  // A missing entry is treated as fully proficient by the matcher.
+  skillsConfidence: Record<string, number>;
+  // How each skill entered the profile (manual, project, course, quiz).
+  skillsSource: Record<string, string>;
 }
 
 export interface DocItem {
@@ -220,6 +225,22 @@ export interface RankedPlacement {
   match: MatchDto;
 }
 
+// A curated learning resource, linked to a skill and/or a placement. Admins
+// curate the catalogue; students use it to close gaps shown on match cards.
+export interface LearningResource {
+  id: string;
+  title: string;
+  url: string;
+  provider: string;
+  description: string;
+  skill: string;
+  placementId: string;
+  level: string;
+  resourceType: string;
+  duration: string;
+  createdAt: string;
+}
+
 export interface MatchResponse {
   total: number;
   items: RankedPlacement[];
@@ -302,8 +323,10 @@ export type DashboardView =
   | "placements"
   | "applications"
   | "requirements"
+  | "learning"
   | "students"
   | "documents"
+  | "verification"
   | "pack"
   | "testimonial"
   | "roles"

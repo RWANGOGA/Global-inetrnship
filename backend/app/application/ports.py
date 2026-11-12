@@ -9,8 +9,9 @@ from typing import Optional
 from dataclasses import dataclass
 
 from app.domain.entities import (
-    AdminActionLog, Application, Job, Placement, Resume, StudentDocument,
-    StudentProfile, Subscription, User, Invoice, Transaction, StudentUsage, JobApplication
+    AdminActionLog, Application, Job, LearningResource, Placement, Resume,
+    StudentDocument, StudentProfile, Subscription, User, Invoice, Transaction,
+    StudentUsage, JobApplication
 )
 
 
@@ -152,6 +153,30 @@ class ResumeRepository(ABC):
 
     @abstractmethod
     def save(self, resume: Resume) -> Resume: ...
+
+
+class LearningResourceRepository(ABC):
+    """Admin-curated learning resources linked to skills and placements."""
+
+    @abstractmethod
+    def list(
+        self,
+        *,
+        skill: Optional[str] = None,
+        placement_id: Optional[str] = None,
+    ) -> list[LearningResource]: ...
+
+    @abstractmethod
+    def get(self, resource_id: str) -> Optional[LearningResource]: ...
+
+    @abstractmethod
+    def add(self, resource: LearningResource) -> LearningResource: ...
+
+    @abstractmethod
+    def update(self, resource: LearningResource) -> LearningResource: ...
+
+    @abstractmethod
+    def delete(self, resource_id: str) -> bool: ...
 
 
 class StudentDocumentRepository(ABC):

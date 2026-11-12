@@ -100,6 +100,11 @@ class StudentProfile:
     university: str = ""
     skills: list[str] = field(default_factory=list)
     talent_search_opt_in: bool = False
+    # Optional proficiency per skill (1 = Beginner, 2 = Intermediate,
+    # 3 = Advanced). A skill with no rating contributes as a full match.
+    skills_confidence: dict[str, int] = field(default_factory=dict)
+    # How each skill entered the profile (manual, project, course, quiz).
+    skills_source: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -323,4 +328,22 @@ class AdminActionLog:
     target_user_id: Optional[str] = None
     target_user_email: Optional[str] = None
     details: Optional[str] = None
+    created_at: str = ""
+
+
+@dataclass(frozen=True)
+class LearningResource:
+    """A curated resource that helps a student learn a skill or prepare for a
+    specific placement. Managed by administrators, read by students."""
+
+    id: str
+    title: str
+    url: str
+    provider: str = ""
+    description: str = ""
+    skill: str = ""
+    placement_id: str = ""
+    level: str = ""  # Beginner | Intermediate | Advanced
+    resource_type: str = "Course"
+    duration: str = ""
     created_at: str = ""

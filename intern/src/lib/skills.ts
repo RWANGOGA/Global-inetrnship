@@ -83,14 +83,28 @@ export function matchPlacement(
   p: Placement,
   studentSkills: string[],
   studentCourse: string,
-  studentCgpa: number
+  studentCgpa: number,
+  skillsConfidence: Record<string, number> = {}
 ): MatchResult {
   const required = requiredSkillsFor(p);
   const have = new Set(studentSkills);
   const matched = required.filter((s) => have.has(s));
   const missing = required.filter((s) => !have.has(s));
 
-  const coverage = required.length === 1 ? (matched.length ? 1 : 0) : required.length ? matched.length / required.length : 0;
+  // Advanced counts in full, Intermediate 75%, Beginner 50%. Unrated skills
+  // count in full so profiles saved before confidence levels keep their score.
+  const confidenceWeight = (skill: string) => {
+    switch (skillsConfidence[skill]) {
+      case 1:
+        return 0.5;
+      case 2:
+        return 0.75;
+      default:
+        return 1;
+    }
+  };
+  const weighted = matched.reduce((sum, skill) => sum + confidenceWeight(skill), 0);
+  const coverage = required.length ? Math.min(1, weighted / required.length) : 0;
 
   const courseFit = p.courses.includes(studentCourse);
   const threshold = tables.gradeRules[p.grade] ?? 0;
