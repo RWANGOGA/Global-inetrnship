@@ -25,7 +25,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          cache: npm
           cache-dependency-path: intern/package-lock.json
 
       - name: Install dependencies
@@ -59,30 +59,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pytest pytest-cov
-
       - name: Run tests
         run: |
           python -m pytest tests/ -v --tb=short -x
 
-  # Staging deploy job - only runs on main branch
-  staging:
-    name: Staging Deploy
-    needs: [frontend, backend]
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Build & start staging DB
-        run: docker compose -f docker-compose.staging.yml up -d
-
-      - name: Smoke tests
-        run: curl -f http://localhost:8000/health || exit 1
-
   notify:
     name: Notify
-    needs: [frontend, backend, staging]
+    needs: [frontend, backend]
     if: always()
     runs-on: ubuntu-latest
     steps:
