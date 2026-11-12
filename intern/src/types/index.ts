@@ -306,6 +306,7 @@ export type DashboardView =
   | "requirements"
   | "students"
   | "documents"
+  | "verification"
   | "pack"
   | "testimonial"
   | "roles"

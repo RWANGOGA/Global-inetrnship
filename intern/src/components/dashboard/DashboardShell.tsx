@@ -22,6 +22,7 @@ import { StudentApplications } from "./student/StudentApplications";
 import { SkillProfile } from "./student/SkillProfile";
 import { StudentPlacements } from "./student/StudentPlacements";
 import { StudentDocs } from "./student/StudentDocs";
+import { VerificationStatus } from "./student/VerificationStatus";
 import { StudentPack } from "./student/StudentPack";
 import { StudentTestimonial } from "./student/StudentTestimonial";
 
@@ -74,6 +75,7 @@ export function DashboardShell() {
     requirements: "Requirements",
     students: "Students",
     documents: "Documents",
+    verification: "Verification status",
     testimonial: "Testimonial",
     pack: "Application pack",
     roles: "Graduate roles",
@@ -120,6 +122,8 @@ export function DashboardShell() {
           return <StudentApplications />;
         case "documents":
           return <StudentDocs />;
+        case "verification":
+          return <VerificationStatus />;
         case "pack":
           return <StudentPack />;
         case "testimonial":
