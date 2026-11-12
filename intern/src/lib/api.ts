@@ -994,8 +994,97 @@ export async function fetchRecommendedInternships(
     })),
   };
 }
+  
+  // ---- AI Enrichment --------------------------------------------------------
 
-// ---- Subscription (host-org placement-fee plan) ---------------------------
+  export interface EnrichmentRequest {
+    personal_statement: string;
+    existing_skills: string[];
+  }
+
+  export interface SkillCompetencyDto {
+    skill_id: string;
+    canonical_name: string;
+    aliases: string[];
+    category: string;
+    proficiency: number;
+    confidence_score: number;
+    evidence: string[];
+    years_experience: number;
+    learning_velocity: number;
+  }
+
+  export interface SoftSkillProfileDto {
+    leadership: number;
+    communication: number;
+    teamwork: number;
+    adaptability: number;
+    problem_solving: number;
+    initiative: number;
+    organization: number;
+    cultural_awareness: number;
+  }
+
+  export interface CareerTrajectoryDto {
+    current_stage: string;
+    target_roles: string[];
+    career_aspirations: string[];
+    domain_interests: string[];
+    learning_goals: string[];
+    work_preferences: string;
+    values_signals: string[];
+  }
+
+  export interface CulturalValuesDto {
+    autonomy_preference: number;
+    mission_alignment: number;
+    collaboration_style: string;
+    risk_tolerance: number;
+    learning_appetite: number;
+    work_life_integration: number;
+    feedback_receptivity: number;
+    diversity_value: number;
+  }
+
+  export interface AdvancedStudentProfileDto {
+    user_id: string;
+    skills: SkillCompetencyDto[];
+    career_trajectory: CareerTrajectoryDto;
+    soft_skills: SoftSkillProfileDto;
+    cultural_values: CulturalValuesDto;
+    profile_embedding: number[];
+    skills_embedding: number[];
+    bio_embedding: number[];
+    course: string;
+    university: string;
+    cgpa: number;
+    graduation_year: number;
+    location_preferences: string[];
+    remote_ok: boolean;
+    availability: string;
+  }
+
+  export interface EnrichmentResponse {
+    profile: AdvancedStudentProfileDto;
+    message: string;
+  }
+
+  export async function enrichProfile(
+    personalStatement: string,
+    existingSkills: string[] = []
+  ): Promise<AdvancedStudentProfileDto> {
+    const data = await postJson<EnrichmentResponse>("/enrich", {
+      personal_statement: personalStatement,
+      existing_skills: existingSkills,
+    });
+    return data.profile;
+  }
+
+  export async function checkEnrichmentStatus(): Promise<{ configured: boolean; model: string | null }> {
+    return getJson<{ configured: boolean; model: string | null }>("/enrich/status");
+  }
+
+  // ---- Subscription (host-org placement-fee plan) ---------------------------
 
 export interface SubscriptionDto {
   org_id: string;
