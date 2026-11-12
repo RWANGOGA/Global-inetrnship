@@ -331,6 +331,21 @@ class UserORM(Base):
     deleted_at: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
+class OrganizationMemberORM(Base):
+    __tablename__ = "organization_members"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    org_id: Mapped[str] = mapped_column(ForeignKey("organisations.id"), index=True, nullable=False)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
+    role: Mapped[str] = mapped_column(String, nullable=False, default="member")  # owner, admin, recruiter, member
+    invited_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    invited_at: Mapped[str] = mapped_column(String, nullable=False)
+    joined_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pending")  # pending, active, revoked
+    created_at: Mapped[str] = mapped_column(String, default="")
+    updated_at: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
 class AdminActionLogORM(Base):
     __tablename__ = "admin_action_logs"
 

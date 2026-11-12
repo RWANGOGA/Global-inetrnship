@@ -34,6 +34,7 @@ import { EmployerJobs } from "./employer/EmployerJobs";
 import { EmployerTestimonial } from "./employer/EmployerTestimonial";
 import { EmployerProfile } from "./employer/EmployerProfile";
 import { EmployerTalentSearch } from "./employer/EmployerTalentSearch";
+import { EmployerTeam } from "./employer/EmployerTeam";
 
 import { EmployeeTestimonial } from "./employee/EmployeeTestimonial";
 
@@ -89,6 +90,7 @@ export function DashboardShell() {
     reports: "Reports",
     profile: "Organization Profile",
     "talent-search": "Talent Search",
+    team: "Team Members",
   };
 
   const currentTitle = titles[dash] || "Overview";
@@ -155,6 +157,8 @@ export function DashboardShell() {
           return <EmployerTalentSearch />;
         case "profile":
           return <EmployerProfile />;
+        case "team":
+          return <EmployerTeam />;
         case "testimonial":
           return <EmployerTestimonial />;
         default:

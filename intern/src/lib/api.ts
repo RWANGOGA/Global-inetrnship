@@ -215,6 +215,18 @@ async function patchJson<T>(path: string, body: unknown): Promise<T> {
   return (await res.json()) as T;
 }
 
+async function deleteJson<T>(path: string): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "DELETE",
+    headers: {
+      Accept: "application/json",
+      ...authHeader(),
+    },
+  });
+  if (!res.ok) await readError(res, path);
+  return (await res.json()) as T;
+}
+
 export interface Catalog {
   placements: Placement[];
   orgs: Org[];
@@ -1805,4 +1817,72 @@ export async function userAction(
 }
 ): Promise<UserActionResponse> {
   return patchJson<UserActionResponse>(`/admin/users/${userId}/action`, payload);
+}
+
+// ---- Organization Team Management ------------------------------------
+
+export interface OrganizationMember {
+  id: string;
+  org_id: string;
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  role: string;
+  invited_by: string | null;
+  invited_at: string;
+  joined_at: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface OrganizationMemberListResponse {
+  total: number;
+  items: OrganizationMember[];
+}
+
+export interface InviteMemberRequest {
+  email: string;
+  role: "owner" | "admin" | "recruiter" | "member";
+}
+
+export interface InviteMemberResponse {
+  member: OrganizationMember;
+  message: string;
+}
+
+export interface UpdateMemberRoleRequest {
+  role: "owner" | "admin" | "recruiter" | "member";
+}
+
+export interface UpdateMemberRoleResponse {
+  member: OrganizationMember;
+  message: string;
+}
+
+export interface RemoveMemberResponse {
+  message: string;
+}
+
+export async function fetchOrganizationMembers(): Promise<OrganizationMemberListResponse> {
+  return getJson<OrganizationMemberListResponse>("/organization/members");
+}
+
+export async function inviteOrganizationMember(
+  payload: InviteMemberRequest
+): Promise<InviteMemberResponse> {
+  return postJson<InviteMemberResponse>("/organization/members/invite", payload);
+}
+
+export async function updateOrganizationMemberRole(
+  memberId: string,
+  payload: UpdateMemberRoleRequest
+): Promise<UpdateMemberRoleResponse> {
+  return patchJson<UpdateMemberRoleResponse>(`/organization/members/${memberId}/role`, payload);
+}
+
+export async function removeOrganizationMember(
+  memberId: string
+): Promise<RemoveMemberResponse> {
+  return deleteJson<RemoveMemberResponse>(`/organization/members/${memberId}`);
 }

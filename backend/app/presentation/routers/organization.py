@@ -10,7 +10,7 @@ import io
 
 from app.domain.entities import User
 from app.infrastructure.db import get_session
-from app.infrastructure.orm import OrganisationORM, PlacementORM, JobORM, ApplicationORM, JobApplicationORM, UserORM
+from app.infrastructure.orm import OrganisationORM, PlacementORM, JobORM, ApplicationORM, JobApplicationORM, UserORM, StudentProfileORM, OrganizationMemberORM
 from app.presentation.deps import get_current_user
 from app.presentation.schemas import (
     InternshipPostingCreate,
@@ -27,6 +27,13 @@ from app.presentation.schemas import (
     StudentDocumentRead,
     ApplicantDetailRead,
     ApplicantMatchScore,
+    OrganizationMemberRead,
+    OrganizationMemberListResponse,
+    InviteMemberRequest,
+    InviteMemberResponse,
+    UpdateMemberRoleRequest,
+    UpdateMemberRoleResponse,
+    RemoveMemberResponse,
 )
 from pydantic import BaseModel
 from typing import Optional
@@ -406,6 +413,201 @@ def update_organization_profile(
     session.commit()
     session.refresh(org)
     return OrganizationRead.model_validate(org, from_attributes=True)
+
+
+# ---- Organization Team Management -------------------------------------------
+
+def _require_org_owner_or_admin(user: User, session: Session, org_id: str) -> None:
+    """Check if user is owner or admin of the organization."""
+    member = session.query(OrganizationMemberORM).filter_by(
+        org_id=org_id, user_id=user.id
+    ).first()
+    if not member or member.role not in ("owner", "admin") or member.status != "active":
+        raise HTTPException(
+            status_code=403,
+            detail="Only organization owners and admins can manage team members"
+        )
+
+
+@router.get("/members", response_model=OrganizationMemberListResponse)
+def list_organization_members(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> OrganizationMemberListResponse:
+    """List all members of the employer's organization."""
+    org_id = _require_employer(current_user)
+    _require_org_owner_or_admin(current_user, session, org_id)
+    
+    members = session.query(OrganizationMemberORM).filter_by(org_id=org_id).all()
+    
+    items = []
+    for member in members:
+        user = session.query(UserORM).filter_by(id=member.user_id).first()
+        items.append(OrganizationMemberRead(
+            id=member.id,
+            org_id=member.org_id,
+            user_id=member.user_id,
+            user_name=user.name if user else "",
+            user_email=user.email if user else "",
+            role=member.role,
+            invited_by=member.invited_by,
+            invited_at=member.invited_at,
+            joined_at=member.joined_at,
+            status=member.status,
+            created_at=member.created_at,
+            updated_at=member.updated_at,
+        ))
+    
+    return OrganizationMemberListResponse(total=len(items), items=items)
+
+
+@router.post("/members/invite", response_model=InviteMemberResponse, status_code=201)
+def invite_organization_member(
+    payload: InviteMemberRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> InviteMemberResponse:
+    """Invite a new member to the organization."""
+    org_id = _require_employer(current_user)
+    _require_org_owner_or_admin(current_user, session, org_id)
+    
+    # Find user by email
+    user = session.query(UserORM).filter_by(email=payload.email.lower()).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User with this email not found")
+    
+    # Check if already a member
+    existing = session.query(OrganizationMemberORM).filter_by(
+        org_id=org_id, user_id=user.id
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="User is already a member of this organization")
+    
+    # Validate role
+    valid_roles = ["owner", "admin", "recruiter", "member"]
+    if payload.role not in valid_roles:
+        raise HTTPException(status_code=422, detail=f"Invalid role. Must be one of: {', '.join(valid_roles)}")
+    
+    # Prevent creating another owner
+    if payload.role == "owner":
+        raise HTTPException(status_code=422, detail="Cannot invite another owner")
+    
+    # Create invitation
+    from uuid import uuid4
+    now = date.today().isoformat()
+    member = OrganizationMemberORM(
+        id=f"om-{uuid4().hex[:12]}",
+        org_id=org_id,
+        user_id=user.id,
+        role=payload.role,
+        invited_by=current_user.id,
+        invited_at=now,
+        status="pending",
+        created_at=now,
+    )
+    session.add(member)
+    session.commit()
+    session.refresh(member)
+    
+    return InviteMemberResponse(
+        member=OrganizationMemberRead(
+            id=member.id,
+            org_id=member.org_id,
+            user_id=member.user_id,
+            user_name=user.name,
+            user_email=user.email,
+            role=member.role,
+            invited_by=member.invited_by,
+            invited_at=member.invited_at,
+            joined_at=member.joined_at,
+            status=member.status,
+            created_at=member.created_at,
+            updated_at=member.updated_at,
+        ),
+        message=f"Invitation sent to {user.email}"
+    )
+
+
+@router.patch("/members/{member_id}/role", response_model=UpdateMemberRoleResponse)
+def update_member_role(
+    member_id: str,
+    payload: UpdateMemberRoleRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> UpdateMemberRoleResponse:
+    """Update a member's role in the organization."""
+    org_id = _require_employer(current_user)
+    _require_org_owner_or_admin(current_user, session, org_id)
+    
+    member = session.query(OrganizationMemberORM).filter_by(id=member_id, org_id=org_id).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+    
+    # Prevent changing owner role
+    if member.role == "owner":
+        raise HTTPException(status_code=422, detail="Cannot change owner's role")
+    
+    # Validate role
+    valid_roles = ["owner", "admin", "recruiter", "member"]
+    if payload.role not in valid_roles:
+        raise HTTPException(status_code=422, detail=f"Invalid role. Must be one of: {', '.join(valid_roles)}")
+    
+    # Prevent promoting to owner
+    if payload.role == "owner":
+        raise HTTPException(status_code=422, detail="Cannot promote to owner")
+    
+    member.role = payload.role
+    member.updated_at = date.today().isoformat()
+    session.commit()
+    session.refresh(member)
+    
+    user = session.query(UserORM).filter_by(id=member.user_id).first()
+    
+    return UpdateMemberRoleResponse(
+        member=OrganizationMemberRead(
+            id=member.id,
+            org_id=member.org_id,
+            user_id=member.user_id,
+            user_name=user.name if user else "",
+            user_email=user.email if user else "",
+            role=member.role,
+            invited_by=member.invited_by,
+            invited_at=member.invited_at,
+            joined_at=member.joined_at,
+            status=member.status,
+            created_at=member.created_at,
+            updated_at=member.updated_at,
+        ),
+        message=f"Role updated to {payload.role}"
+    )
+
+
+@router.delete("/members/{member_id}", response_model=RemoveMemberResponse)
+def remove_organization_member(
+    member_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> RemoveMemberResponse:
+    """Remove a member from the organization."""
+    org_id = _require_employer(current_user)
+    _require_org_owner_or_admin(current_user, session, org_id)
+    
+    member = session.query(OrganizationMemberORM).filter_by(id=member_id, org_id=org_id).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+    
+    # Prevent removing owner
+    if member.role == "owner":
+        raise HTTPException(status_code=422, detail="Cannot remove organization owner")
+    
+    # Prevent self-removal
+    if member.user_id == current_user.id:
+        raise HTTPException(status_code=422, detail="Cannot remove yourself")
+    
+    session.delete(member)
+    session.commit()
+    
+    return RemoveMemberResponse(message="Member removed from organization")
 
 
 # ---- Shortlisted Applications -------------------------------------------
