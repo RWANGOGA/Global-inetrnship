@@ -8,6 +8,7 @@ from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from app.ai.enrichment_service import GroqEnrichmentService
 from app.application.advisor import AdvisorService
 from app.application.auth import AuthService
 from app.application.ports import LLMClient
@@ -58,6 +59,11 @@ def get_matching_service(session: Session = Depends(get_session)) -> MatchingSer
 def get_llm_client() -> LLMClient:
     """Production binds Groq; tests override this to a deterministic fake."""
     return GroqClient()
+
+
+def get_enrichment_service() -> GroqEnrichmentService:
+    """Production binds GroqEnrichmentService; tests override this to a deterministic fake."""
+    return GroqEnrichmentService()
 
 
 def get_advisor_service(

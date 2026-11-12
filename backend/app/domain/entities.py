@@ -1,6 +1,7 @@
 """Domain entities and value objects for the Placements bounded context."""
 from dataclasses import dataclass, field
 from typing import Optional
+from enum import Enum
 
 
 @dataclass(frozen=True)
@@ -347,3 +348,123 @@ class LearningResource:
     resource_type: str = "Course"
     duration: str = ""
     created_at: str = ""
+
+
+# =============================================================================
+# ADVANCED MATCHING ENTITIES (AI-Driven Career Matching)
+# =============================================================================
+
+class ProficiencyLevel(Enum):
+    BEGINNER = 1
+    INTERMEDIATE = 2
+    ADVANCED = 3
+
+
+class CareerStage(Enum):
+    STUDENT = "student"
+    EARLY_CAREER = "early_career"
+    MID_CAREER = "mid_career"
+    SENIOR = "senior"
+    LEAD_PRINCIPAL = "lead_principal"
+
+
+@dataclass(frozen=True)
+class SkillCompetency:
+    """Rich skill representation with proficiency and evidence."""
+    
+    skill_id: str
+    canonical_name: str
+    aliases: list[str] = field(default_factory=list)
+    category: str = ""
+    proficiency: ProficiencyLevel = ProficiencyLevel.BEGINNER
+    confidence_score: float = 0.0
+    evidence: list[str] = field(default_factory=list)
+    years_experience: float = 0.0
+    last_used: Optional[str] = None
+    learning_velocity: float = 0.0
+
+
+@dataclass(frozen=True)
+class SoftSkillProfile:
+    """AI-extracted soft skills from unstructured text."""
+    
+    leadership: float = 0.0
+    communication: float = 0.0
+    teamwork: float = 0.0
+    adaptability: float = 0.0
+    problem_solving: float = 0.0
+    initiative: float = 0.0
+    organization: float = 0.0
+    cultural_awareness: float = 0.0
+
+
+@dataclass(frozen=True)
+class CareerTrajectory:
+    """Student/employee career path analysis."""
+    
+    current_stage: CareerStage = CareerStage.STUDENT
+    target_roles: list[str] = field(default_factory=list)
+    career_aspirations: list[str] = field(default_factory=list)
+    domain_interests: list[str] = field(default_factory=list)
+    learning_goals: list[str] = field(default_factory=list)
+    work_preferences: str = ""
+    values_signals: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class CulturalValues:
+    """Extracted cultural values and work style preferences."""
+    
+    autonomy_preference: float = 0.5
+    mission_alignment: float = 0.5
+    collaboration_style: str = "hybrid"
+    risk_tolerance: float = 0.5
+    learning_appetite: float = 0.5
+    work_life_integration: float = 0.5
+    feedback_receptivity: float = 0.5
+    diversity_value: float = 0.5
+
+
+@dataclass(frozen=True)
+class AdvancedStudentProfile:
+    """Complete enriched student profile for AI-driven matching."""
+    
+    user_id: str
+    skills: list[SkillCompetency] = field(default_factory=list)
+    career_trajectory: CareerTrajectory = field(default_factory=CareerTrajectory)
+    soft_skills: SoftSkillProfile = field(default_factory=SoftSkillProfile)
+    cultural_values: CulturalValues = field(default_factory=CulturalValues)
+    profile_embedding: list[float] = field(default_factory=list)
+    skills_embedding: list[float] = field(default_factory=list)
+    bio_embedding: list[float] = field(default_factory=list)
+    course: str = ""
+    university: str = ""
+    cgpa: float = 0.0
+    graduation_year: int = 0
+    location_preferences: list[str] = field(default_factory=list)
+    remote_ok: bool = False
+    availability: str = "full-time"
+
+
+@dataclass(frozen=True)
+class AdvancedPlacementProfile:
+    """Complete enriched placement/job profile for AI-driven matching."""
+    
+    placement_id: str
+    required_skills: list[SkillCompetency] = field(default_factory=list)
+    preferred_skills: list[SkillCompetency] = field(default_factory=list)
+    experience_level: CareerStage = CareerStage.STUDENT
+    required_soft_skills: dict[str, float] = field(default_factory=dict)
+    cultural_values: CulturalValues = field(default_factory=CulturalValues)
+    team_composition: dict[str, int] = field(default_factory=dict)
+    description_embedding: list[float] = field(default_factory=list)
+    requirements_embedding: list[float] = field(default_factory=list)
+    culture_embedding: list[float] = field(default_factory=list)
+    org_id: str = ""
+    org_type: str = ""
+    org_size: str = ""
+    location: str = ""
+    remote_policy: str = ""
+    compensation_band: tuple[float, float] = (0.0, 0.0)
+    urgency: str = "this_month"
+    hiring_manager_id: Optional[str] = None
