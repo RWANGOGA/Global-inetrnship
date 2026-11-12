@@ -49,8 +49,11 @@ class PlacementService:
         org_type: Optional[str] = None,
         location: Optional[str] = None,
         mode: Optional[str] = None,
+        opportunity_type: Optional[str] = None,
     ) -> list[Placement]:
-        return self._repo.list(q=q, org_type=org_type, location=location, mode=mode)
+        return self._repo.list(
+            q=q, org_type=org_type, location=location, mode=mode, opportunity_type=opportunity_type
+        )
 
     def get_placement(self, placement_id: str) -> Optional[Placement]:
         return self._repo.get(placement_id)
@@ -102,10 +105,11 @@ class MatchingService:
         org_type: Optional[str] = None,
         location: Optional[str] = None,
         mode: Optional[str] = None,
+        opportunity_type: Optional[str] = None,
         limit: Optional[int] = None,
     ) -> list[RankedPlacement]:
         candidates = self._repo.list(
-            q=q, org_type=org_type, location=location, mode=mode
+            q=q, org_type=org_type, location=location, mode=mode, opportunity_type=opportunity_type
         )
         ranked = [
             RankedPlacement(

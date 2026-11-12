@@ -6,7 +6,10 @@ us unit-test them to parity with the frontend's ``lib/skills.ts`` and later swap
 the keyword extractor for a model (the Groq advisor in B3) without touching a
 use case or the shapes it returns.
 
-Weights are identical to the frontend: skills 60% / course 25% / grade 15%.
+Weights vary by opportunity_type:
+- internship: skills 60% / course 25% / grade 15%
+- gig: skills 80% / availability 20% (remote_ok as proxy)
+- entry_level: skills 50% / course 30% / grade 20%
 Every term the score is built from is returned so callers can explain "why".
 """
 from dataclasses import dataclass, field
@@ -66,6 +69,9 @@ SKILLS: list[Skill] = [
 
 SKILL_NAMES: list[str] = [s.name for s in SKILLS]
 
+# Normalized lookup for case-insensitive matching
+_SKILL_LOOKUP: dict[str, str] = {s.name.lower(): s.name for s in SKILLS}
+
 # Curated requirements per placement, keyed by id (same table the frontend uses).
 REQUIRED_SKILLS: dict[str, list[str]] = {
     "p1": ["Figma", "UI Design", "Prototyping", "Design Systems"],
@@ -95,7 +101,19 @@ _WORD_CHARS = set("abcdefghijklmnopqrstuvwxyz0123456789")
 
 
 def required_skills_for(placement: Placement) -> list[str]:
-    return REQUIRED_SKILLS.get(placement.id, [])
+    """Get required skills for a placement.
+    
+    Uses placement.skills_required if set (new postings), otherwise falls back
+    to the hard-coded REQUIRED_SKILLS table for seeded placements.
+    Normalizes skill names to match the taxonomy (case-insensitive).
+    """
+    # Use placement's skills_required if available, else fall back to REQUIRED_SKILLS
+    skills = placement.skills_required or REQUIRED_SKILLS.get(placement.id, [])
+    # Normalize to taxonomy names (case-insensitive)
+    normalized = []
+    for skill in skills:
+        normalized.append(_SKILL_LOOKUP.get(skill.lower(), skill))
+    return normalized
 
 
 def extract_skills(text: str) -> list[str]:
@@ -131,6 +149,7 @@ class MatchResult:
     missing: list[str] = field(default_factory=list)
     course_fit: bool = False
     grade_fit: bool = False
+    availability_fit: bool = False
 
 
 @dataclass(frozen=True)
@@ -148,7 +167,8 @@ def match_placement(
     student_cgpa: float,
 ) -> MatchResult:
     required = required_skills_for(placement)
-    have = set(student_skills)
+    # Normalize student skills to taxonomy names for case-insensitive matching
+    have = set(_SKILL_LOOKUP.get(s.lower(), s) for s in student_skills)
     matched = [s for s in required if s in have]
     missing = [s for s in required if s not in have]
 
@@ -163,11 +183,26 @@ def match_placement(
     threshold = GRADE_RANK.get(placement.grade, 0.0)
     grade_fit = student_cgpa >= threshold
 
-    raw = coverage * 0.6 + (0.25 if course_fit else 0.0) + (0.15 if grade_fit else 0.0)
+    # Weight by opportunity_type
+    opp_type = placement.opportunity_type or "internship"
+    
+    if opp_type == "gig":
+        # Gig: 80% skills / 20% availability (remote_ok as proxy)
+        # Availability fit: student has remote preference or placement is remote_ok
+        availability_fit = placement.remote_ok is True  # Simplified: gig is remote-friendly
+        raw = coverage * 0.8 + (0.2 if availability_fit else 0.0)
+    elif opp_type == "entry_level":
+        # Entry-level: 50% skills / 30% course / 20% grade
+        raw = coverage * 0.5 + (0.3 if course_fit else 0.0) + (0.2 if grade_fit else 0.0)
+    else:
+        # Internship (default): 60% skills / 25% course / 15% grade
+        raw = coverage * 0.6 + (0.25 if course_fit else 0.0) + (0.15 if grade_fit else 0.0)
+
     return MatchResult(
         score=round(raw * 100),
         matched=matched,
         missing=missing,
         course_fit=course_fit,
         grade_fit=grade_fit,
+        availability_fit=opp_type == "gig" and placement.remote_ok is True,
     )

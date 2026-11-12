@@ -634,8 +634,11 @@ export async function reviewInternship(
 // GET /placements -> placements plus the orgs referenced by them (deduped from
 // the nested `org` the repository resolves, so we don't need a separate
 // /organisations endpoint).
-export async function fetchCatalog(): Promise<Catalog> {
-  const data = await getJson<ApiListResponse<ApiPlacement>>("/placements");
+export async function fetchCatalog(opportunityType?: string): Promise<Catalog> {
+  const params = new URLSearchParams();
+  if (opportunityType) params.append("opportunity_type", opportunityType);
+  const query = params.toString() ? `?${params.toString()}` : "";
+  const data = await getJson<ApiListResponse<ApiPlacement>>(`/placements${query}`);
   const placements = data.items.map(mapPlacement);
   const byId = new Map<string, Org>();
   for (const p of data.items) {
@@ -899,13 +902,15 @@ export async function fetchRecommendedInternships(
   skills: string[],
   course: string,
   cgpa: number,
-  limit = 6
+  limit = 6,
+  opportunityType?: string
 ): Promise<MatchResponse> {
   const data = await postJson<MatchDto>("/match", {
     skills,
     course,
     cgpa,
     limit,
+    opportunity_type: opportunityType,
   });
   return {
     total: data.total,

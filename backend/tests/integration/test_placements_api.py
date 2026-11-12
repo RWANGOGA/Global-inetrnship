@@ -5,41 +5,44 @@ def test_list_returns_seeded_catalogue(client):
     resp = client.get("/placements")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["total"] == 12
-    assert len(body["items"]) == 12
+    assert body["total"] == 14
+    assert len(body["items"]) == 14
     # employer is embedded for inline rendering
     p1 = next(i for i in body["items"] if i["id"] == "p1")
     assert p1["org"]["name"] == "Lumen Labs"
     assert p1["org"]["seal"] == "LL"
+    # Verify new fields are present
+    assert "opportunity_type" in p1
+    assert "skills_required" in p1
 
 
 def test_filter_by_org_type(client):
     body = client.get("/placements", params={"org_type": "Government"}).json()
-    assert body["total"] == 4
-    assert {i["id"] for i in body["items"]} == {"p2", "p6", "p8", "p12"}
+    assert body["total"] == 5
+    assert {i["id"] for i in body["items"]} == {"p2", "p6", "p8", "p12", "p14"}
     assert all(i["org"]["type"] == "Government" for i in body["items"])
 
 
 def test_filter_by_location(client):
     body = client.get("/placements", params={"location": "Kampala"}).json()
-    assert body["total"] == 7
+    assert body["total"] == 8
 
 
 def test_filter_by_mode(client):
     body = client.get("/placements", params={"mode": "Remote"}).json()
-    assert {i["id"] for i in body["items"]} == {"p1", "p11"}
+    assert {i["id"] for i in body["items"]} == {"p1", "p11", "p13"}
 
 
 def test_keyword_search(client):
     body = client.get("/placements", params={"q": "design"}).json()
-    assert {i["id"] for i in body["items"]} == {"p1", "p11"}
+    assert {i["id"] for i in body["items"]} == {"p1", "p11", "p13"}
 
 
 def test_combined_filters(client):
     body = client.get(
         "/placements", params={"org_type": "Company", "mode": "Remote"}
     ).json()
-    assert {i["id"] for i in body["items"]} == {"p1", "p11"}
+    assert {i["id"] for i in body["items"]} == {"p1", "p11", "p13"}
 
 
 def test_get_single(client):

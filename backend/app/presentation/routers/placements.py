@@ -24,9 +24,12 @@ def list_placements(
     org_type: Optional[str] = None,
     location: Optional[str] = None,
     mode: Optional[str] = None,
+    opportunity_type: Optional[str] = None,
     service: PlacementService = Depends(get_placement_service),
 ) -> PlacementListResponse:
-    items = service.list_placements(q=q, org_type=org_type, location=location, mode=mode)
+    items = service.list_placements(
+        q=q, org_type=org_type, location=location, mode=mode, opportunity_type=opportunity_type
+    )
     return PlacementListResponse(
         total=len(items), items=[PlacementRead.model_validate(p) for p in items]
     )

@@ -173,6 +173,7 @@ interface AppContextType {
   sectorFilter: string;
   courseFilter: string;
   searchQuery: string;
+  opportunityFilter: string;
   planSeg: string;
   role: UserRole;
   dash: DashboardView;
@@ -205,6 +206,7 @@ interface AppContextType {
   setSectorFilter: (s: string) => void;
   setCourseFilter: (c: string) => void;
   setSearchQuery: (q: string) => void;
+  setOpportunityFilter: (o: string) => void;
   setPlanSeg: (s: string) => void;
   setStatement: (statement: string) => void;
 
@@ -297,6 +299,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [sectorFilter, setSectorFilter] = useState<string>("All");
   const [courseFilter, setCourseFilter] = useState<string>("All");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [opportunityFilter, setOpportunityFilter] = useState<string>("All");
   const [planSeg, setPlanSeg] = useState<string>("companies");
   const [role, setRole] = useState<UserRole>("student");
   const [dash, setDash] = useState<DashboardView>("overview");
@@ -578,7 +581,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
     let cancelled = false;
-    fetchCatalog()
+    fetchCatalog(opportunityFilter === "All" ? undefined : opportunityFilter)
       .then(({ placements: fromApi, orgs: apiOrgs }) => {
         if (cancelled) return;
         setPlacements(fromApi);
@@ -591,7 +594,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [opportunityFilter]);
 
   // Catalogue metadata read: GET /placements/meta. The filter values and the
   // matching tables (grade thresholds, skill taxonomy, per-placement required
@@ -1990,6 +1993,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         sectorFilter,
         courseFilter,
         searchQuery,
+        opportunityFilter,
         planSeg,
         role,
         dash,
@@ -2020,6 +2024,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setSectorFilter,
         setCourseFilter,
         setSearchQuery,
+        setOpportunityFilter,
         setPlanSeg,
         setStatement,
 

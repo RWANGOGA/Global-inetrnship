@@ -44,6 +44,20 @@ class PlacementRead(BaseModel):
     requirements: list[str]
     review_reason: str
     org: Optional[OrganisationRead] = None
+    # Opportunity type: internship | gig | entry_level
+    opportunity_type: str = "internship"
+    # Gig-specific fields
+    duration_hours: int | None = None
+    budget_range: str | None = None
+    milestones: list[str] | None = None
+    remote_ok: bool | None = None
+    # Entry-level specific fields
+    salary_range: str | None = None
+    probation_period: str | None = None
+    training_included: bool | None = None
+    career_path: str | None = None
+    # Skill requirements (for matching)
+    skills_required: list[str] | None = None
 
 
 class PlacementListResponse(BaseModel):
@@ -197,6 +211,7 @@ class MatchRequest(BaseModel):
     org_type: Optional[str] = None
     location: Optional[str] = None
     mode: Optional[str] = None
+    opportunity_type: Optional[str] = None
     limit: Optional[int] = None
 
 

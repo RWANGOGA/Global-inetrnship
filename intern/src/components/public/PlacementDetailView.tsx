@@ -5,6 +5,18 @@ import { useApp } from "../../context/AppContext";
 import { Icon } from "../icons/Icons";
 import { matchPlacement, requiredSkillsFor } from "../../lib/skills";
 
+const OPPORTUNITY_TYPE_LABEL: Record<string, string> = {
+  internship: "Internship",
+  gig: "Gig",
+  entry_level: "Entry-level",
+};
+
+const OPPORTUNITY_TYPE_TONE: Record<string, string> = {
+  internship: "blue",
+  gig: "purple",
+  entry_level: "green",
+};
+
 export function PlacementDetailView() {
   const {
     pid,
@@ -33,6 +45,8 @@ export function PlacementDetailView() {
   const saved = isSaved(p.id);
   const required = requiredSkillsFor(p);
   const match = matchPlacement(p, student.skills, student.course, student.cgpa);
+  const oppTypeLabel = OPPORTUNITY_TYPE_LABEL[p.opportunityType] || p.opportunityType;
+  const oppTypeTone = OPPORTUNITY_TYPE_TONE[p.opportunityType] || "";
 
   return (
     <>
@@ -63,7 +77,10 @@ export function PlacementDetailView() {
             <span className="lbl">/</span>
             <span className="lbl ink">{o?.type}</span>
           </div>
-          <h1>{p.title}</h1>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "8px" }}>
+            <h1 style={{ margin: 0 }}>{p.title}</h1>
+            <span className={`tg ${oppTypeTone}`}>{oppTypeLabel}</span>
+          </div>
           <p>
             {o?.name} · {p.loc} · {p.duration} · closes {p.deadline}
           </p>
@@ -202,6 +219,118 @@ export function PlacementDetailView() {
                 </div>
               </div>
 
+              {/* Type-specific detail blocks */}
+              {p.opportunityType === "gig" && (
+                <>
+                  <h3>Gig Details</h3>
+                  <div
+                    style={{
+                      border: "1px solid var(--rule)",
+                      borderRadius: "var(--r-md)",
+                      overflow: "hidden",
+                      background: "var(--white)",
+                      marginBottom: "16px",
+                    }}
+                  >
+                    {p.budgetRange && (
+                      <div className="reqrow" style={{ padding: "11px 14px" }}>
+                        <div className="k">Budget</div>
+                        <div><b>{p.budgetRange}</b></div>
+                      </div>
+                    )}
+                    {p.durationHours && (
+                      <div className="reqrow" style={{ padding: "11px 14px" }}>
+                        <div className="k">Estimated hours</div>
+                        <div><b>{p.durationHours} hours</b></div>
+                      </div>
+                    )}
+                    {p.remoteOk !== null && (
+                      <div className="reqrow" style={{ padding: "11px 14px" }}>
+                        <div className="k">Remote work</div>
+                        <div><b>{p.remoteOk ? "Yes" : "No"}</b></div>
+                      </div>
+                    )}
+                    {p.milestones && p.milestones.length > 0 && (
+                      <div className="reqrow" style={{ padding: "11px 14px", borderBottom: 0 }}>
+                        <div className="k">Milestones</div>
+                        <div>
+                          <ul style={{ margin: 0, paddingLeft: "20px" }}>
+                            {p.milestones.map((m, i) => (
+                              <li key={i}>{m}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {p.opportunityType === "entry_level" && (
+                <>
+                  <h3>Entry-Level Details</h3>
+                  <div
+                    style={{
+                      border: "1px solid var(--rule)",
+                      borderRadius: "var(--r-md)",
+                      overflow: "hidden",
+                      background: "var(--white)",
+                      marginBottom: "16px",
+                    }}
+                  >
+                    {p.salaryRange && (
+                      <div className="reqrow" style={{ padding: "11px 14px" }}>
+                        <div className="k">Salary range</div>
+                        <div><b>{p.salaryRange}</b></div>
+                      </div>
+                    )}
+                    {p.probationPeriod && (
+                      <div className="reqrow" style={{ padding: "11px 14px" }}>
+                        <div className="k">Probation period</div>
+                        <div><b>{p.probationPeriod}</b></div>
+                      </div>
+                    )}
+                    {p.trainingIncluded !== null && (
+                      <div className="reqrow" style={{ padding: "11px 14px" }}>
+                        <div className="k">Training included</div>
+                        <div><b>{p.trainingIncluded ? "Yes" : "No"}</b></div>
+                      </div>
+                    )}
+                    {p.careerPath && (
+                      <div className="reqrow" style={{ padding: "11px 14px", borderBottom: 0 }}>
+                        <div className="k">Career path</div>
+                        <div><b>{p.careerPath}</b></div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* For internships, show the traditional fields but relax them for other types */}
+              {p.opportunityType === "internship" && (
+                <>
+                  <h3>Internship Details</h3>
+                  <div
+                    style={{
+                      border: "1px solid var(--rule)",
+                      borderRadius: "var(--r-md)",
+                      overflow: "hidden",
+                      background: "var(--white)",
+                      marginBottom: "16px",
+                    }}
+                  >
+                    <div className="reqrow" style={{ padding: "11px 14px" }}>
+                      <div className="k">Stipend</div>
+                      <div><b>{p.stipend}</b></div>
+                    </div>
+                    <div className="reqrow" style={{ padding: "11px 14px", borderBottom: 0 }}>
+                      <div className="k">Duration</div>
+                      <div><b>{p.duration}</b></div>
+                    </div>
+                  </div>
+                </>
+              )}
+
               <h3>Skills match</h3>
               {required.length === 0 ? (
                 <p style={{ fontSize: "13px", color: "var(--muted)" }}>
@@ -257,7 +386,7 @@ export function PlacementDetailView() {
                 </div>
                 <div>
                   <p style={{ fontSize: "13px", lineHeight: 1.65 }}>
-                    “The work was real from the second week. I owned a data pipeline that is still running in the ministry.”
+                    "The work was real from the second week. I owned a data pipeline that is still running in the ministry."
                   </p>
                   <div className="lbl" style={{ marginTop: "8px" }}>
                     Joel Mwangi · Statistics · placed 2025

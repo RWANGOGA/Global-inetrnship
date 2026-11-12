@@ -130,6 +130,7 @@ class SqlAlchemyPlacementRepository(PlacementRepository):
         org_type: Optional[str] = None,
         location: Optional[str] = None,
         mode: Optional[str] = None,
+        opportunity_type: Optional[str] = None,
     ) -> list[Placement]:
         query = self._base_query().filter(PlacementORM.review_status == "approved")
         if org_type:
@@ -138,6 +139,8 @@ class SqlAlchemyPlacementRepository(PlacementRepository):
             query = query.filter(OrganisationORM.loc == location)
         if mode:
             query = query.filter(PlacementORM.mode == mode)
+        if opportunity_type:
+            query = query.filter(PlacementORM.opportunity_type == opportunity_type)
         if q:
             like = f"%{q.strip().lower()}%"
             query = query.filter(

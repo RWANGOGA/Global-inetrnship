@@ -30,6 +30,7 @@ def match(
         org_type=payload.org_type,
         location=payload.location,
         mode=payload.mode,
+        opportunity_type=payload.opportunity_type,
         limit=payload.limit,
     )
     items = [

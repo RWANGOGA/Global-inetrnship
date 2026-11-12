@@ -18,6 +18,8 @@ export function PlacementsView() {
     setCourseFilter,
     searchQuery,
     setSearchQuery,
+    opportunityFilter,
+    setOpportunityFilter,
     go,
     saved,
     catalogStatus,
@@ -30,6 +32,8 @@ export function PlacementsView() {
     return ["All", ...Array.from(new Set(list))];
   }, [placements, getOrg]);
 
+  const opportunityTabs = ["All", "Internship", "Gig", "Entry-level"] as const;
+
   const filtered = useMemo(() => {
     return placements.filter((p) => {
       const o = getOrg(p.orgId);
@@ -38,17 +42,19 @@ export function PlacementsView() {
       const t = typeFilter === "All" || o.type === typeFilter;
       const s = sectorFilter === "All" || o.sector === sectorFilter;
       const c = courseFilter === "All" || p.courses.includes(courseFilter);
+      const opp = opportunityFilter === "All" || p.opportunityType === opportunityFilter.toLowerCase().replace("-", "_");
       const q =
         !searchQuery ||
         (p.title + " " + o.name).toLowerCase().includes(searchQuery.toLowerCase());
-      return t && s && c && q;
+      return t && s && c && opp && q;
     });
-  }, [placements, getOrg, typeFilter, sectorFilter, courseFilter, searchQuery, savedOnly, saved]);
+  }, [placements, getOrg, typeFilter, sectorFilter, courseFilter, opportunityFilter, searchQuery, savedOnly, saved]);
 
   const handleReset = () => {
     setTypeFilter("All");
     setSectorFilter("All");
     setCourseFilter("All");
+    setOpportunityFilter("All");
     setSearchQuery("");
     setSavedOnly(false);
   };
@@ -71,18 +77,32 @@ export function PlacementsView() {
             <span className="lbl">/</span>
             <span className="lbl ink">Placements</span>
           </div>
-          <h1>Find internships</h1>
+          <h1>Find placements</h1>
           <p id="pcount">
             {catalogStatus === "loading"
-              ? "Loading verified internships from the live catalogue."
+              ? "Loading verified placements from the live catalogue."
               : catalogStatus === "error"
-              ? "The live internship catalogue is unavailable. Please try again shortly."
-              : `${filtered.length} of ${placements.length} open internships. Government and NGO listings carry the same requirement fields as companies.`}
+              ? "The live placement catalogue is unavailable. Please try again shortly."
+              : `${filtered.length} of ${placements.length} open placements. Government and NGO listings carry the same requirement fields as companies.`}
           </p>
         </div>
       </div>
 
       <div className="wrap">
+        <div className="otabs" role="tablist" aria-label="Opportunity type">
+          {opportunityTabs.map((tab) => (
+            <button
+              key={tab}
+              role="tab"
+              aria-selected={opportunityFilter === tab}
+              className={`otab ${opportunityFilter === tab ? "on" : ""}`}
+              onClick={() => setOpportunityFilter(tab)}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
         <div className="fbar">
           <div className="fld">
             <label className="lbl">Organisation type</label>

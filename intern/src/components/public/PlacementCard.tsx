@@ -12,6 +12,18 @@ const TYPE_TONE: Record<string, string> = {
   Company: "",
 };
 
+const OPPORTUNITY_TYPE_LABEL: Record<string, string> = {
+  internship: "Internship",
+  gig: "Gig",
+  entry_level: "Entry-level",
+};
+
+const OPPORTUNITY_TYPE_TONE: Record<string, string> = {
+  internship: "blue",
+  gig: "purple",
+  entry_level: "green",
+};
+
 // A job-board style placement card, benchmarked against the reference
 // products: logo tile, title, employer · location, tags, stipend and closing
 // date, with a bookmark that persists. Kept in our identity — hairline card,
@@ -21,6 +33,8 @@ export function PlacementCard({ placement }: { placement: Placement }) {
   const o = getOrg(placement.orgId);
   const saved = isSaved(placement.id);
   const extraCourses = placement.courses.length - 2;
+  const oppTypeLabel = OPPORTUNITY_TYPE_LABEL[placement.opportunityType] || placement.opportunityType;
+  const oppTypeTone = OPPORTUNITY_TYPE_TONE[placement.opportunityType] || "";
 
   return (
     <article
@@ -64,6 +78,9 @@ export function PlacementCard({ placement }: { placement: Placement }) {
         <div className="jtags">
           <span className={`tg ${TYPE_TONE[o?.type || ""] || ""}`}>
             {o?.type || "Placement"}
+          </span>
+          <span className={`tg ${oppTypeTone}`}>
+            {oppTypeLabel}
           </span>
           {placement.courses.slice(0, 2).map((c) => (
             <span key={c} className="jcourse">

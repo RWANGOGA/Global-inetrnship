@@ -5,7 +5,7 @@ from app.infrastructure.repositories import SqlAlchemyPlacementRepository
 
 def test_repository_returns_full_seed(session):
     repo = SqlAlchemyPlacementRepository(session)
-    assert len(repo.list()) == 12
+    assert len(repo.list()) == 14
 
 
 def test_repository_nests_organisation(session):
@@ -20,7 +20,7 @@ def test_repository_nests_organisation(session):
 def test_repository_filters_by_mode(session):
     repo = SqlAlchemyPlacementRepository(session)
     remote = repo.list(mode="Remote")
-    assert {p.id for p in remote} == {"p1", "p11"}
+    assert {p.id for p in remote} == {"p1", "p11", "p13"}
 
 
 def test_repository_keyword_matches_title_and_org(session):
