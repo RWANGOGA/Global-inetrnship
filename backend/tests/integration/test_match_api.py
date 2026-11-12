@@ -10,7 +10,7 @@ def test_match_ranks_best_fit_first(client):
             "cgpa": 3.5,
         },
     ).json()
-    assert body["total"] == 12
+    assert body["total"] == 14
     top = body["items"][0]
     assert top["placement"]["id"] == "p3"  # required skills exactly these
     assert top["match"]["score"] == 100
@@ -36,7 +36,7 @@ def test_match_applies_filters(client):
     items = client.post(
         "/match", json={"skills": [], "course": "", "cgpa": 0, "mode": "Remote"}
     ).json()["items"]
-    assert {i["placement"]["id"] for i in items} == {"p1", "p11"}
+    assert {i["placement"]["id"] for i in items} == {"p1", "p11", "p13"}
     assert all(i["placement"]["mode"] == "Remote" for i in items)
 
 

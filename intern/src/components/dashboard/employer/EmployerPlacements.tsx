@@ -30,7 +30,7 @@ function StatusBadge({ status }: { status: string }) {
 function TypeBadge({ type }: { type: string }) {
   const colors: Record<string, string> = {
     internship: "blue",
-    gig: "green",
+    gig: "purple",
     entry_level: "gold",
   };
   const color = colors[type] || "blue";
@@ -38,8 +38,8 @@ function TypeBadge({ type }: { type: string }) {
     <span
       className="tg"
       style={{
-        background: `var(--${color})`,
-        color: "white",
+        background: `var(--${color}-tint)`,
+        color: `var(--${color})`,
         textTransform: "capitalize",
       }}
     >
