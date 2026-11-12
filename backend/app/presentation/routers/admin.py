@@ -30,6 +30,8 @@ from app.presentation.schemas import (
     AdminQueueListResponse,
     AdminApplicationRead,
     AdminApplicationsResponse,
+    AdminHiringFunnelAnalytics,
+    FunnelStageMetrics,
     InternshipReviewListResponse,
     InternshipReviewRequest,
     InternshipPostingRead,
@@ -1980,4 +1982,192 @@ def export_all_applications_csv(
         io.BytesIO(output.getvalue().encode()),
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=all_applications.csv"}
+    )
+
+
+# ---- Hiring Funnel Analytics (Admin) -------------------------------------------
+
+@router.get("/analytics/hiring-funnel", response_model=AdminHiringFunnelAnalytics)
+def get_admin_hiring_funnel_analytics(
+    period_start: str = Query(..., description="Start date (YYYY-MM-DD)"),
+    period_end: str = Query(..., description="End date (YYYY-MM-DD)"),
+    org_type: str = Query(None, description="Filter by organization type"),
+    opportunity_type: str = Query(None, description="Filter by opportunity type: internship, job, gig, entry_level"),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> AdminHiringFunnelAnalytics:
+    """Get platform-wide hiring funnel analytics."""
+    _require_admin(current_user)
+    
+    start = date.fromisoformat(period_start)
+    end = date.fromisoformat(period_end)
+    
+    # Base queries filtered by date range
+    placements_query = session.query(PlacementORM).filter(
+        PlacementORM.published_at >= start.isoformat(),
+        PlacementORM.published_at <= end.isoformat()
+    )
+    jobs_query = session.query(JobORM).filter(
+        JobORM.published_at >= start.isoformat(),
+        JobORM.published_at <= end.isoformat()
+    )
+    internship_apps_query = session.query(ApplicationORM).filter(
+        ApplicationORM.created_at >= start.isoformat(),
+        ApplicationORM.created_at <= end.isoformat()
+    )
+    job_apps_query = session.query(JobApplicationORM).filter(
+        JobApplicationORM.created_at >= start.isoformat(),
+        JobApplicationORM.created_at <= end.isoformat()
+    )
+    
+    if org_type:
+        org_ids = [o.id for o in session.query(OrganisationORM.id).filter(OrganisationORM.type == org_type).all()]
+        placements_query = placements_query.filter(PlacementORM.org_id.in_(org_ids))
+        jobs_query = jobs_query.filter(JobORM.org_id.in_(org_ids))
+        internship_apps_query = internship_apps_query.filter(ApplicationORM.placement_id.in_(
+            session.query(PlacementORM.id).filter(PlacementORM.org_id.in_(org_ids))
+        ))
+        job_apps_query = job_apps_query.filter(JobApplicationORM.job_id.in_(
+            session.query(JobORM.id).filter(JobORM.org_id.in_(org_ids))
+        ))
+    
+    if opportunity_type:
+        if opportunity_type == "internship":
+            jobs_query = jobs_query.filter(False)
+            job_apps_query = job_apps_query.filter(False)
+        elif opportunity_type == "job":
+            placements_query = placements_query.filter(False)
+            internship_apps_query = internship_apps_query.filter(False)
+        elif opportunity_type in ["gig", "entry_level"]:
+            # Filter placements by opportunity_type
+            placements_query = placements_query.filter(PlacementORM.opportunity_type == opportunity_type)
+            internship_apps_query = internship_apps_query.filter(ApplicationORM.placement_id.in_(
+                session.query(PlacementORM.id).filter(PlacementORM.opportunity_type == opportunity_type)
+            ))
+            jobs_query = jobs_query.filter(False)
+            job_apps_query = job_apps_query.filter(False)
+    
+    placements = placements_query.all()
+    jobs = jobs_query.all()
+    internship_apps = internship_apps_query.all()
+    job_apps = job_apps_query.all()
+    
+    # Count applications by type
+    apps_by_type = {
+        "internship": len(internship_apps),
+        "job": len(job_apps),
+    }
+    # Count by opportunity type from placements
+    for p in placements:
+        ot = p.opportunity_type or "internship"
+        if ot in ["gig", "entry_level"]:
+            apps_by_type[ot] = apps_by_type.get(ot, 0)
+    
+    # Count applications by status
+    all_apps = internship_apps + job_apps
+    apps_by_status = {}
+    for app in all_apps:
+        apps_by_status[app.status] = apps_by_status.get(app.status, 0) + 1
+    
+    # Overall funnel stages
+    total_apps = len(all_apps)
+    submitted = len([a for a in all_apps if a.status in ["Submitted", "Pending"]])
+    in_review = len([a for a in all_apps if a.status == "In Review"])
+    accepted = len([a for a in all_apps if a.status == "Accepted"])
+    rejected = len([a for a in all_apps if a.status == "Rejected"])
+    withdrawn = len([a for a in all_apps if a.status == "Withdrawn"])
+    
+    stages = []
+    prev_count = total_apps
+    for stage_name, count in [
+        ("Submitted", submitted),
+        ("In Review", in_review),
+        ("Accepted", accepted),
+    ]:
+        rate = round((count / prev_count * 100) if prev_count > 0 else 0, 2)
+        stages.append(FunnelStageMetrics(
+            stage=stage_name,
+            count=count,
+            conversion_rate=rate,
+            avg_days_in_stage=None
+        ))
+        prev_count = count
+    
+    overall_rate = round((accepted / total_apps * 100) if total_apps > 0 else 0, 2)
+    
+    # Top organizations by hires
+    org_hires = {}
+    for app in all_apps:
+        if app.status == "Accepted":
+            if hasattr(app, 'placement_id') and app.placement_id:
+                p = session.query(PlacementORM).filter_by(id=app.placement_id).first()
+                if p:
+                    org_hires[p.org_id] = org_hires.get(p.org_id, 0) + 1
+            elif hasattr(app, 'job_id') and app.job_id:
+                j = session.query(JobORM).filter_by(id=app.job_id).first()
+                if j:
+                    org_hires[j.org_id] = org_hires.get(j.org_id, 0) + 1
+    
+    top_orgs = []
+    for org_id, hires in sorted(org_hires.items(), key=lambda x: -x[1])[:10]:
+        org = session.query(OrganisationORM).filter_by(id=org_id).first()
+        if org:
+            top_orgs.append({"organization_id": org_id, "organization_name": org.name, "hires": hires})
+    
+    # Top skills platform-wide
+    skill_counts = {}
+    for app in all_apps:
+        if hasattr(app, 'placement_id') and app.placement_id:
+            p = session.query(PlacementORM).filter_by(id=app.placement_id).first()
+            if p and p.skills_required:
+                for skill in p.skills_required:
+                    skill_counts[skill] = skill_counts.get(skill, 0) + 1
+        elif hasattr(app, 'job_id') and app.job_id:
+            j = session.query(JobORM).filter_by(id=app.job_id).first()
+            if j and j.requirements:
+                for skill in j.requirements:
+                    skill_counts[skill] = skill_counts.get(skill, 0) + 1
+    
+    top_skills = [{"skill": s, "count": c} for s, c in sorted(skill_counts.items(), key=lambda x: -x[1])[:15]]
+    
+    # Conversion by org type
+    org_type_conversion = {}
+    for org_type_key in ["Company", "Government", "NGO", "University"]:
+        org_ids = [o.id for o in session.query(OrganisationORM.id).filter(OrganisationORM.type == org_type_key).all()]
+        if not org_ids:
+            continue
+        type_apps = [a for a in all_apps if 
+            (hasattr(a, 'placement_id') and a.placement_id and session.query(PlacementORM).filter_by(id=a.placement_id).first().org_id in org_ids) or
+            (hasattr(a, 'job_id') and a.job_id and session.query(JobORM).filter_by(id=a.job_id).first().org_id in org_ids)]
+        type_accepted = len([a for a in type_apps if a.status == "Accepted"])
+        type_total = len(type_apps)
+        org_type_conversion[org_type_key] = round((type_accepted / type_total * 100) if type_total > 0 else 0, 2)
+    
+    # Conversion by opportunity type
+    opp_type_conversion = {}
+    for opp in ["internship", "job", "gig", "entry_level"]:
+        if opp in ["gig", "entry_level"]:
+            opp_apps = [a for a in internship_apps if a.placement_id and session.query(PlacementORM).filter_by(id=a.placement_id).first().opportunity_type == opp]
+        elif opp == "internship":
+            opp_apps = [a for a in internship_apps if a.placement_id and (session.query(PlacementORM).filter_by(id=a.placement_id).first().opportunity_type or "internship") == "internship"]
+        else:
+            opp_apps = job_apps
+        opp_accepted = len([a for a in opp_apps if a.status == "Accepted"])
+        opp_total = len(opp_apps)
+        opp_type_conversion[opp] = round((opp_accepted / opp_total * 100) if opp_total > 0 else 0, 2)
+    
+    return AdminHiringFunnelAnalytics(
+        period_start=period_start,
+        period_end=period_end,
+        total_organizations=len(set(p.org_id for p in placements) | set(j.org_id for j in jobs)),
+        total_postings=len(placements) + len(jobs),
+        total_applications=total_apps,
+        applications_by_type=apps_by_type,
+        applications_by_status=apps_by_status,
+        overall_stages=stages,
+        avg_time_to_hire_days=None,
+        top_organizations_by_hires=top_orgs,
+        top_skills_platform=top_skills,
+        conversion_by_org_type=org_type_conversion,
+        conversion_by_opportunity_type=opp_type_conversion,
     )

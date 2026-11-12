@@ -924,3 +924,70 @@ class UpdateMemberRoleResponse(BaseModel):
 
 class RemoveMemberResponse(BaseModel):
     message: str
+
+
+# ---------------- Hiring Funnel Analytics ------------------------------------
+
+class FunnelStageMetrics(BaseModel):
+    stage: str
+    count: int
+    conversion_rate: float  # percentage from previous stage
+    avg_days_in_stage: float | None = None
+
+
+class HiringFunnelAnalytics(BaseModel):
+    """Complete hiring funnel analytics from application to hire."""
+    placement_id: str | None = None
+    organization_id: str | None = None
+    period_start: str
+    period_end: str
+    total_applications: int
+    stages: list[FunnelStageMetrics]
+    overall_conversion_rate: float
+    avg_time_to_hire_days: float | None = None
+    top_source_channels: list[dict] = []
+
+
+class EmployerHiringFunnelAnalytics(BaseModel):
+    """Employer-specific hiring funnel analytics."""
+    organization_id: str
+    period_start: str
+    period_end: str
+    total_postings: int
+    total_applications: int
+    applications_by_status: dict[str, int]
+    applications_by_type: dict[str, int]  # internship, job, gig, entry_level
+    stages: list[FunnelStageMetrics]
+    avg_time_to_hire_days: float | None = None
+    top_skills_in_demand: list[dict] = []
+    conversion_by_posting: list[dict] = []
+
+
+class AdminHiringFunnelAnalytics(BaseModel):
+    """Platform-wide hiring funnel analytics for admin."""
+    period_start: str
+    period_end: str
+    total_organizations: int
+    total_postings: int
+    total_applications: int
+    applications_by_type: dict[str, int]
+    applications_by_status: dict[str, int]
+    overall_stages: list[FunnelStageMetrics]
+    avg_time_to_hire_days: float | None = None
+    top_organizations_by_hires: list[dict] = []
+    top_skills_platform: list[dict] = []
+    conversion_by_org_type: dict[str, float] = {}
+    conversion_by_opportunity_type: dict[str, float] = {}
+
+
+class AdminHiringFunnelRequest(BaseModel):
+    period_start: str
+    period_end: str
+    org_type: str | None = None
+    opportunity_type: str | None = None
+
+
+class EmployerHiringFunnelRequest(BaseModel):
+    period_start: str
+    period_end: str
+    placement_id: str | None = None

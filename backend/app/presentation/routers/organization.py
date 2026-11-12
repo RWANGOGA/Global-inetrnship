@@ -2,7 +2,7 @@
 from datetime import date
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 import csv
@@ -34,6 +34,9 @@ from app.presentation.schemas import (
     UpdateMemberRoleRequest,
     UpdateMemberRoleResponse,
     RemoveMemberResponse,
+    EmployerHiringFunnelAnalytics,
+    FunnelStageMetrics,
+    EmployerHiringFunnelRequest,
 )
 from pydantic import BaseModel
 from typing import Optional
@@ -889,3 +892,155 @@ def get_talent_search_universities(
         .all()
     )
     return sorted([u[0] for u in unis if u[0]])
+
+
+# ---- Employer Hiring Funnel Analytics -------------------------------------------
+
+@router.get("/analytics/hiring-funnel", response_model=EmployerHiringFunnelAnalytics)
+def get_employer_hiring_funnel_analytics(
+    period_start: str = Query(..., description="Start date (YYYY-MM-DD)"),
+    period_end: str = Query(..., description="End date (YYYY-MM-DD)"),
+    placement_id: str = Query(None, description="Filter by specific placement ID"),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> EmployerHiringFunnelAnalytics:
+    """Get hiring funnel analytics for the employer's organization."""
+    org_id = _require_employer(current_user)
+    
+    start = date.fromisoformat(period_start)
+    end = date.fromisoformat(period_end)
+    
+    # Get all placements for this org
+    placements_query = session.query(PlacementORM).filter(
+        PlacementORM.org_id == org_id,
+        PlacementORM.published_at >= start.isoformat(),
+        PlacementORM.published_at <= end.isoformat()
+    )
+    
+    # Get all jobs for this org
+    jobs_query = session.query(JobORM).filter(
+        JobORM.org_id == org_id,
+        JobORM.published_at >= start.isoformat(),
+        JobORM.published_at <= end.isoformat()
+    )
+    
+    if placement_id:
+        placements_query = placements_query.filter(PlacementORM.id == placement_id)
+        jobs_query = jobs_query.filter(False)
+    
+    placements = placements_query.all()
+    jobs = jobs_query.all()
+    
+    # Get applications
+    placement_ids = [p.id for p in placements]
+    job_ids = [j.id for j in jobs]
+    
+    internship_apps = []
+    if placement_ids:
+        internship_apps = session.query(ApplicationORM).filter(
+            ApplicationORM.placement_id.in_(placement_ids),
+            ApplicationORM.created_at >= start.isoformat(),
+            ApplicationORM.created_at <= end.isoformat()
+        ).all()
+    
+    job_apps = []
+    if job_ids:
+        job_apps = session.query(JobApplicationORM).filter(
+            JobApplicationORM.job_id.in_(job_ids),
+            JobApplicationORM.created_at >= start.isoformat(),
+            JobApplicationORM.created_at <= end.isoformat()
+        ).all()
+    
+    all_apps = internship_apps + job_apps
+    
+    # Applications by status
+    apps_by_status = {}
+    for app in all_apps:
+        apps_by_status[app.status] = apps_by_status.get(app.status, 0) + 1
+    
+    # Applications by type
+    apps_by_type = {
+        "internship": len([a for a in internship_apps if a.placement_id and (session.query(PlacementORM).filter_by(id=a.placement_id).first().opportunity_type or "internship") == "internship"]),
+        "job": len(job_apps),
+        "gig": len([a for a in internship_apps if a.placement_id and session.query(PlacementORM).filter_by(id=a.placement_id).first().opportunity_type == "gig"]),
+        "entry_level": len([a for a in internship_apps if a.placement_id and session.query(PlacementORM).filter_by(id=a.placement_id).first().opportunity_type == "entry_level"]),
+    }
+    
+    # Funnel stages
+    total_apps = len(all_apps)
+    submitted = len([a for a in all_apps if a.status in ["Submitted", "Pending"]])
+    in_review = len([a for a in all_apps if a.status == "In Review"])
+    accepted = len([a for a in all_apps if a.status == "Accepted"])
+    rejected = len([a for a in all_apps if a.status == "Rejected"])
+    withdrawn = len([a for a in all_apps if a.status == "Withdrawn"])
+    
+    stages = []
+    prev_count = total_apps
+    for stage_name, count in [
+        ("Submitted", submitted),
+        ("In Review", in_review),
+        ("Accepted", accepted),
+    ]:
+        rate = round((count / prev_count * 100) if prev_count > 0 else 0, 2)
+        stages.append(FunnelStageMetrics(
+            stage=stage_name,
+            count=count,
+            conversion_rate=rate,
+            avg_days_in_stage=None
+        ))
+        prev_count = count
+    
+    # Conversion by posting
+    conversion_by_posting = []
+    for p in placements:
+        p_apps = [a for a in internship_apps if a.placement_id == p.id]
+        p_accepted = len([a for a in p_apps if a.status == "Accepted"])
+        p_total = len(p_apps)
+        conversion_by_posting.append({
+            "placement_id": p.id,
+            "placement_title": p.title,
+            "opportunity_type": p.opportunity_type or "internship",
+            "total_applications": p_total,
+            "accepted": p_accepted,
+            "conversion_rate": round((p_accepted / p_total * 100) if p_total > 0 else 0, 2)
+        })
+    
+    for j in jobs:
+        j_apps = [a for a in job_apps if a.job_id == j.id]
+        j_accepted = len([a for a in j_apps if a.status == "Accepted"])
+        j_total = len(j_apps)
+        conversion_by_posting.append({
+            "placement_id": j.id,
+            "placement_title": j.title,
+            "opportunity_type": "job",
+            "total_applications": j_total,
+            "accepted": j_accepted,
+            "conversion_rate": round((j_accepted / j_total * 100) if j_total > 0 else 0, 2)
+        })
+    
+    # Top skills in demand
+    skill_counts = {}
+    for p in placements:
+        if p.skills_required:
+            for skill in p.skills_required:
+                skill_counts[skill] = skill_counts.get(skill, 0) + 1
+    for j in jobs:
+        if j.requirements:
+            for skill in j.requirements:
+                skill_counts[skill] = skill_counts.get(skill, 0) + 1
+    
+    top_skills = [{"skill": s, "count": c} for s, c in sorted(skill_counts.items(), key=lambda x: -x[1])[:15]]
+    
+    return EmployerHiringFunnelAnalytics(
+        organization_id=org_id,
+        period_start=period_start,
+        period_end=period_end,
+        total_postings=len(placements) + len(jobs),
+        total_applications=len(all_apps),
+        applications_by_status=apps_by_status,
+        applications_by_type=apps_by_type,
+        stages=stages,
+        avg_time_to_hire_days=None,
+        top_skills_in_demand=top_skills,
+        conversion_by_posting=conversion_by_posting,
+    )

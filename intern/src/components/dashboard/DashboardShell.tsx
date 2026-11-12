@@ -18,6 +18,7 @@ import { OrganizationManagement } from "./admin/OrganizationManagement";
 import { UserManagement } from "./admin/UserManagement";
 import { AdminActionLogs } from "./admin/AdminActionLogs";
 import { AdminReports } from "./admin/AdminReports";
+import { AdminAnalytics } from "./admin/AdminAnalytics";
 
 import { StudentOverview } from "./student/StudentOverview";
 import { StudentApplications } from "./student/StudentApplications";
@@ -35,6 +36,7 @@ import { EmployerTestimonial } from "./employer/EmployerTestimonial";
 import { EmployerProfile } from "./employer/EmployerProfile";
 import { EmployerTalentSearch } from "./employer/EmployerTalentSearch";
 import { EmployerTeam } from "./employer/EmployerTeam";
+import { EmployerAnalytics } from "./employer/EmployerAnalytics";
 
 import { EmployeeTestimonial } from "./employee/EmployeeTestimonial";
 
@@ -88,6 +90,7 @@ export function DashboardShell() {
     users: "Users",
     "action-logs": "Action Logs",
     reports: "Reports",
+    analytics: "Hiring Analytics",
     profile: "Organization Profile",
     "talent-search": "Talent Search",
     team: "Team Members",
@@ -121,6 +124,8 @@ export function DashboardShell() {
           return <AdminActionLogs />;
         case "reports":
           return <AdminReports />;
+        case "analytics":
+          return <AdminAnalytics />;
         default:
           return <AdminOverview />;
       }
@@ -159,6 +164,8 @@ export function DashboardShell() {
           return <EmployerProfile />;
         case "team":
           return <EmployerTeam />;
+        case "analytics":
+          return <EmployerAnalytics />;
         case "testimonial":
           return <EmployerTestimonial />;
         default:
