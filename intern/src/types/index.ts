@@ -316,7 +316,8 @@ export type DashboardView =
   | "reports"
   | "profile"
   | "talent-search"
-  | "team";
+  | "team"
+  | "analytics";
 
 export interface OrganizationRead {
   id: string;

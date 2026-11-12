@@ -1886,3 +1886,83 @@ export async function removeOrganizationMember(
 ): Promise<RemoveMemberResponse> {
   return deleteJson<RemoveMemberResponse>(`/organization/members/${memberId}`);
 }
+
+// ---- Hiring Funnel Analytics ------------------------------------
+
+export interface FunnelStageMetrics {
+  stage: string;
+  count: number;
+  conversion_rate: number;
+  avg_days_in_stage: number | null;
+}
+
+export interface AdminHiringFunnelAnalytics {
+  period_start: string;
+  period_end: string;
+  total_organizations: number;
+  total_postings: number;
+  total_applications: number;
+  applications_by_type: Record<string, number>;
+  applications_by_status: Record<string, number>;
+  overall_stages: FunnelStageMetrics[];
+  avg_time_to_hire_days: number | null;
+  top_organizations_by_hires: Array<{ organization_id: string; organization_name: string; hires: number }>;
+  top_skills_platform: Array<{ skill: string; count: number }>;
+  conversion_by_org_type: Record<string, number>;
+  conversion_by_opportunity_type: Record<string, number>;
+}
+
+export interface EmployerHiringFunnelAnalytics {
+  organization_id: string;
+  period_start: string;
+  period_end: string;
+  total_postings: number;
+  total_applications: number;
+  applications_by_status: Record<string, number>;
+  applications_by_type: Record<string, number>;
+  stages: FunnelStageMetrics[];
+  avg_time_to_hire_days: number | null;
+  top_skills_in_demand: Array<{ skill: string; count: number }>;
+  conversion_by_posting: Array<{
+    placement_id: string;
+    placement_title: string;
+    opportunity_type: string;
+    total_applications: number;
+    accepted: number;
+    conversion_rate: number;
+  }>;
+}
+
+export interface AdminHiringFunnelRequest {
+  period_start: string;
+  period_end: string;
+  org_type?: string;
+  opportunity_type?: string;
+}
+
+export interface EmployerHiringFunnelRequest {
+  period_start: string;
+  period_end: string;
+  placement_id?: string;
+}
+
+export async function fetchAdminHiringFunnelAnalytics(
+  params: AdminHiringFunnelRequest
+): Promise<AdminHiringFunnelAnalytics> {
+  const searchParams = new URLSearchParams();
+  searchParams.append("period_start", params.period_start);
+  searchParams.append("period_end", params.period_end);
+  if (params.org_type) searchParams.append("org_type", params.org_type);
+  if (params.opportunity_type) searchParams.append("opportunity_type", params.opportunity_type);
+  return getJson<AdminHiringFunnelAnalytics>(`/admin/analytics/hiring-funnel?${searchParams.toString()}`);
+}
+
+export async function fetchEmployerHiringFunnelAnalytics(
+  params: EmployerHiringFunnelRequest
+): Promise<EmployerHiringFunnelAnalytics> {
+  const searchParams = new URLSearchParams();
+  searchParams.append("period_start", params.period_start);
+  searchParams.append("period_end", params.period_end);
+  if (params.placement_id) searchParams.append("placement_id", params.placement_id);
+  return getJson<EmployerHiringFunnelAnalytics>(`/organization/analytics/hiring-funnel?${searchParams.toString()}`);
+}
