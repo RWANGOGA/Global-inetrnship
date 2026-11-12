@@ -499,6 +499,69 @@ class StudentDocumentVerifyResponse(BaseModel):
     is_public: bool = False
 
 
+# ---------------- Employer Applicant Detail --------------------------------------------
+
+class ApplicantMatchScore(BaseModel):
+    score: int
+    matched_skills: list[str] = []
+    missing_skills: list[str] = []
+    course_fit: bool = False
+    grade_fit: bool = False
+
+
+class ApplicantDetailRead(BaseModel):
+    """Comprehensive applicant detail for employer review."""
+    model_config = ConfigDict(from_attributes=True)
+
+    # Application info
+    application_id: str
+    application_type: str  # "internship" | "job"
+    status: str
+    statement: str
+    cover_letter: str = ""
+    cv_url: str | None = None
+    github_url: str | None = None
+    linkedin_url: str | None = None
+    portfolio_url: str | None = None
+    academic_papers: list = []
+    reference_1_name: str = ""
+    reference_1_email: str = ""
+    reference_1_phone: str = ""
+    reference_1_relationship: str = ""
+    reference_2_name: str = ""
+    reference_2_email: str = ""
+    reference_2_phone: str = ""
+    reference_2_relationship: str = ""
+    document_ids: list = []
+    shortlisted: bool = False
+    created_at: str
+    updated_at: str | None = None
+
+    # Student profile
+    student_id: str
+    student_name: str = ""
+    student_email: str = ""
+    student_course: str = ""
+    student_year: str = ""
+    student_cgpa: float = 0.0
+    student_university: str = ""
+    student_skills: list[str] = []
+    talent_search_opt_in: bool = False
+
+    # Placement/Job info
+    placement_id: str | None = None
+    placement_title: str | None = None
+    placement_opportunity_type: str | None = None
+    job_id: str | None = None
+    job_title: str | None = None
+
+    # Documents
+    documents: list[StudentDocumentRead] = []
+
+    # Match score
+    match_score: ApplicantMatchScore | None = None
+
+
 # ---------------- Admin dashboard --------------------------------------------
 
 

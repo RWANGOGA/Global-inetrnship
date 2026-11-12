@@ -24,6 +24,9 @@ from app.presentation.schemas import (
     ApplicationRead,
     JobApplicationRead,
     StudentProfileRead,
+    StudentDocumentRead,
+    ApplicantDetailRead,
+    ApplicantMatchScore,
 )
 from pydantic import BaseModel
 from typing import Optional
@@ -461,6 +464,121 @@ def get_shortlisted_job_applications(
     )
     
     return [JobApplicationRead.model_validate(app, from_attributes=True) for app in apps]
+
+
+# ---- Applicant Detail -------------------------------------------
+
+@router.get("/applicants/{application_id}/detail", response_model=ApplicantDetailRead)
+def get_applicant_detail(
+    application_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> ApplicantDetailRead:
+    """Get comprehensive applicant detail for employer review."""
+    org_id = _require_employer(current_user)
+    
+    # Try internship application first
+    app = session.query(ApplicationORM).filter_by(id=application_id).first()
+    application_type = "internship"
+    
+    if not app:
+        # Try job application
+        app = session.query(JobApplicationORM).filter_by(id=application_id).first()
+        application_type = "job"
+    
+    if not app:
+        raise HTTPException(status_code=404, detail="Application not found")
+    
+    # Verify the application belongs to this organization
+    if application_type == "internship":
+        placement = session.query(PlacementORM).filter_by(id=app.placement_id).first()
+        if not placement or placement.org_id != org_id:
+            raise HTTPException(status_code=403, detail="Not authorized to view this application")
+        placement_title = placement.title
+        placement_opportunity_type = placement.opportunity_type
+        job_id = None
+        job_title = None
+    else:
+        job = session.query(JobORM).filter_by(id=app.job_id).first()
+        if not job or job.org_id != org_id:
+            raise HTTPException(status_code=403, detail="Not authorized to view this application")
+        job_id = job.id
+        job_title = job.title
+        placement_id = None
+        placement_title = None
+        placement_opportunity_type = None
+    
+    # Get student profile
+    student_profile = session.query(StudentProfileORM).filter_by(user_id=app.user_id).first()
+    user = session.query(UserORM).filter_by(id=app.user_id).first()
+    
+    # Get documents
+    from app.infrastructure.orm import StudentDocumentORM
+    documents = session.query(StudentDocumentORM).filter_by(user_id=app.user_id).all()
+    
+    # Calculate match score if internship
+    match_score = None
+    if application_type == "internship" and placement and student_profile:
+        from app.domain.matching import match_placement, required_skills_for
+        from app.infrastructure.repositories import SqlAlchemyPlacementRepository
+        repo = SqlAlchemyPlacementRepository(session)
+        placement_domain = repo.get(placement.id)
+        if placement_domain:
+            match_result = match_placement(
+                placement_domain,
+                student_profile.skills or [],
+                student_profile.course or "",
+                student_profile.cgpa or 0.0,
+            )
+            required = required_skills_for(placement_domain)
+            match_score = ApplicantMatchScore(
+                score=match_result.score,
+                matched_skills=match_result.matched,
+                missing_skills=match_result.missing,
+                course_fit=match_result.course_fit,
+                grade_fit=match_result.grade_fit,
+            )
+    
+    return ApplicantDetailRead(
+        application_id=app.id,
+        application_type=application_type,
+        status=app.status,
+        statement=app.statement or "",
+        cover_letter=app.cover_letter or "",
+        cv_url=app.cv_url,
+        github_url=app.github_url,
+        linkedin_url=app.linkedin_url,
+        portfolio_url=app.portfolio_url,
+        academic_papers=app.academic_papers or [],
+        reference_1_name=app.reference_1_name or "",
+        reference_1_email=app.reference_1_email or "",
+        reference_1_phone=app.reference_1_phone or "",
+        reference_1_relationship=app.reference_1_relationship or "",
+        reference_2_name=app.reference_2_name or "",
+        reference_2_email=app.reference_2_email or "",
+        reference_2_phone=app.reference_2_phone or "",
+        reference_2_relationship=app.reference_2_relationship or "",
+        document_ids=app.document_ids or [],
+        shortlisted=app.shortlisted,
+        created_at=app.created_at,
+        updated_at=app.updated_at,
+        student_id=app.user_id,
+        student_name=user.name if user else "",
+        student_email=user.email if user else "",
+        student_course=student_profile.course if student_profile else "",
+        student_year=student_profile.year if student_profile else "",
+        student_cgpa=student_profile.cgpa if student_profile else 0.0,
+        student_university=student_profile.university if student_profile else "",
+        student_skills=student_profile.skills if student_profile else [],
+        talent_search_opt_in=student_profile.talent_search_opt_in if student_profile else False,
+        placement_id=app.placement_id if application_type == "internship" else None,
+        placement_title=placement_title,
+        placement_opportunity_type=placement_opportunity_type,
+        job_id=job_id,
+        job_title=job_title,
+        documents=[StudentDocumentRead.model_validate(d, from_attributes=True) for d in documents],
+        match_score=match_score,
+    )
 
 
 # ---- Talent Search -------------------------------------------
