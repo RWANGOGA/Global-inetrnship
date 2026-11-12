@@ -3,6 +3,9 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Enable static export for Next.js
+ENV NEXT_EXPORT=1
+
 # Copy package files
 COPY package*.json ./
 RUN npm ci
