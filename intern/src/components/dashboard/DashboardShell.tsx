@@ -11,6 +11,7 @@ import { AdminOverview } from "./admin/AdminOverview";
 import { AdminPlacements } from "./admin/AdminPlacements";
 import { AdminApplications } from "./admin/AdminApplications";
 import { AdminRequirements } from "./admin/AdminRequirements";
+import { AdminLearning } from "./admin/AdminLearning";
 import { AdminStudents } from "./admin/AdminStudents";
 import { AdminDocuments } from "./admin/AdminDocuments";
 import { AdminTestimonial } from "./admin/AdminTestimonial";
@@ -20,6 +21,7 @@ import { UserManagement } from "./admin/UserManagement";
 import { StudentOverview } from "./student/StudentOverview";
 import { StudentApplications } from "./student/StudentApplications";
 import { SkillProfile } from "./student/SkillProfile";
+import { StudentLearning } from "./student/StudentLearning";
 import { StudentPlacements } from "./student/StudentPlacements";
 import { StudentDocs } from "./student/StudentDocs";
 import { VerificationStatus } from "./student/VerificationStatus";
@@ -73,6 +75,7 @@ export function DashboardShell() {
     placements: "Placements",
     applications: "Applications",
     requirements: "Requirements",
+    learning: "Learning resources",
     students: "Students",
     documents: "Documents",
     verification: "Verification status",
@@ -97,6 +100,8 @@ export function DashboardShell() {
           return <AdminApplications />;
         case "requirements":
           return <AdminRequirements />;
+        case "learning":
+          return <AdminLearning />;
         case "students":
           return <AdminStudents />;
         case "documents":
@@ -116,6 +121,8 @@ export function DashboardShell() {
           return <StudentOverview />;
         case "skills":
           return <SkillProfile />;
+        case "learning":
+          return <StudentLearning />;
         case "placements":
           return <StudentPlacements />;
         case "applications":

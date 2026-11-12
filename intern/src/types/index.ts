@@ -222,6 +222,22 @@ export interface RankedPlacement {
   match: MatchDto;
 }
 
+// A curated learning resource, linked to a skill and/or a placement. Admins
+// curate the catalogue; students use it to close gaps shown on match cards.
+export interface LearningResource {
+  id: string;
+  title: string;
+  url: string;
+  provider: string;
+  description: string;
+  skill: string;
+  placementId: string;
+  level: string;
+  resourceType: string;
+  duration: string;
+  createdAt: string;
+}
+
 export interface MatchResponse {
   total: number;
   items: RankedPlacement[];
@@ -304,6 +320,7 @@ export type DashboardView =
   | "placements"
   | "applications"
   | "requirements"
+  | "learning"
   | "students"
   | "documents"
   | "verification"

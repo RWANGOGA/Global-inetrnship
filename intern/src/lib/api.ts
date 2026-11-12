@@ -7,7 +7,9 @@
 //
 // The backend speaks snake_case; the UI types are camelCase. This module is the
 // single translation boundary, so components never learn about either shape.
-import { Job, Org, Placement, ApplicationDto, JobApplicationDto, CompanyProfile } from "../types";
+import { Job, Org, Placement, ApplicationDto, JobApplicationDto, CompanyProfile, LearningResource } from "../types";
+
+export type { LearningResource } from "../types";
 
 export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(
   /\/+$/,
@@ -204,6 +206,20 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
 async function patchJson<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      ...authHeader(),
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) await readError(res, path);
+  return (await res.json()) as T;
+}
+
+async function putJson<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "PUT",
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
@@ -1474,4 +1490,91 @@ export async function userAction(
 }
 ): Promise<UserActionResponse> {
   return patchJson<UserActionResponse>(`/admin/users/${userId}/action`, payload);
+}
+
+// ---- Learning resources ----------------------------------------------------
+
+export interface LearningResourceDto {
+  id: string;
+  title: string;
+  url: string;
+  provider: string;
+  description: string;
+  skill: string;
+  placement_id: string;
+  level: string;
+  resource_type: string;
+  duration: string;
+  created_at: string;
+}
+
+export interface LearningResourceListDto {
+  total: number;
+  items: LearningResourceDto[];
+}
+
+export interface LearningResourceInput {
+  title: string;
+  url: string;
+  provider: string;
+  description: string;
+  skill: string;
+  placement_id: string;
+  level: string;
+  resource_type: string;
+  duration: string;
+}
+
+export function mapLearningResource(r: LearningResourceDto): LearningResource {
+  return {
+    id: r.id,
+    title: r.title,
+    url: r.url,
+    provider: r.provider,
+    description: r.description,
+    skill: r.skill,
+    placementId: r.placement_id,
+    level: r.level,
+    resourceType: r.resource_type,
+    duration: r.duration,
+    createdAt: r.created_at,
+  };
+}
+
+export async function fetchLearningResources(params?: {
+  skill?: string;
+  placementId?: string;
+}): Promise<LearningResource[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.skill) searchParams.append("skill", params.skill);
+  if (params?.placementId) searchParams.append("placement_id", params.placementId);
+  const query = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  const data = await getJson<LearningResourceListDto>(`/learning-resources${query}`);
+  return data.items.map(mapLearningResource);
+}
+
+export async function createLearningResource(
+  input: LearningResourceInput
+): Promise<LearningResource> {
+  const data = await postJson<LearningResourceDto>("/learning-resources", input);
+  return mapLearningResource(data);
+}
+
+export async function updateLearningResource(
+  id: string,
+  input: LearningResourceInput
+): Promise<LearningResource> {
+  const data = await putJson<LearningResourceDto>(
+    `/learning-resources/${id}`,
+    input
+  );
+  return mapLearningResource(data);
+}
+
+export async function deleteLearningResource(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/learning-resources/${id}`, {
+    method: "DELETE",
+    headers: { Accept: "application/json", ...authHeader() },
+  });
+  if (!res.ok) await readError(res, `/learning-resources/${id}`);
 }

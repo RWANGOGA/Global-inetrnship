@@ -344,3 +344,19 @@ class AdminActionLogORM(Base):
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     details: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[str] = mapped_column(String, default="")
+
+
+class LearningResourceORM(Base):
+    __tablename__ = "learning_resources"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    url: Mapped[str] = mapped_column(String, nullable=False)
+    provider: Mapped[str] = mapped_column(String, default="")
+    description: Mapped[str] = mapped_column(Text, default="")
+    skill: Mapped[str] = mapped_column(String, default="", index=True)
+    placement_id: Mapped[str] = mapped_column(String, default="", index=True)
+    level: Mapped[str] = mapped_column(String, default="")
+    resource_type: Mapped[str] = mapped_column(String, default="Course")
+    duration: Mapped[str] = mapped_column(String, default="")
+    created_at: Mapped[str] = mapped_column(String, default="")

@@ -328,3 +328,21 @@ class AdminActionLog:
     target_user_email: Optional[str] = None
     details: Optional[str] = None
     created_at: str = ""
+
+
+@dataclass(frozen=True)
+class LearningResource:
+    """A curated resource that helps a student learn a skill or prepare for a
+    specific placement. Managed by administrators, read by students."""
+
+    id: str
+    title: str
+    url: str
+    provider: str = ""
+    description: str = ""
+    skill: str = ""
+    placement_id: str = ""
+    level: str = ""  # Beginner | Intermediate | Advanced
+    resource_type: str = "Course"
+    duration: str = ""
+    created_at: str = ""

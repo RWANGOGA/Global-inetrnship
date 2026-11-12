@@ -16,6 +16,7 @@ from app.application.ports import (
     ApplicationRepository,
     JobApplicationRepository,
     JobRepository,
+    LearningResourceRepository,
     PlacementRepository,
     SavedJobsRepository,
     SavedRepository,
@@ -34,6 +35,7 @@ from app.domain.entities import (
     Invoice,
     Job,
     JobApplication,
+    LearningResource,
     Organisation,
     Placement,
     Resume,
@@ -50,6 +52,7 @@ from app.infrastructure.orm import (
     InvoiceORM,
     JobApplicationORM,
     JobORM,
+    LearningResourceORM,
     OrganisationORM,
     PlacementORM,
     SavedJobORM,
@@ -1002,3 +1005,98 @@ class SqlAlchemyAdminActionLogRepository(AdminActionLogRepository):
             query = query.filter(AdminActionLogORM.created_at <= end_date)
 
         return query.count()
+
+
+class SqlAlchemyLearningResourceRepository(LearningResourceRepository):
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    @staticmethod
+    def _to_domain(row: LearningResourceORM) -> LearningResource:
+        return LearningResource(
+            id=row.id,
+            title=row.title or "",
+            url=row.url or "",
+            provider=row.provider or "",
+            description=row.description or "",
+            skill=row.skill or "",
+            placement_id=row.placement_id or "",
+            level=row.level or "",
+            resource_type=row.resource_type or "Course",
+            duration=row.duration or "",
+            created_at=row.created_at or "",
+        )
+
+    def list(
+        self,
+        *,
+        skill: Optional[str] = None,
+        placement_id: Optional[str] = None,
+    ) -> list[LearningResource]:
+        query = self._session.query(LearningResourceORM)
+        if skill:
+            query = query.filter(LearningResourceORM.skill == skill)
+        if placement_id:
+            query = query.filter(LearningResourceORM.placement_id == placement_id)
+        rows = query.order_by(
+            LearningResourceORM.created_at.desc(), LearningResourceORM.title
+        ).all()
+        return [self._to_domain(row) for row in rows]
+
+    def get(self, resource_id: str) -> Optional[LearningResource]:
+        row = (
+            self._session.query(LearningResourceORM)
+            .filter_by(id=resource_id)
+            .first()
+        )
+        return self._to_domain(row) if row is not None else None
+
+    def add(self, resource: LearningResource) -> LearningResource:
+        row = LearningResourceORM(
+            id=resource.id,
+            title=resource.title,
+            url=resource.url,
+            provider=resource.provider,
+            description=resource.description,
+            skill=resource.skill,
+            placement_id=resource.placement_id,
+            level=resource.level,
+            resource_type=resource.resource_type,
+            duration=resource.duration,
+            created_at=resource.created_at,
+        )
+        self._session.add(row)
+        self._session.commit()
+        return resource
+
+    def update(self, resource: LearningResource) -> LearningResource:
+        row = (
+            self._session.query(LearningResourceORM)
+            .filter_by(id=resource.id)
+            .first()
+        )
+        if row is None:
+            return resource
+        row.title = resource.title
+        row.url = resource.url
+        row.provider = resource.provider
+        row.description = resource.description
+        row.skill = resource.skill
+        row.placement_id = resource.placement_id
+        row.level = resource.level
+        row.resource_type = resource.resource_type
+        row.duration = resource.duration
+        self._session.commit()
+        return resource
+
+    def delete(self, resource_id: str) -> bool:
+        row = (
+            self._session.query(LearningResourceORM)
+            .filter_by(id=resource_id)
+            .first()
+        )
+        if row is None:
+            return False
+        self._session.delete(row)
+        self._session.commit()
+        return True

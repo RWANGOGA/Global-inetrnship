@@ -661,3 +661,38 @@ class AdminActionLogRead(BaseModel):
 class AdminActionLogListResponse(BaseModel):
     total: int
     items: list[AdminActionLogRead]
+
+
+# ---------------- Learning Resources -------------------------------------
+
+class LearningResourceRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    title: str
+    url: str
+    provider: str
+    description: str
+    skill: str
+    placement_id: str
+    level: str
+    resource_type: str
+    duration: str
+    created_at: str
+
+
+class LearningResourceWrite(BaseModel):
+    title: str
+    url: str
+    provider: str = ""
+    description: str = ""
+    skill: str = ""
+    placement_id: str = ""
+    level: str = ""
+    resource_type: str = "Course"
+    duration: str = ""
+
+
+class LearningResourceListResponse(BaseModel):
+    total: int
+    items: list[LearningResourceRead]
