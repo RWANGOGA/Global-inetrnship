@@ -1044,3 +1044,81 @@ class LearningResourceWrite(BaseModel):
 class LearningResourceListResponse(BaseModel):
     total: int
     items: list[LearningResourceRead]
+
+
+# ---------------- AI Enrichment --------------------------------------------
+
+class EnrichmentRequest(BaseModel):
+    personal_statement: str
+    existing_skills: list[str] = []
+
+
+class SkillCompetencyRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    skill_id: str
+    canonical_name: str
+    aliases: list[str] = []
+    category: str = ""
+    proficiency: int
+    confidence_score: float
+    evidence: list[str] = []
+    years_experience: float = 0.0
+    learning_velocity: float = 0.0
+
+
+class SoftSkillProfileRead(BaseModel):
+    leadership: float = 0.0
+    communication: float = 0.0
+    teamwork: float = 0.0
+    adaptability: float = 0.0
+    problem_solving: float = 0.0
+    initiative: float = 0.0
+    organization: float = 0.0
+    cultural_awareness: float = 0.0
+
+
+class CareerTrajectoryRead(BaseModel):
+    current_stage: str
+    target_roles: list[str] = []
+    career_aspirations: list[str] = []
+    domain_interests: list[str] = []
+    learning_goals: list[str] = []
+    work_preferences: str = ""
+    values_signals: list[str] = []
+
+
+class CulturalValuesRead(BaseModel):
+    autonomy_preference: float = 0.5
+    mission_alignment: float = 0.5
+    collaboration_style: str = "hybrid"
+    risk_tolerance: float = 0.5
+    learning_appetite: float = 0.5
+    work_life_integration: float = 0.5
+    feedback_receptivity: float = 0.5
+    diversity_value: float = 0.5
+
+
+class AdvancedStudentProfileRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    user_id: str
+    skills: list[SkillCompetencyRead] = []
+    career_trajectory: CareerTrajectoryRead
+    soft_skills: SoftSkillProfileRead
+    cultural_values: CulturalValuesRead
+    profile_embedding: list[float] = []
+    skills_embedding: list[float] = []
+    bio_embedding: list[float] = []
+    course: str = ""
+    university: str = ""
+    cgpa: float = 0.0
+    graduation_year: int = 0
+    location_preferences: list[str] = []
+    remote_ok: bool = False
+    availability: str = "full-time"
+
+
+class EnrichmentResponse(BaseModel):
+    profile: AdvancedStudentProfileRead
+    message: str = "Profile enriched successfully"
