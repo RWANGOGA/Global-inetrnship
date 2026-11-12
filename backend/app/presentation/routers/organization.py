@@ -466,7 +466,7 @@ def get_shortlisted_job_applications(
 # ---- Talent Search -------------------------------------------
 
 class TalentSearchFilters(BaseModel):
-    skill: Optional[str] = None
+    skills: list[str] = []
     course: Optional[str] = None
     location: Optional[str] = None
     university: Optional[str] = None
@@ -483,7 +483,7 @@ def search_student_profiles(
     """Search verified student profiles who opted into talent search.
     
     Only returns students with talent_search_opt_in=True.
-    Filters by skill, course, location, and university.
+    Filters by skills (ALL must match), course, location, and university.
     """
     org_id = _require_employer(current_user)
     
@@ -495,9 +495,10 @@ def search_student_profiles(
     # Join with users to get location/university info
     query = query.join(UserORM, StudentProfileORM.user_id == UserORM.id)
     
-    if filters.skill:
-        # Search in skills JSON array
-        query = query.filter(StudentProfileORM.skills.op("@>")([filters.skill]))
+    # Filter by skills - ALL skills must match (AND logic)
+    if filters.skills:
+        for skill in filters.skills:
+            query = query.filter(StudentProfileORM.skills.op("@>")([skill]))
     
     if filters.course:
         query = query.filter(StudentProfileORM.course.ilike(f"%{filters.course}%"))

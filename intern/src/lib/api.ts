@@ -1500,7 +1500,7 @@ export async function updateOrganizationProfile(
 }
 
 export interface TalentSearchFilters {
-  skill?: string;
+  skills?: string[];
   course?: string;
   location?: string;
   university?: string;

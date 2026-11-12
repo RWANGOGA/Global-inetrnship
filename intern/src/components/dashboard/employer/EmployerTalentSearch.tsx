@@ -274,7 +274,7 @@ export function EmployerTalentSearch() {
     try {
       const data = await searchStudentProfiles({
         ...filters,
-        skill: selectedSkills[0] || undefined,
+        skills: selectedSkills,
         limit: 20,
       });
       setResults(data);
@@ -322,7 +322,7 @@ export function EmployerTalentSearch() {
             </button>
           }
         >
-          <Field label="Skills" fullWidth hint="Add multiple skills - search will use the first skill">
+          <Field label="Skills" fullWidth hint="Add multiple skills - candidates must have ALL selected skills">
             <div className="skill-chips" role="list" aria-label="Selected skills">
               {selectedSkills.map((s) => (
                 <SkillChip key={s} skill={s} onRemove={() => removeSkill(s)} />
