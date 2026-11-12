@@ -5,8 +5,8 @@ def test_list_returns_seeded_catalogue(client):
     resp = client.get("/placements")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["total"] == 14
-    assert len(body["items"]) == 14
+    assert body["total"] == 12
+    assert len(body["items"]) == 12
     # employer is embedded for inline rendering
     p1 = next(i for i in body["items"] if i["id"] == "p1")
     assert p1["org"]["name"] == "Lumen Labs"
@@ -18,14 +18,14 @@ def test_list_returns_seeded_catalogue(client):
 
 def test_filter_by_org_type(client):
     body = client.get("/placements", params={"org_type": "Government"}).json()
-    assert body["total"] == 5
-    assert {i["id"] for i in body["items"]} == {"p2", "p6", "p8", "p12", "p14"}
+    assert body["total"] == 4
+    assert {i["id"] for i in body["items"]} == {"p2", "p6", "p12", "p14"}
     assert all(i["org"]["type"] == "Government" for i in body["items"])
 
 
 def test_filter_by_location(client):
     body = client.get("/placements", params={"location": "Kampala"}).json()
-    assert body["total"] == 8
+    assert body["total"] == 7
 
 
 def test_filter_by_mode(client):

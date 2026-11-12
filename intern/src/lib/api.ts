@@ -631,6 +631,26 @@ export async function reviewInternship(
   return mapPlacement(data);
 }
 
+export async function closePlacement(
+  placementId: string
+): Promise<Placement> {
+  const data = await patchJson<ApiPlacement>(
+    `/admin/placements/${placementId}/close`,
+    {}
+  );
+  return mapPlacement(data);
+}
+
+export async function reopenPlacement(
+  placementId: string
+): Promise<Placement> {
+  const data = await patchJson<ApiPlacement>(
+    `/admin/placements/${placementId}/reopen`,
+    {}
+  );
+  return mapPlacement(data);
+}
+
 // GET /placements -> placements plus the orgs referenced by them (deduped from
 // the nested `org` the repository resolves, so we don't need a separate
 // /organisations endpoint).

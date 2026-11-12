@@ -10,7 +10,7 @@ def test_match_ranks_best_fit_first(client):
             "cgpa": 3.5,
         },
     ).json()
-    assert body["total"] == 14
+    assert body["total"] == 12
     top = body["items"][0]
     assert top["placement"]["id"] == "p3"  # required skills exactly these
     assert top["match"]["score"] == 100
