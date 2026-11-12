@@ -129,6 +129,8 @@ export function EmployerApplicants() {
   const [loadingShortlisted, setLoadingShortlisted] = useState(false);
   // Applicant detail view
   const [selectedApplicantId, setSelectedApplicantId] = useState<string | null>(null);
+  // View mode: table or kanban
+  const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
 
   const handleExportPlacementApplicants = async (id: string) => {
     try {
@@ -274,6 +276,179 @@ export function EmployerApplicants() {
     ? jobApplicants[selectedId] || []
     : [...shortlistedInternships, ...shortlistedJobs];
 
+type KanbanColumnConfig = {
+  id: string;
+  label: string;
+  color: "blue" | "gold" | "green" | "red" | "dark";
+  icon: IconName;
+};
+
+// Kanban columns configuration
+const STATUS_COLUMNS: KanbanColumnConfig[] = [
+  { id: "Submitted", label: "Submitted", color: "blue", icon: "send" },
+  { id: "In Review", label: "In Review", color: "gold", icon: "eye" },
+  { id: "Accepted", label: "Accepted", color: "green", icon: "check" },
+  { id: "Rejected", label: "Rejected", color: "red", icon: "x" },
+  { id: "Withdrawn", label: "Withdrawn", color: "dark", icon: "file-text" },
+];
+
+// Group applicants by status for Kanban
+const applicantsByStatus = React.useMemo(() => {
+  const grouped: Record<string, typeof currentApplicants> = {};
+  STATUS_COLUMNS.forEach((col) => { grouped[col.id] = []; });
+  currentApplicants.forEach((app) => {
+    if (grouped[app.status]) {
+      grouped[app.status].push(app);
+    } else {
+      grouped[app.status] = [app];
+    }
+  });
+  return grouped;
+}, [currentApplicants]);
+
+// Drag and drop handlers for Kanban
+const [draggedId, setDraggedId] = useState<string | null>(null);
+
+const handleDragStart = (e: React.DragEvent, appId: string) => {
+  setDraggedId(appId);
+  e.dataTransfer.effectAllowed = "move";
+};
+
+const handleDragOver = (e: React.DragEvent) => {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = "move";
+};
+
+const handleDrop = async (e: React.DragEvent, targetStatus: string) => {
+  e.preventDefault();
+  if (!draggedId || draggedId === targetStatus) return;
+  
+  setDraggedId(null);
+  
+  // Find the application being dragged
+  const app = currentApplicants.find((a) => a.id === draggedId);
+  if (!app) return;
+  
+  // Optimistic update
+  setDraggedId(null);
+  
+  try {
+    await updateJobApplicationStatus(draggedId, targetStatus);
+    if (activeTab === "jobs") {
+      loadJobApplicants(selectedId);
+    } else if (activeTab === "internships") {
+      // For internships, we'd need a similar update function
+      loadInternshipApplicants(selectedId);
+    }
+    toast(`Application moved to ${targetStatus}`);
+  } catch (cause) {
+    console.error("Failed to update status:", cause);
+    toast("Failed to update status");
+  }
+};
+
+// Kanban Card Component
+function KanbanCard({ app }: { app: ApplicationDto | JobApplicationDto }) {
+  return (
+    <div
+      className="kanban-card"
+      draggable
+      onDragStart={(e) => handleDragStart(e, app.id)}
+      onClick={() => setSelectedApplicantId(app.id)}
+    >
+      <div className="kanban-card-header">
+        <div className="candidate-info">
+          <div className="candidate-avatar">
+            <Icon name="user" size={16} />
+          </div>
+          <div>
+            <div className="candidate-name">Candidate {app.user_id.slice(0, 8)}…</div>
+            <div className="candidate-date">{app.created_at.split("T")[0]}</div>
+          </div>
+        </div>
+        {app.shortlisted && (
+          <span className="tg blue" style={{ fontSize: "9px" }}>
+            <Icon name="check" size={9} /> Shortlisted
+          </span>
+        )}
+      </div>
+      <div className="kanban-card-body">
+        <StatusBadge status={app.status} />
+        <div className="kanban-card-meta">
+          <span className="tg blue"><Icon name="doc" size={10} /> View Details</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Kanban Column Component
+function KanbanColumn({ column, apps }: { column: KanbanColumnConfig; apps: typeof currentApplicants }) {
+  const colorMap: Record<string, string> = {
+    blue: "var(--blue)",
+    gold: "var(--gold)",
+    green: "var(--green)",
+    red: "var(--red)",
+    dark: "var(--ink)",
+  };
+  const tintMap: Record<string, string> = {
+    blue: "var(--blue-tint)",
+    gold: "var(--gold-tint)",
+    green: "var(--green-tint)",
+    red: "var(--red-tint)",
+    dark: "var(--ink-1)",
+  };
+  const color = colorMap[column.color] || "var(--ink)";
+  const tint = tintMap[column.color] || "var(--paper-2)";
+
+  return (
+    <div 
+      className="kanban-column"
+      onDragOver={handleDragOver}
+      onDrop={(e) => handleDrop(e, column.id)}
+    >
+      <div className="kanban-column-header" style={{ background: tint, borderColor: color }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <span style={{ color }}>
+            <Icon name={column.icon} size={14} />
+          </span>
+          <span style={{ fontWeight: 700, fontSize: "13px", color }}>{column.label}</span>
+        </div>
+        <span className="kanban-count" style={{ background: color, color: "white" }}>
+          {apps.length}
+        </span>
+      </div>
+      <div className="kanban-cards">
+        {apps.length === 0 ? (
+          <div className="kanban-empty" style={{ color: "var(--muted)" }}>
+            <div style={{ opacity: 0.3, marginBottom: "8px", display: "block" }}>
+              <Icon name="inbox" size={24} />
+            </div>
+            Drop here
+          </div>
+        ) : (
+          apps.map((app) => <KanbanCard key={app.id} app={app} />)
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Kanban Board Component
+function KanbanBoard() {
+  return (
+    <div className="kanban-board">
+      {STATUS_COLUMNS.map((column) => (
+        <KanbanColumn 
+          key={column.id} 
+          column={column} 
+          apps={applicantsByStatus[column.id] || []} 
+        />
+      ))}
+    </div>
+  );
+}
+
   const totalApplicants = Object.values(
     activeTab === "internships" ? internshipApplicants : jobApplicants
   ).flat().length;
@@ -304,6 +479,26 @@ export function EmployerApplicants() {
               <button type="button" className="btn btn-sm btn-ghost" onClick={() => handleExportJobApplicants(selectedId)}>
                 <Icon name="download" size={13} /> Export CSV
               </button>
+            )}
+            {activeTab !== "shortlisted" && (
+              <div className="view-mode-toggle" style={{ display: "flex", gap: "4px", background: "var(--paper-2)", borderRadius: "var(--r-md)", padding: "4px", border: "1px solid var(--rule)" }}>
+                <button
+                  type="button"
+                  className={`view-mode-btn ${viewMode === "table" ? "active" : ""}`}
+                  onClick={() => setViewMode("table")}
+                  style={{ padding: "8px 12px", borderRadius: "var(--r-sm)", background: "transparent", border: "none", cursor: "pointer", color: viewMode === "table" ? "var(--blue)" : "var(--ink-2)", fontWeight: 600, fontSize: "12px" }}
+                >
+                  <Icon name="brief" size={14} /> Table
+                </button>
+                <button
+                  type="button"
+                  className={`view-mode-btn ${viewMode === "kanban" ? "active" : ""}`}
+                  onClick={() => setViewMode("kanban")}
+                  style={{ padding: "8px 12px", borderRadius: "var(--r-sm)", background: "transparent", border: "none", cursor: "pointer", color: viewMode === "kanban" ? "var(--blue)" : "var(--ink-2)", fontWeight: 600, fontSize: "12px" }}
+                >
+                  <Icon name="inbox" size={14} /> Kanban
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -395,18 +590,20 @@ export function EmployerApplicants() {
               </div>
             )}
           </>
-        ) : (
-          <>
-            {(loading ? (
-              <LoadingSpinner text="Loading applicants..." />
-            ) : currentApplicants.length === 0 ? (
-              <EmptyState
-                icon="user"
-                title={`No applicants for this ${activeTab === "internships" ? "placement" : "job"}`}
-                description="When candidates apply, they will appear here."
-              />
-            ) : (
-              <div className="table-container">
+) : (
+            <>
+              {(loading ? (
+                <LoadingSpinner text="Loading applicants..." />
+              ) : currentApplicants.length === 0 ? (
+                <EmptyState
+                  icon="user"
+                  title={`No applicants for this ${activeTab === "internships" ? "placement" : "job"}`}
+                  description="When candidates apply, they will appear here."
+                />
+              ) : viewMode === "kanban" ? (
+                <KanbanBoard />
+              ) : (
+                <div className="table-container">
                 <table className="data-table">
                   <thead>
                     <tr>
