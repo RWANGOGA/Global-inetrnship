@@ -25,6 +25,8 @@
   --green-tint:#E7F6D9;
   --gold:#8A6D1A;         /* label text on cream chips */
   --cream:#FDE1AB;        /* BM secondary CTA chip */
+  --purple:#6B3FA0;       /* gig badge */
+  --purple-tint:#F0E6FA;
 
   --serif:"Plus Jakarta Sans",Inter,system-ui,"Segoe UI","Helvetica Neue",Arial,sans-serif; /* headings */
   --sans:"Inter",system-ui,Roboto,"Segoe UI","Helvetica Neue",Arial,sans-serif;            /* body */
@@ -105,7 +107,22 @@ svg{display:block}
 .tg.blue{background:var(--blue-tint);border-color:transparent;color:var(--blue)}
 .tg.red{background:var(--red-tint);border-color:transparent;color:var(--red)}
 .tg.gold{background:var(--cream);border-color:transparent;color:var(--gold)}
+.tg.purple{background:var(--purple-tint);border-color:transparent;color:var(--purple)}
 .tg.dark{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+
+/* opportunity type tabs */
+.otabs{
+  display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;padding:0 2px;
+}
+.otab{
+  display:inline-flex;align-items:center;gap:6px;padding:8px 16px;
+  border:1px solid var(--rule-2);border-radius:var(--r-pill);
+  font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-2);background:var(--white);
+  transition:border-color .14s var(--ease),background .14s var(--ease),color .14s var(--ease);
+}
+.otab:hover{border-color:var(--blue);color:var(--blue)}
+.otab.on{background:var(--blue);border-color:var(--blue);color:var(--paper)}
 
 /* ---------------- shapes ---------------- */
 /* BM geometry: no signature shapes left — everything is a plain rounded
