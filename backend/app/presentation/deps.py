@@ -14,6 +14,7 @@ from app.application.ports import LLMClient
 from app.application.services import (
     ApplicationService,
     BillingService,
+    LearningResourceService,
     MatchingService,
     PlacementService,
     SavedService,
@@ -31,6 +32,7 @@ from app.infrastructure.repositories import (
     SqlAlchemyAdminActionLogRepository,
     SqlAlchemyApplicationRepository,
     SqlAlchemyJobApplicationRepository,
+    SqlAlchemyLearningResourceRepository,
     SqlAlchemyPlacementRepository,
     SqlAlchemySavedJobsRepository,
     SqlAlchemySavedRepository,
@@ -103,6 +105,15 @@ def get_student_document_service(
     session: Session = Depends(get_session),
 ) -> StudentDocumentService:
     return StudentDocumentService(SqlAlchemyStudentDocumentRepository(session))
+
+
+def get_learning_resource_service(
+    session: Session = Depends(get_session),
+) -> LearningResourceService:
+    return LearningResourceService(
+        SqlAlchemyLearningResourceRepository(session),
+        SqlAlchemyPlacementRepository(session),
+    )
 
 
 # ---- Job Applications --------------------------------------------------------

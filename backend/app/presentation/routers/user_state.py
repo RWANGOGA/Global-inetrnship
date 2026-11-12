@@ -18,6 +18,7 @@ from datetime import datetime
 from app.application.services import (
     ApplicationService,
     BillingService,
+    MatchingService,
     SavedService,
     StudentProfileService,
     ResumeService,
@@ -31,6 +32,7 @@ from app.presentation.deps import (
     get_application_service,
     get_billing_service,
     get_current_user,
+    get_matching_service,
     get_saved_service,
     get_student_profile_service,
     get_resume_service,
@@ -45,6 +47,8 @@ from app.presentation.schemas import (
     ApplyRequest,
     CancelPlanRequest,
     SavedListResponse,
+    SkillSuggestionListResponse,
+    SkillSuggestionRead,
     SubscriptionRead,
     StudentProfileRead,
     StudentProfileUpdate,
@@ -287,8 +291,39 @@ def update_profile(
         university=payload.university,
         skills=payload.skills,
         talent_search_opt_in=payload.talent_search_opt_in,
+        skills_confidence=payload.skills_confidence,
+        skills_source=payload.skills_source,
     )
     return StudentProfileRead.model_validate(profile, from_attributes=True)
+
+
+@router.get("/profile/skill-suggestions", response_model=SkillSuggestionListResponse)
+def skill_suggestions(
+    service: StudentProfileService = Depends(get_student_profile_service),
+    matching: MatchingService = Depends(get_matching_service),
+    current_user: User = Depends(get_current_user),
+) -> SkillSuggestionListResponse:
+    """Skills required by placements open to the student's course.
+
+    Derived from the live catalogue and the domain's required-skills table, so
+    the list changes as placements are added or the student's course changes.
+    """
+    if current_user.role != "student":
+        raise HTTPException(status_code=403, detail="Only students have profiles")
+    profile = service.get(current_user.id)
+    suggestions = matching.suggest_skills(
+        student_course=profile.course, student_skills=profile.skills
+    )
+    items = [
+        SkillSuggestionRead(
+            name=s.name,
+            category=s.category,
+            demand=s.demand,
+            placement_ids=s.placement_ids,
+        )
+        for s in suggestions
+    ]
+    return SkillSuggestionListResponse(total=len(items), items=items)
 
 
 # ---- Resume ----------------------------------------------------------------

@@ -13,6 +13,7 @@ from app.infrastructure.orm import (  # noqa: F401 (register tables)
     OrganisationORM,
     PlacementORM,
     JobORM,
+    LearningResourceORM,
     StudentProfileORM,
     ApplicationPackORM,
     StudentDocumentORM,

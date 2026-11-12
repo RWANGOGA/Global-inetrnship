@@ -164,6 +164,26 @@ def test_student_profile_is_empty_until_saved_then_persists(client):
     assert client.get("/profile", headers=h).json()["university"] == "Makerere University"
 
 
+def test_student_profile_persists_skill_confidence_and_source(client):
+    h = _login(client, STUDENT)
+    updated = client.put(
+        "/profile",
+        json={
+            "course": "Design",
+            "skills": ["Figma", "UI Design"],
+            "skills_confidence": {"Figma": 3, "UI Design": 2, "Removed": 1, "Bad": 9},
+            "skills_source": {"Figma": "project", "UI Design": "course", "Removed": "manual"},
+        },
+        headers=h,
+    )
+    assert updated.status_code == 200
+    body = updated.json()
+    assert body["skills_confidence"] == {"Figma": 3, "UI Design": 2}
+    assert body["skills_source"] == {"Figma": "project", "UI Design": "course"}
+    persisted = client.get("/profile", headers=h).json()
+    assert persisted["skills_confidence"] == {"Figma": 3, "UI Design": 2}
+
+
 def test_non_student_cannot_access_student_profile(client):
     h = _login(client, JOBSEEKER)
     assert client.get("/profile", headers=h).status_code == 403

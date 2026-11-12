@@ -181,6 +181,8 @@ class StudentProfileORM(Base):
     university: Mapped[str] = mapped_column(String, default="")
     skills: Mapped[list] = mapped_column(JSON, default=list)
     talent_search_opt_in: Mapped[bool] = mapped_column(Boolean, default=False)
+    skills_confidence: Mapped[dict] = mapped_column(JSON, default=dict)
+    skills_source: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
 class ApplicationPackORM(Base):
@@ -357,4 +359,20 @@ class AdminActionLogORM(Base):
     action: Mapped[str] = mapped_column(String, nullable=False)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     details: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[str] = mapped_column(String, default="")
+
+
+class LearningResourceORM(Base):
+    __tablename__ = "learning_resources"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    url: Mapped[str] = mapped_column(String, nullable=False)
+    provider: Mapped[str] = mapped_column(String, default="")
+    description: Mapped[str] = mapped_column(Text, default="")
+    skill: Mapped[str] = mapped_column(String, default="", index=True)
+    placement_id: Mapped[str] = mapped_column(String, default="", index=True)
+    level: Mapped[str] = mapped_column(String, default="")
+    resource_type: Mapped[str] = mapped_column(String, default="Course")
+    duration: Mapped[str] = mapped_column(String, default="")
     created_at: Mapped[str] = mapped_column(String, default="")

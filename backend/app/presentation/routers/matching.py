@@ -26,6 +26,7 @@ def match(
         student_skills=payload.skills,
         student_course=payload.course,
         student_cgpa=payload.cgpa,
+        student_confidence=payload.skills_confidence,
         q=payload.q,
         org_type=payload.org_type,
         location=payload.location,

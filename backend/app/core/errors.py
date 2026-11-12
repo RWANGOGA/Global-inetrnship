@@ -32,3 +32,7 @@ class EmailAlreadyExists(DomainError):
 class UserNotFound(DomainError):
     """No account exists with the requested id."""
 
+
+class LearningResourceNotFound(DomainError):
+    """No learning resource exists with the requested id."""
+

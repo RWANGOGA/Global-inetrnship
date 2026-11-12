@@ -17,6 +17,29 @@ def test_match_ranks_best_fit_first(client):
     assert top["match"]["missing"] == []
 
 
+def test_match_applies_skill_confidence(client):
+    body = client.post(
+        "/match",
+        json={
+            "skills": ["Python", "JavaScript", "Git", "SQL", "APIs"],
+            "skills_confidence": {
+                "Python": 1,
+                "JavaScript": 1,
+                "Git": 1,
+                "SQL": 1,
+                "APIs": 1,
+            },
+            "course": "Computer Science",
+            "cgpa": 3.5,
+        },
+    ).json()
+    top = body["items"][0]
+    assert top["placement"]["id"] == "p3"
+    # 50% weighted skill coverage (0.5 * 60) + course 25 + grade 15 = 70.
+    assert top["match"]["score"] == 70
+    assert top["match"]["matched"] == ["Python", "JavaScript", "Git", "SQL", "APIs"]
+
+
 def test_match_score_never_exceeds_100_and_is_sorted(client):
     items = client.post(
         "/match", json={"skills": ["SQL", "Python"], "course": "Statistics", "cgpa": 3.7}
