@@ -1,5 +1,5 @@
 """Platform administrator internship review workflow."""
-from datetime import datetime
+from datetime import date, datetime
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
