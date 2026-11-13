@@ -3,370 +3,349 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useApp } from "../../context/AppContext";
 import { Icon } from "../icons/Icons";
-import { AdvisorAction } from "../../types";
 import { voiceService, VoiceOptions } from "../../lib/voice";
+import { AdvisorAction } from "../../types";
 
 const INTRO_MESSAGE = `Hi! I'm Brightworks Virtual Assistant — your career coach for BrighterWorks. I know your profile, all the placements, and can help with eligibility, applications, skill gaps, deadlines, and more. What can I help you with today?`;
 
-// Simple markdown to HTML renderer for chat messages
+// Simple markdown to HTML renderer
 function renderMarkdown(text: string): string {
   return text
-    // Bold
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    // Italic
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    // Code
-    .replace(/`(.+?)`/g, '<code>$1</code>')
-    // Line breaks
-    .replace(/\n/g, '<br>');
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>")
+    .replace(/`(.+?)`/g, "<code>$1</code>")
+    .replace(/\n/g, "<br>");
 }
 
+interface ChatGroup {
+  id: string;
+  name: string;
+  type: string;
+  description: string;
+  unread_count?: number;
+}
+
+interface ChatMessage {
+  id: string;
+  group_id: string | null;
+  sender_id: string;
+  recipient_id: string | null;
+  type: "text" | "voice" | "image" | "file" | "system";
+  content: string;
+  original_language: string;
+  duration_seconds: number | null;
+  file_name: string | null;
+  file_size: number | null;
+  mime_type: string | null;
+  created_at: string;
+  translations: Record<string, string>;
+  sender_name?: string;
+  translated_content?: string;
+}
+
+interface DirectChat {
+  id: string;
+  user1_id: string;
+  user2_id: string;
+  other_user?: { id: string; name: string; role: string };
+  last_message?: ChatMessage;
+}
+
+interface UserChatSettings {
+  preferred_language: string;
+  auto_translate: boolean;
+  show_original: boolean;
+}
+
+const LANGUAGES = [
+  { code: "en", name: "English" },
+  { code: "fr", name: "French" },
+  { code: "es", name: "Spanish" },
+  { code: "de", name: "German" },
+  { code: "it", name: "Italian" },
+  { code: "sw", name: "Swahili" },
+  { code: "ar", name: "Arabic" },
+];
+
+const GROUP_TYPE_ICONS: Record<string, string> = {
+  student: "🎓",
+  employer: "💼",
+  admin: "🛡️",
+  mixed: "💬",
+  placement: "📋",
+  organization: "🏢",
+};
+
 export function ChatDrawer() {
-  const { 
-    isChatOpen, 
-    openChat, 
-    closeChat, 
-    chatMessages, 
-    sendChat, 
+  const {
+    isChatOpen,
+    openChat,
+    closeChat,
+    chatMessages,
+    sendChat,
     askChat,
     student,
     role,
-    handoffState,
-    setHandoffState,
+    session,
   } = useApp();
-  
+
+  // WhatsApp-like chat state
+  const [activeTab, setActiveTab] = useState<"groups" | "direct">("groups");
+  const [groups, setGroups] = useState<ChatGroup[]>([]);
+  const [directChats, setDirectChats] = useState<DirectChat[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState<ChatGroup | null>(null);
+  const [selectedDirectChat, setSelectedDirectChat] = useState<DirectChat | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [settings, setSettings] = useState<UserChatSettings | null>({
+    preferred_language: "en",
+    auto_translate: true,
+    show_original: true,
+  });
   const [inputText, setInputText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [voiceState, setVoiceState] = useState<"idle" | "listening" | "speaking" | "ready">("idle");
+  const [recordingBlob, setRecordingBlob] = useState<Blob | null>(null);
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [showCreateDirect, setShowCreateDirect] = useState(false);
+  const [newGroupData, setNewGroupData] = useState({ name: "", type: "mixed", description: "", member_ids: [] as string[] });
+  const [newDirectUserId, setNewDirectUserId] = useState("");
+
   const chatLogRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, []);
+  }, [messages]);
 
   useEffect(() => {
     scrollToBottom();
-  }, [chatMessages, scrollToBottom]);
+  }, [messages]);
 
-  useEffect(() => {
-    if (chatLogRef.current) {
-      chatLogRef.current.scrollTop = chatLogRef.current.scrollHeight;
+  const apiCall = async (path: string, options: RequestInit = {}) => {
+    const token = localStorage.getItem("intern:token");
+    const res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
+      },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Request failed" }));
+      throw new Error(err.detail || `HTTP ${res.status}`);
     }
-  }, [chatMessages]);
+    return res.json();
+  };
 
-  const handleSend = useCallback(() => {
-    if (!inputText.trim()) return;
-    sendChat(inputText);
+  const loadGroups = async () => {
+    try {
+      const data = await apiCall("/chat/groups");
+      setGroups(data.groups || []);
+    } catch (e) {
+      console.error("Failed to load groups:", e);
+    }
+  };
+
+  const loadDirectChats = async () => {
+    try {
+      const data = await apiCall("/chat/direct");
+      setDirectChats(data.chats || []);
+    } catch (e) {
+      console.error("Failed to load direct chats:", e);
+    }
+  };
+
+  const loadGroupMessages = async (groupId: string) => {
+    try {
+      const data = await apiCall(`/chat/groups/${groupId}/messages?limit=50`);
+      setMessages(data.messages || []);
+    } catch (e) {
+      console.error("Failed to load messages:", e);
+    }
+  };
+
+  const loadDirectMessages = async (otherUserId: string) => {
+    try {
+      const data = await apiCall(`/chat/direct/${otherUserId}?limit=50`);
+      setMessages(data.messages || []);
+    } catch (e) {
+      console.error("Failed to load direct messages:", e);
+    }
+  };
+
+  const handleGroupSelect = (group: ChatGroup) => {
+    setSelectedGroup(group);
+    setSelectedDirectChat(null);
+    loadGroupMessages(group.id);
+  };
+
+  const handleDirectSelect = (chat: DirectChat) => {
+    setSelectedDirectChat(chat);
+    setSelectedGroup(null);
+    const otherId = chat.user1_id === session?.id ? chat.user2_id : chat.user1_id;
+    loadDirectMessages(otherId);
+  };
+
+  const sendMessage = async () => {
+    if (!inputText.trim() && !recordingBlob) return;
+    const content = inputText.trim();
     setInputText("");
-  }, [inputText, sendChat]);
+    const blob = recordingBlob;
+    setRecordingBlob(null);
 
-  const handleAction = useCallback((action: AdvisorAction) => {
-    switch (action.type) {
-      case "navigate":
-        if (action.payload.dashboard) {
-          window.location.hash = String(action.payload.dashboard);
-        }
-        break;
-      case "apply":
-        sendChat(`Apply to ${String(action.payload.placementTitle || "this placement")}`);
-        break;
-      case "check_eligibility":
-        sendChat(`Am I eligible for ${String(action.payload.placementTitle || "this placement")}?`);
-        break;
-      case "open_placement":
-        sendChat(`Tell me about ${String(action.payload.placementTitle || "this placement")}`);
-        break;
-      default:
-        break;
+    try {
+      if (selectedGroup) {
+        await apiCall(`/chat/groups/${selectedGroup.id}/messages`, {
+          method: "POST",
+          body: JSON.stringify({
+            content: content || "[Voice message]",
+            type: blob ? "voice" : "text",
+            file_name: blob ? "voice_message.webm" : undefined,
+            file_size: blob ? blob.size : undefined,
+            mime_type: blob ? "audio/webm" : undefined,
+          }),
+        });
+        loadGroupMessages(selectedGroup.id);
+      } else if (selectedDirectChat) {
+        const otherId = selectedDirectChat.user1_id === session?.id ? selectedDirectChat.user2_id : selectedDirectChat.user1_id;
+        await apiCall("/chat/direct", {
+          method: "POST",
+          body: JSON.stringify({
+            recipient_id: otherId,
+            content: content || "[Voice message]",
+            type: blob ? "voice" : "text",
+            file_name: blob ? "voice_message.webm" : undefined,
+            file_size: blob ? blob.size : undefined,
+            mime_type: blob ? "audio/webm" : undefined,
+          }),
+        });
+        loadDirectMessages(otherId);
+      }
+    } catch (e) {
+      console.error("Failed to send message:", e);
     }
-  }, [sendChat]);
+  };
 
-  const startRecording = useCallback(async () => {
+  const startRecording = async () => {
     try {
       await voiceService.startRecording();
       setIsRecording(true);
       setVoiceState("listening");
-    } catch (error) {
-      console.error("Failed to start recording:", error);
-      alert("Could not access microphone. Please check permissions.");
+    } catch (e) {
+      alert("Could not access microphone");
     }
-  }, []);
+  };
 
-  const stopRecording = useCallback(async () => {
+  const stopRecording = async () => {
     try {
-      const audioBlob = await voiceService.stopRecording();
+      const blob = await voiceService.stopRecording();
+      setRecordingBlob(blob);
       setIsRecording(false);
       setVoiceState("ready");
-      
-      // Convert speech to text
-      const text = await voiceService.speechToText(audioBlob);
-      if (text.trim()) {
-        setInputText(text);
-        handleSend();
-      }
-    } catch (error) {
-      console.error("Recording failed:", error);
+    } catch (e) {
       setIsRecording(false);
       setVoiceState("idle");
     }
-  }, [handleSend]);
+  };
 
-  const cancelRecording = useCallback(() => {
+  const cancelRecording = () => {
     voiceService.cancelRecording();
     setIsRecording(false);
     setVoiceState("idle");
-  }, []);
-
-  const playMessage = useCallback(async (text: string) => {
-    if (isPlaying && currentAudio) {
-      voiceService.stopAudio(currentAudio);
-      setIsPlaying(false);
-      setVoiceState(voiceEnabled ? "ready" : "idle");
-      return;
-    }
-
-    try {
-      setVoiceState("speaking");
-      const audio = await voiceService.textToSpeech(text, { lang: "EN-US" });
-      if (audio) {
-        setCurrentAudio(audio);
-        setIsPlaying(true);
-        await voiceService.playAudio(audio);
-        setIsPlaying(false);
-        setCurrentAudio(null);
-        setVoiceState(voiceEnabled ? "ready" : "idle");
-      }
-    } catch (error) {
-      console.error("TTS failed:", error);
-      setIsPlaying(false);
-      setVoiceState(voiceEnabled ? "ready" : "idle");
-    }
-  }, [isPlaying, currentAudio, voiceEnabled]);
-
-  const handleVoiceToggle = useCallback(() => {
-    setVoiceEnabled(!voiceEnabled);
-    if (!voiceEnabled) {
-      playMessage(INTRO_MESSAGE);
-      setVoiceState("ready");
-    } else {
-      setVoiceState("idle");
-      if (isPlaying && currentAudio) {
-        voiceService.stopAudio(currentAudio);
-        setIsPlaying(false);
-      }
-    }
-  }, [voiceEnabled, playMessage, isPlaying, currentAudio]);
-
-  // Auto-play bot messages when voice is enabled
-  useEffect(() => {
-    if (voiceEnabled && chatMessages.length > 0) {
-      const lastMsg = chatMessages[chatMessages.length - 1];
-      if (lastMsg.who === "INTERN" && !lastMsg.isTyping && lastMsg.text !== INTRO_MESSAGE) {
-        const timer = setTimeout(() => playMessage(lastMsg.text), 500);
-        return () => clearTimeout(timer);
-      }
-    }
-  }, [chatMessages, voiceEnabled, playMessage]);
-
-  // Extract country code from phone number
-  const extractCountryCode = (phone: string): string => {
-    const match = phone.match(/^\+(\d{1,4})/);
-    return match ? `+${match[1]}` : "+256";
+    setRecordingBlob(null);
   };
 
-  // Render inline handoff inputs
-  const renderHandoffInputs = () => {
-    const step = handoffState.step;
-    if (step === "idle" || step === "complete") return null;
+  const formatTime = (iso: string) => {
+    const date = new Date(iso);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    if (diff < 60000) return "Just now";
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+    return date.toLocaleDateString();
+  };
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const phoneRegex = /^[\+]?[\d\s\-\(\)]{10,}$/;
-
-    if (step === "collecting_email") {
-      return (
-        <div className="handoff-input-inline">
-          <div className="input-label">What's your email address?</div>
-          <div className="input-row-inline">
-            <input
-              type="email"
-              placeholder="you@example.com"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && emailRegex.test(e.currentTarget.value)) {
-                  setHandoffState({ ...handoffState, email: e.currentTarget.value, step: "collecting_phone" });
-                }
-              }}
-              onBlur={(e) => {
-                if (emailRegex.test(e.currentTarget.value)) {
-                  setHandoffState({ ...handoffState, email: e.currentTarget.value, step: "collecting_phone" });
-                }
-              }}
-              autoFocus
-            />
-            {!emailRegex.test(handoffState.email) && handoffState.email && (
-              <span className="input-error">Please enter a valid email</span>
-            )}
-          </div>
-        </div>
-      );
+  const createGroup = async () => {
+    if (!newGroupData.name.trim()) return;
+    try {
+      await apiCall("/chat/groups", {
+        method: "POST",
+        body: JSON.stringify(newGroupData),
+      });
+      setShowCreateGroup(false);
+      setNewGroupData({ name: "", type: "mixed", description: "", member_ids: [] });
+      loadGroups();
+    } catch (e) {
+      console.error("Failed to create group:", e);
     }
+  };
 
-    if (step === "collecting_phone") {
-      const countryCode = handoffState.email ? extractCountryCode(handoffState.phone) : "+256";
-      return (
-        <div className="handoff-input-inline">
-          <div className="input-label">Got it. Now your phone number with country code (e.g., +256 700 123456):</div>
-          <div className="input-row-inline">
-            <input
-              type="tel"
-              placeholder="+256 700 123456"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && phoneRegex.test(e.currentTarget.value)) {
-                  setHandoffState({ ...handoffState, phone: e.currentTarget.value, step: "collecting_method" });
-                }
-              }}
-              onBlur={(e) => {
-                if (phoneRegex.test(e.currentTarget.value)) {
-                  setHandoffState({ ...handoffState, phone: e.currentTarget.value, step: "collecting_method" });
-                }
-              }}
-              autoFocus
-            />
-            {!phoneRegex.test(handoffState.phone) && handoffState.phone && (
-              <span className="input-error">Include country code (e.g., +256...)</span>
-            )}
-          </div>
-        </div>
-      );
+  const getDisplayContent = (msg: ChatMessage) => {
+    const preferredLang = settings?.preferred_language || "en";
+    if (msg.translations && msg.translations[preferredLang] && settings?.auto_translate) {
+      return settings.show_original
+        ? `${msg.translations[preferredLang]}\n\n— Original: ${msg.content}`
+        : msg.translations[preferredLang];
     }
-
-    if (step === "collecting_method") {
-      return (
-        <div className="handoff-input-inline">
-          <div className="input-label">Perfect! How should our team contact you?</div>
-          <div className="contact-options">
-            <button
-              type="button"
-              className="contact-option whatsapp"
-              onClick={() => {
-                setHandoffState({ ...handoffState, preferredContact: "whatsapp", step: "complete" });
-                const whatsappUrl = `https://wa.me/${extractCountryCode(handoffState.phone).replace("+", "")}${handoffState.phone.replace(/\D/g, "")}?text=Hello%20Brightworks%20Support%2C%20I%20need%20assistance.`;
-                window.open(whatsappUrl, "_blank");
-              }}
-            >
-              <Icon name="send" size={18} />
-              <span>WhatsApp</span>
-            </button>
-            <button
-              type="button"
-              className="contact-option email"
-              onClick={() => {
-                setHandoffState({ ...handoffState, preferredContact: "email", step: "complete" });
-                const mailtoUrl = `mailto:support@brightworks.com?subject=Support%20Request&body=Hello%20Brightworks%20Support%2C%0A%0AI%20need%20assistance.%0A%0AEmail%3A%20${encodeURIComponent(handoffState.email)}%0APhone%3A%20${encodeURIComponent(handoffState.phone)}`;
-                window.open(mailtoUrl, "_blank");
-              }}
-            >
-              <Icon name="inbox" size={18} />
-              <span>Email</span>
-            </button>
-          </div>
-        </div>
-      );
-    }
-
-    return null;
+    return msg.content;
   };
 
   return (
     <>
+      {/* Chat FAB - always visible */}
       <button type="button" className="chat-fab" onClick={openChat}>
-        <span className="dot"></span> Ask Brightworks
+        <span className="dot"></span> Messages
       </button>
 
+      {/* Drawer veil */}
       <div
         className={`drawer-veil ${isChatOpen ? "on" : ""}`}
         id="chatVeil"
         onClick={closeChat}
       ></div>
 
+      {/* Chat Drawer */}
       <aside className={`chat ${isChatOpen ? "on" : ""}`} id="chat">
         <div className="chat-h">
-          <div className="chat-header-left">
-            <div className="assistant-avatar" aria-hidden="true">
-              <Icon name="user" size={20} />
-            </div>
-            <div className="assistant-info">
-              <b>Brightworks Virtual Assistant</b>
-              <span className="assistant-status">
-                {voiceEnabled && (
-                  <>
-                    <span className={`voice-indicator ${voiceState}`} aria-hidden="true"></span>
-                    {voiceState === "listening" && "Listening..."}
-                    {voiceState === "speaking" && "Speaking..."}
-                    {voiceState === "ready" && "Voice ready"}
-                    {voiceState === "idle" && "Voice on"}
-                  </>
-                )}
-                {!voiceEnabled && "Your career coach"}
-              </span>
-            </div>
+          <div>
+            <b>Brightworks Virtual Assistant</b>
+            <div className="st"><i></i> WhatsApp-style chat • Groups • Direct messages</div>
           </div>
-          <div className="chat-header-right">
-            <button 
-              type="button" 
-              className={`voice-toggle ${voiceEnabled ? "active" : ""} ${voiceState !== "idle" ? "pulse" : ""}`}
-              onClick={handleVoiceToggle}
-              aria-label={voiceEnabled ? "Disable voice" : "Enable voice"}
-              aria-pressed={voiceEnabled}
-            >
-              <Icon name={voiceEnabled ? "bell" : "send"} size={20} />
-              <span className="voice-tooltip">{voiceEnabled ? "Voice on" : "Voice off"}</span>
-            </button>
-            <button type="button" onClick={closeChat} aria-label="Close chat" className="close-btn">
-              <Icon name="x" size={18} />
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <button type="button" onClick={closeChat} aria-label="Close">
+              <Icon name="x" size={16} />
             </button>
           </div>
         </div>
 
         <div className="chat-b" id="chatLog" ref={chatLogRef}>
           {chatMessages.length === 0 && (
-            <div className="msg bot welcome-message" style={{ animation: "fadeIn 0.3s ease" }}>
+            <div className="msg bot welcome-message">
               <div className="msg-avatar"><Icon name="user" size={16} /></div>
               <div className="msg-content">
                 <span dangerouslySetInnerHTML={{ __html: renderMarkdown(INTRO_MESSAGE) }} />
               </div>
             </div>
           )}
-          
           {chatMessages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`msg ${msg.who === "INTERN" ? "bot" : "user"}`}
-              style={{ animation: "fadeIn 0.2s ease" }}
-            >
-              {msg.who === "INTERN" && (
-                <div className="msg-avatar"><Icon name="user" size={16} /></div>
-              )}
+            <div key={msg.id} className={`msg ${msg.who === "INTERN" ? "bot" : "me"}`}>
+              {msg.who === "INTERN" && <div className="msg-avatar"><Icon name="user" size={16} /></div>}
               <div className="msg-content">
                 {msg.isTyping ? (
-                  <span className="typing-indicator" aria-label="Assistant is typing">
-                    <span></span><span></span><span></span>
-                  </span>
+                  <span style={{ fontFamily: "var(--mono)", fontSize: "10px", letterSpacing: ".25em" }}>···</span>
                 ) : (
                   <>
                     <span dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }} />
                     {msg.actions && msg.actions.length > 0 && (
-                      <div className="msg-actions">
+                      <div className="msg-actions" style={{ marginTop: "8px", display: "flex", gap: "6px", flexWrap: "wrap" }}>
                         {msg.actions.map((action: AdvisorAction, idx: number) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            className="action-btn"
-                            onClick={() => handleAction(action)}
-                          >
+                          <button key={idx} type="button" className="btn btn-sm" onClick={() => { closeChat(); handleAdvisorAction(action); }}>
                             {action.label}
                           </button>
                         ))}
@@ -377,84 +356,114 @@ export function ChatDrawer() {
               </div>
             </div>
           ))}
-          
-          {/* Inline handoff inputs */}
-          {renderHandoffInputs()}
-          
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="chat-suggestions" role="list" aria-label="Suggested questions">
-          <button type="button" role="listitem" onClick={() => askChat("Am I eligible for the Data Analyst Intern?")}>
-            Am I eligible?
-          </button>
-          <button type="button" role="listitem" onClick={() => askChat("What documents do I still need?")}>
-            What do I need to upload?
-          </button>
-          <button type="button" role="listitem" onClick={() => askChat("Which placement fits me best?")}>
-            Which placement fits me?
-          </button>
-          <button type="button" role="listitem" onClick={() => askChat("What should I learn to get more matches?")}>
-            What should I learn?
-          </button>
+        <div className="chat-q">
+          <button type="button" onClick={() => askChat("Am I eligible for the Data Analyst Intern?")}>Am I eligible?</button>
+          <button type="button" onClick={() => askChat("What documents do I still need?")}>What documents?</button>
+          <button type="button" onClick={() => askChat("Which placement fits me best?")}>Best placement?</button>
+          <button type="button" onClick={() => askChat("What should I learn?")}>What to learn?</button>
         </div>
 
         <div className="chat-in">
           <div className="input-wrapper">
             {isRecording && (
-              <div className="recording-bar" role="status" aria-live="polite">
-                <span className="recording-dot" aria-hidden="true"></span>
-                <span>Listening... tap to stop</span>
-                <button type="button" className="btn-icon-sm" onClick={stopRecording} aria-label="Stop recording">
-                  <Icon name="x" size={14} />
-                </button>
+              <div className="voice-recording">
+                <div className="recording-indicator" style={{ width: "10px", height: "10px", borderRadius: "50%", background: "var(--danger)", animation: "pulse 1s infinite" }} />
+                <span style={{ fontSize: "13px", color: "var(--danger)", fontWeight: 500 }}>Recording... tap to stop</span>
+                <button type="button" className="btn btn-sm btn-danger" onClick={stopRecording}>Stop</button>
+                <button type="button" className="btn btn-sm btn-secondary" onClick={cancelRecording}>Cancel</button>
               </div>
             )}
             <div className="input-row">
               <button
                 type="button"
-                className={`voice-btn ${voiceEnabled ? "active" : ""} ${voiceState === "listening" ? "recording" : ""} ${voiceState === "speaking" ? "speaking" : ""}`}
+                className={`voice-btn ${role === "admin" ? "admin-badge" : ""}`}
                 onClick={isRecording ? cancelRecording : startRecording}
                 disabled={isRecording}
-                aria-label={isRecording ? "Cancel voice input" : voiceEnabled ? "Voice input (enabled)" : "Voice input"}
-                aria-pressed={isRecording}
               >
-                <Icon name={isRecording ? "x" : "send"} size={20} />
-                {isRecording && <span className="recording-pulse" aria-hidden="true"></span>}
+                <Icon name="send" size={18} />
               </button>
               <input
                 id="chatText"
                 placeholder="Ask about a placement, a requirement or your file"
                 value={inputText}
-                onChange={(e) => setInputText(e.currentTarget.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleSend();
-                }}
-                aria-label="Chat message"
+                onChange={(e) => setInputText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") sendMessage(); }}
               />
-              <button type="button" onClick={handleSend} aria-label="Send message" className="send-btn">
-                <Icon name="arrow" size={18} />
+              <button type="button" onClick={sendMessage} aria-label="Send">
+                <Icon name="arrow" size={15} />
               </button>
             </div>
           </div>
         </div>
 
         <style jsx>{`
+          @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+          }
+          .chat-fab {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 1000;
+            background: var(--brand);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            padding: 12px 20px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          }
+          .chat-fab .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #10b981;
+            animation: pulse 1.5s infinite;
+          }
+          .drawer-veil {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 990;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+          }
+          .drawer-veil.on {
+            opacity: 1;
+            pointer-events: auto;
+          }
           .chat {
+            position: fixed;
+            inset: 0 auto 0 100%;
+            z-index: 1000;
+            width: 380px;
+            max-width: 90vw;
+            background: var(--bg);
+            border-left: 1px solid var(--rule);
+            box-shadow: -4px 0 24px rgba(0,0,0,0.15);
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
             display: flex;
             flex-direction: column;
-            height: 100%;
-            max-height: 70vh;
-            min-height: 400px;
-            width: 380px;
-            max-width: 100vw;
-            background: var(--bg);
-            border: 1px solid var(--rule);
-            border-radius: 12px 12px 0 0;
-            box-shadow: 0 -4px 24px rgba(0,0,0,0.15);
-            overflow: hidden;
+            height: 100vh;
           }
-          
+          .chat.on {
+            transform: translateX(0);
+          }
           .chat-h {
             display: flex;
             align-items: center;
@@ -462,124 +471,7 @@ export function ChatDrawer() {
             padding: 14px 16px;
             border-bottom: 1px solid var(--rule);
             background: var(--bg-elevated);
-            flex-shrink: 0;
           }
-          
-          .chat-header-left {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex: 1;
-            min-width: 0;
-          }
-          
-          .assistant-avatar {
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, var(--brand), var(--brand-hover));
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            flex-shrink: 0;
-          }
-          
-          .assistant-info {
-            display: flex;
-            flex-direction: column;
-            min-width: 0;
-          }
-          
-          .assistant-info b {
-            font-size: 14px;
-            color: var(--fg);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-          }
-          
-          .assistant-status {
-            font-size: 11px;
-            color: var(--muted);
-            display: flex;
-            align-items: center;
-            gap: 6px;
-          }
-          
-          .voice-indicator {
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            background: var(--muted);
-            flex-shrink: 0;
-          }
-          .voice-indicator.listening { background: var(--brand); animation: pulse 1s infinite; }
-          .voice-indicator.speaking { background: var(--success); animation: pulse 0.8s infinite; }
-          .voice-indicator.ready { background: var(--success); }
-          
-          .chat-header-right {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-          }
-          
-          .voice-toggle {
-            position: relative;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            border: none;
-            background: transparent;
-            color: var(--fg);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.2s ease;
-          }
-          .voice-toggle:hover { background: var(--brand-bg); }
-          .voice-toggle.active { background: var(--brand); color: white; }
-          .voice-toggle.pulse::after {
-            content: "";
-            position: absolute;
-            inset: -4px;
-            border-radius: 50%;
-            border: 2px solid var(--brand);
-            animation: pulse-ring 1.5s infinite;
-          }
-          .voice-tooltip {
-            position: absolute;
-            bottom: -28px;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: 10px;
-            background: var(--fg);
-            color: var(--bg);
-            padding: 2px 6px;
-            border-radius: 4px;
-            white-space: nowrap;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.2s;
-          }
-          .voice-toggle:hover .voice-tooltip { opacity: 1; }
-          
-          .close-btn {
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            border: none;
-            background: transparent;
-            color: var(--muted);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.2s ease;
-          }
-          .close-btn:hover { background: var(--brand-bg); color: var(--brand); }
-          
           .chat-b {
             flex: 1;
             overflow-y: auto;
@@ -587,104 +479,15 @@ export function ChatDrawer() {
             display: flex;
             flex-direction: column;
             gap: 12px;
-            min-height: 200px;
           }
-          
-          .msg {
-            display: flex;
-            gap: 10px;
-            max-width: 85%;
-          }
-          .msg.bot { align-self: flex-start; }
-          .msg.user { align-self: flex-end; flex-direction: row-reverse; }
-          
-          .msg-avatar {
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, var(--brand), var(--brand-hover));
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            flex-shrink: 0;
-            margin-top: 2px;
-          }
-          .msg.user .msg-avatar {
-            background: var(--brand-bg);
-            color: var(--brand);
-          }
-          
-          .msg-content {
-            background: var(--bg-elevated);
-            border-radius: 16px;
-            padding: 10px 14px;
-            font-size: 13.5px;
-            line-height: 1.5;
-            color: var(--fg);
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-          }
-          .msg.user .msg-content {
-            background: var(--brand);
-            color: white;
-            border-bottom-right-radius: 4px;
-          }
-          .msg.bot .msg-content {
-            border-bottom-left-radius: 4px;
-          }
-          
-          .welcome-message .msg-content {
-            background: var(--brand-bg);
-            border: 1px solid var(--brand-border);
-          }
-          
-          .typing-indicator {
-            display: flex;
-            gap: 3px;
-            padding: 4px 0;
-          }
-          .typing-indicator span {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: var(--muted);
-            animation: typing 1.4s infinite ease-in-out both;
-          }
-          .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
-          .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
-          
-          .msg-actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            margin-top: 8px;
-          }
-          
-          .action-btn {
-            font-size: 11px;
-            padding: 6px 12px;
-            border-radius: 20px;
-            border: 1px solid var(--brand-border);
-            background: var(--brand-bg);
-            color: var(--brand);
-            cursor: pointer;
-            transition: all 0.2s ease;
-          }
-          .action-btn:hover {
-            background: var(--brand);
-            color: white;
-            border-color: var(--brand);
-          }
-          
-          .chat-suggestions {
+          .chat-q {
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
             padding: 0 16px 12px;
             border-bottom: 1px solid var(--rule);
-            flex-shrink: 0;
           }
-          .chat-suggestions button {
+          .chat-q button {
             font-size: 11.5px;
             padding: 7px 12px;
             border-radius: 20px;
@@ -692,31 +495,24 @@ export function ChatDrawer() {
             background: var(--bg);
             color: var(--fg);
             cursor: pointer;
-            transition: all 0.2s ease;
-            white-space: nowrap;
           }
-          .chat-suggestions button:hover {
+          .chat-q button:hover {
             border-color: var(--brand);
             color: var(--brand);
-            background: var(--brand-bg);
           }
-          
           .chat-in {
             padding: 12px 16px;
             background: var(--bg-elevated);
-            flex-shrink: 0;
           }
-          
           .input-wrapper {
             display: flex;
             flex-direction: column;
             gap: 8px;
           }
-          
-          .recording-bar {
+          .voice-recording {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
             padding: 10px 14px;
             background: var(--danger-bg);
             border: 1px solid var(--danger-border);
@@ -724,35 +520,12 @@ export function ChatDrawer() {
             color: var(--danger);
             font-size: 12px;
             font-weight: 500;
-            animation: slideDown 0.2s ease;
           }
-          .recording-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--danger);
-            animation: pulse 0.8s infinite;
-          }
-          .recording-bar .btn-icon-sm {
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            border: none;
-            background: transparent;
-            color: inherit;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            margin-left: auto;
-          }
-          
           .input-row {
             display: flex;
             align-items: center;
             gap: 8px;
           }
-          
           .voice-btn {
             width: 44px;
             height: 44px;
@@ -764,23 +537,10 @@ export function ChatDrawer() {
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.2s;
             flex-shrink: 0;
-            position: relative;
           }
           .voice-btn:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
-          .voice-btn.active { border-color: var(--brand); background: var(--brand-bg); color: var(--brand); }
-          .voice-btn.recording { border-color: var(--danger); background: var(--danger-bg); color: var(--danger); animation: pulse-bg 1s infinite; }
-          .voice-btn.speaking { border-color: var(--success); background: var(--success-bg); color: var(--success); }
-          .voice-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-          .recording-pulse {
-            position: absolute;
-            inset: -4px;
-            border-radius: 16px;
-            border: 2px solid var(--danger);
-            animation: pulse-ring 1s infinite;
-          }
-          
           .input-row input {
             flex: 1;
             height: 44px;
@@ -791,13 +551,7 @@ export function ChatDrawer() {
             color: var(--fg);
             font-size: 14px;
             outline: none;
-            transition: border-color 0.2s, box-shadow 0.2s;
           }
-          .input-row input:focus {
-            border-color: var(--brand);
-            box-shadow: 0 0 0 3px var(--brand-bg);
-          }
-          
           .send-btn {
             width: 44px;
             height: 44px;
@@ -809,130 +563,72 @@ export function ChatDrawer() {
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            transition: all 0.2s ease;
-            flex-shrink: 0;
           }
-          .send-btn:hover { background: var(--brand-hover); transform: scale(1.02); }
-          .send-btn:active { transform: scale(0.98); }
-          
-          /* Handoff inline inputs */
-          .handoff-input-inline {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            padding: 12px 16px;
-            background: var(--brand-bg);
-            border: 1px solid var(--brand-border);
-            border-radius: 12px;
-            margin: 8px 16px;
-            animation: slideDown 0.2s ease;
-          }
-          .handoff-input-inline .input-label {
-            font-size: 13px;
-            color: var(--fg);
-            font-weight: 500;
-          }
-          .handoff-input-inline .input-row-inline {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-          }
-          .handoff-input-inline input {
-            padding: 12px 14px;
-            border: 1px solid var(--rule);
-            border-radius: 8px;
-            background: var(--bg);
-            color: var(--fg);
-            font-size: 14px;
-            outline: none;
-            transition: border-color 0.2s, box-shadow 0.2s;
-          }
-          .handoff-input-inline input:focus {
-            border-color: var(--brand);
-            box-shadow: 0 0 0 3px var(--brand-bg);
-          }
-          .handoff-input-inline .input-error {
-            font-size: 11px;
-            color: var(--danger);
-          }
-          
-          .contact-options {
+          .msg {
             display: flex;
             gap: 10px;
-            padding-top: 4px;
+            max-width: 85%;
+            animation: fadeIn 0.2s ease;
           }
-          .contact-option {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            padding: 12px 16px;
-            border: 1px solid var(--rule);
-            border-radius: 10px;
-            background: var(--bg);
-            color: var(--fg);
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s ease;
-          }
-          .contact-option:hover {
-            border-color: var(--brand);
-            color: var(--brand);
-            background: var(--brand-bg);
-          }
-          .contact-option.whatsapp:hover {
-            border-color: #25D366;
-            color: #25D366;
-            background: rgba(37, 211, 102, 0.1);
-          }
-          .contact-option.email:hover {
-            border-color: var(--brand);
-            color: var(--brand);
-            background: var(--brand-bg);
-          }
-          
-          @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(4px); }
-            to { opacity: 1; transform: translateY(0); }
-          }
-          @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
-          }
-          @keyframes pulse-bg {
-            0%, 100% { background: var(--danger-bg); }
-            50% { background: var(--danger-border); }
-          }
-          @keyframes pulse-ring {
-            0% { transform: scale(1); opacity: 0.8; }
-            100% { transform: scale(1.5); opacity: 0; }
-          }
-          @keyframes typing {
-            0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
-            40% { transform: scale(1); opacity: 1; }
-          }
-          @keyframes slideDown {
-            from { opacity: 0; transform: translateY(-8px); }
-            to { opacity: 1; transform: translateY(0); }
-          }
-          
-          .btn-icon-sm {
+          .msg.bot { align-self: flex-start; }
+          .msg.me { align-self: flex-end; flex-direction: row-reverse; }
+          .msg-avatar {
             width: 28px;
             height: 28px;
             border-radius: 50%;
-            border: none;
-            background: transparent;
-            color: inherit;
+            background: linear-gradient(135deg, var(--brand), var(--brand-hover));
             display: flex;
             align-items: center;
             justify-content: center;
+            color: white;
+            flex-shrink: 0;
+          }
+          .msg.me .msg-avatar { background: var(--brand-bg); color: var(--brand); }
+          .msg-content {
+            background: var(--bg-elevated);
+            border-radius: 16px;
+            padding: 10px 14px;
+            font-size: 13.5px;
+            line-height: 1.5;
+            color: var(--fg);
+          }
+          .msg.me .msg-content { background: var(--brand); color: white; border-bottom-right-radius: 4px; }
+          .msg.bot .msg-content { border-bottom-left-radius: 4px; }
+          .welcome-message .msg-content { background: var(--brand-bg); border: 1px solid var(--brand-border); }
+          .msg-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+          .action-btn {
+            font-size: 11px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            border: 1px solid var(--brand-border);
+            background: var(--brand-bg);
+            color: var(--brand);
             cursor: pointer;
           }
-          .btn-icon-sm:hover { background: rgba(0,0,0,0.08); }
+          .btn { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--rule); background: var(--bg); color: var(--fg); cursor: pointer; font-size: 13px; }
+          .btn.btn-sm { padding: 6px 12px; font-size: 11px; }
+          .btn.btn-danger { background: var(--danger); color: white; border-color: var(--danger); }
+          .btn.btn-secondary { background: transparent; color: var(--muted); }
+          .admin-badge { position: relative; }
+          .admin-badge::after { content: "ADMIN"; position: absolute; top: -8px; right: -8px; font-size: 8px; background: var(--danger); color: white; padding: 2px 4px; border-radius: 6px; }
+          .btn-icon-sm { width: 28px; height: 28px; border-radius: 50%; border: none; background: transparent; display: flex; align-items: center; justify-content: center; cursor: pointer; }
         `}</style>
       </aside>
     </>
   );
+}
+
+function handleAdvisorAction(action: AdvisorAction) {
+  switch (action.type) {
+    case "apply":
+      break;
+    case "check_eligibility":
+      break;
+    case "open_placement":
+      break;
+    case "human_handoff":
+      break;
+    default:
+      break;
+  }
 }
