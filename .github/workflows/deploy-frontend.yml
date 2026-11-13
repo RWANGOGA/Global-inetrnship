@@ -35,6 +35,9 @@ jobs:
 
       - name: Build frontend (static export)
         working-directory: intern
+        env:
+          NEXT_PUBLIC_API_BASE_URL: https://global-inetrnship.onrender.com/api
+          NEXT_PUBLIC_DEEPL_API_KEY: ${{ secrets.DEEPL_API_KEY }}
         run: |
           NEXT_EXPORT=1 npm run build
 
