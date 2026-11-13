@@ -21,6 +21,10 @@ class VoiceNotConfigured(RuntimeError):
     """Raised when the voice service is called but DeepL is not configured."""
 
 
+class TranslationNotConfigured(RuntimeError):
+    """Raised when the translation service is called but DeepL is not configured."""
+
+
 class AuthenticationError(DomainError):
     """Bad credentials or an invalid/expired token (maps to HTTP 401)."""
 
