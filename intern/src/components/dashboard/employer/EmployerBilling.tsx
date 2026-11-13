@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 import { useApp } from "../../../context/AppContext";
-import type { Subscription, InvoiceResponse, TransactionResponse, GatewayOption } from "../../../lib/api";
+import type { Subscription } from "../../../types";
+import type { InvoiceResponse, TransactionResponse, GatewayOption } from "../../../lib/api";
 import { fetchInvoices, fetchTransactions, fetchGateways } from "../../../lib/api";
 
 export function EmployerBilling() {

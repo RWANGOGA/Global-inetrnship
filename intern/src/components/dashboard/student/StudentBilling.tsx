@@ -2,8 +2,20 @@
 
 import React, { useEffect, useState } from "react";
 import { useApp } from "../../../context/AppContext";
-import type { InvoiceResponse, StudentUsageResponse } from "../../../lib/api";
+import type { InvoiceResponse } from "../../../lib/api";
 import { fetchInvoices } from "../../../lib/api";
+
+interface StudentUsageResponse {
+  id: string;
+  user_id: string;
+  month: string;
+  application_count: number;
+  billed_count: number;
+  last_billed_at: string | null;
+  free_limit: number;
+  overage_apps: number;
+  overage_cents: number;
+}
 
 const STUDENT_FREE_APPS = 30;
 const STUDENT_OVERAGE_CENTS = 50;

@@ -449,13 +449,13 @@ export function EmployerPlacements() {
                 gap: "10px",
               }}
             >
-              <Icon name={remaining === 0 ? "alert" : "alert"} size={16} />
+              <Icon name={remaining === 0 ? "alert-triangle" : "alert-triangle"} size={16} />
               <div>
                 <strong>{remaining === 0 ? "Placement limit reached" : "Approaching placement limit"}</strong>
                 <div style={{ marginTop: "2px", fontSize: "12px", opacity: 0.9 }}>
-                  {remaining === 0
-                    ? "Your Free plan allows 3 placements. Upgrade to Pro for unlimited."
-                    : `You have ${remaining} of ${FREE_ALLOWANCE} free placements remaining.`}
+{remaining === 0
+                      ? "Your Free plan allows 3 placements. Upgrade to Pro for unlimited."
+                      : `You have ${remaining} of ${freeAllowance} free placements remaining.`}
                 </div>
               </div>
             </div>
@@ -722,7 +722,7 @@ export function EmployerPlacements() {
                   </>
                 ) : (!isPremium && remaining === 0) ? (
                   <>
-                    <span style={{ marginRight: "8px" }}><Icon name="lock" size={14} /></span> Upgrade Required
+                    <span style={{ marginRight: "8px" }}><Icon name="pin" size={14} /></span> Upgrade Required
                   </>
                 ) : (
                   <>

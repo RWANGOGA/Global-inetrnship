@@ -160,7 +160,7 @@ export function AdminRequirements() {
                 <div className="reqrow" style={{ padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
                   <div className="k">Grade</div>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <b style>{{ fontSize: "15px" }}>{p.grade || "—"}</b>
+                    <b style={{ fontSize: "15px" }}>{p.grade || "—"}</b>
                   </div>
                 </div>
                 <div className="reqrow" style={{ padding: "8px 0", borderBottom: 0 }}>

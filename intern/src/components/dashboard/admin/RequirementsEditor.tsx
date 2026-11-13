@@ -30,11 +30,11 @@ export function RequirementsEditor({ placement, availableCourses, gradeOptions, 
   const [saving, setSaving] = useState(false);
 
   const toggle = useCallback(
-    (set: Set<string>, value: string) => {
-      const next = new Set(set);
+    (s: Set<string>, value: string) => {
+      const next = new Set(s);
       if (next.has(value)) next.delete(value);
       else next.add(value);
-      set(next);
+      return next;
     },
     []
   );
@@ -80,7 +80,7 @@ export function RequirementsEditor({ placement, availableCourses, gradeOptions, 
               <input
                 type="checkbox"
                 checked={courses.has(c)}
-                onChange={() => toggle(courses, c)}
+                onChange={() => setCourses(toggle(courses, c))}
               />
               {c}
             </label>
@@ -139,7 +139,7 @@ export function RequirementsEditor({ placement, availableCourses, gradeOptions, 
               <input
                 type="checkbox"
                 checked={docs.has(d)}
-                onChange={() => toggle(docs, d)}
+                onChange={() => setDocs(toggle(docs, d))}
               />
               {d}
             </label>
