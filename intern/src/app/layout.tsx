@@ -1,5 +1,8 @@
+"use client";
+
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { ChatDrawer } from "../components/common/ChatDrawer";
 
 export const metadata: Metadata = {
   title: "BrighterWorks — internship and jobs platform",
@@ -31,7 +34,10 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <ChatDrawer />
+      </body>
     </html>
   );
 }
