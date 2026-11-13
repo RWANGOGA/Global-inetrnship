@@ -249,6 +249,7 @@ class AdvisorRequest(BaseModel):
     cgpa: float = 0.0
     role: str = "student"
     history: list[dict] = []
+    is_first_message: bool = False
 
 
 class AdvisorAction(BaseModel):

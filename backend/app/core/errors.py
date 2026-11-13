@@ -17,6 +17,10 @@ class LLMNotConfigured(RuntimeError):
     """Raised when the advisor is called but Groq is not configured."""
 
 
+class VoiceNotConfigured(RuntimeError):
+    """Raised when the voice service is called but DeepL is not configured."""
+
+
 class AuthenticationError(DomainError):
     """Bad credentials or an invalid/expired token (maps to HTTP 401)."""
 
