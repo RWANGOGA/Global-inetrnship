@@ -18,6 +18,8 @@ export function ChatDrawer() {
     askChat,
     student,
     role,
+    handoffState,
+    setHandoffState,
   } = useApp();
   
   const [inputText, setInputText] = useState("");
@@ -135,7 +137,6 @@ export function ChatDrawer() {
   const handleVoiceToggle = useCallback(() => {
     setVoiceEnabled(!voiceEnabled);
     if (!voiceEnabled) {
-      // Play introduction when voice is first enabled
       playMessage(INTRO_MESSAGE);
       setVoiceState("ready");
     } else {
@@ -157,6 +158,114 @@ export function ChatDrawer() {
       }
     }
   }, [chatMessages, voiceEnabled, playMessage]);
+
+  // Extract country code from phone number
+  const extractCountryCode = (phone: string): string => {
+    const match = phone.match(/^\+(\d{1,4})/);
+    return match ? `+${match[1]}` : "+256";
+  };
+
+  // Render inline handoff inputs
+  const renderHandoffInputs = () => {
+    const step = handoffState.step;
+    if (step === "idle" || step === "complete") return null;
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const phoneRegex = /^[\+]?[\d\s\-\(\)]{10,}$/;
+
+    if (step === "collecting_email") {
+      return (
+        <div className="handoff-input-inline">
+          <div className="input-label">What's your email address?</div>
+          <div className="input-row-inline">
+            <input
+              type="email"
+              placeholder="you@example.com"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && emailRegex.test(e.currentTarget.value)) {
+                  setHandoffState({ ...handoffState, email: e.currentTarget.value, step: "collecting_phone" });
+                }
+              }}
+              onBlur={(e) => {
+                if (emailRegex.test(e.currentTarget.value)) {
+                  setHandoffState({ ...handoffState, email: e.currentTarget.value, step: "collecting_phone" });
+                }
+              }}
+              autoFocus
+            />
+            {!emailRegex.test(handoffState.email) && handoffState.email && (
+              <span className="input-error">Please enter a valid email</span>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    if (step === "collecting_phone") {
+      const countryCode = handoffState.email ? extractCountryCode(handoffState.phone) : "+256";
+      return (
+        <div className="handoff-input-inline">
+          <div className="input-label">Got it. Now your phone number with country code (e.g., +256 700 123456):</div>
+          <div className="input-row-inline">
+            <input
+              type="tel"
+              placeholder="+256 700 123456"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && phoneRegex.test(e.currentTarget.value)) {
+                  setHandoffState({ ...handoffState, phone: e.currentTarget.value, step: "collecting_method" });
+                }
+              }}
+              onBlur={(e) => {
+                if (phoneRegex.test(e.currentTarget.value)) {
+                  setHandoffState({ ...handoffState, phone: e.currentTarget.value, step: "collecting_method" });
+                }
+              }}
+              autoFocus
+            />
+            {!phoneRegex.test(handoffState.phone) && handoffState.phone && (
+              <span className="input-error">Include country code (e.g., +256...)</span>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    if (step === "collecting_method") {
+      return (
+        <div className="handoff-input-inline">
+          <div className="input-label">Perfect! How should our team contact you?</div>
+          <div className="contact-options">
+            <button
+              type="button"
+              className="contact-option whatsapp"
+              onClick={() => {
+                setHandoffState({ ...handoffState, preferredContact: "whatsapp", step: "complete" });
+                const whatsappUrl = `https://wa.me/${extractCountryCode(handoffState.phone).replace("+", "")}${handoffState.phone.replace(/\D/g, "")}?text=Hello%20Brightworks%20Support%2C%20I%20need%20assistance.`;
+                window.open(whatsappUrl, "_blank");
+              }}
+            >
+              <Icon name="send" size={18} />
+              <span>WhatsApp</span>
+            </button>
+            <button
+              type="button"
+              className="contact-option email"
+              onClick={() => {
+                setHandoffState({ ...handoffState, preferredContact: "email", step: "complete" });
+                const mailtoUrl = `mailto:support@brightworks.com?subject=Support%20Request&body=Hello%20Brightworks%20Support%2C%0A%0AI%20need%20assistance.%0A%0AEmail%3A%20${encodeURIComponent(handoffState.email)}%0APhone%3A%20${encodeURIComponent(handoffState.phone)}`;
+                window.open(mailtoUrl, "_blank");
+              }}
+            >
+              <Icon name="inbox" size={18} />
+              <span>Email</span>
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
 
   return (
     <>
@@ -256,6 +365,9 @@ export function ChatDrawer() {
             </div>
           ))}
           
+          {/* Inline handoff inputs */}
+          {renderHandoffInputs()}
+          
           <div ref={messagesEndRef} />
         </div>
 
@@ -301,7 +413,7 @@ export function ChatDrawer() {
                 id="chatText"
                 placeholder="Ask about a placement, a requirement or your file"
                 value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
+                onChange={(e) => setInputText(e.currentTarget.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleSend();
                 }}
@@ -319,7 +431,8 @@ export function ChatDrawer() {
             display: flex;
             flex-direction: column;
             height: 100%;
-            max-height: 600px;
+            max-height: 70vh;
+            min-height: 400px;
             width: 380px;
             max-width: 100vw;
             background: var(--bg);
@@ -336,6 +449,7 @@ export function ChatDrawer() {
             padding: 14px 16px;
             border-bottom: 1px solid var(--rule);
             background: var(--bg-elevated);
+            flex-shrink: 0;
           }
           
           .chat-header-left {
@@ -460,6 +574,7 @@ export function ChatDrawer() {
             display: flex;
             flex-direction: column;
             gap: 12px;
+            min-height: 200px;
           }
           
           .msg {
@@ -554,6 +669,7 @@ export function ChatDrawer() {
             gap: 8px;
             padding: 0 16px 12px;
             border-bottom: 1px solid var(--rule);
+            flex-shrink: 0;
           }
           .chat-suggestions button {
             font-size: 11.5px;
@@ -575,6 +691,7 @@ export function ChatDrawer() {
           .chat-in {
             padding: 12px 16px;
             background: var(--bg-elevated);
+            flex-shrink: 0;
           }
           
           .input-wrapper {
@@ -684,6 +801,84 @@ export function ChatDrawer() {
           }
           .send-btn:hover { background: var(--brand-hover); transform: scale(1.02); }
           .send-btn:active { transform: scale(0.98); }
+          
+          /* Handoff inline inputs */
+          .handoff-input-inline {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 12px 16px;
+            background: var(--brand-bg);
+            border: 1px solid var(--brand-border);
+            border-radius: 12px;
+            margin: 8px 16px;
+            animation: slideDown 0.2s ease;
+          }
+          .handoff-input-inline .input-label {
+            font-size: 13px;
+            color: var(--fg);
+            font-weight: 500;
+          }
+          .handoff-input-inline .input-row-inline {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+          }
+          .handoff-input-inline input {
+            padding: 12px 14px;
+            border: 1px solid var(--rule);
+            border-radius: 8px;
+            background: var(--bg);
+            color: var(--fg);
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+          }
+          .handoff-input-inline input:focus {
+            border-color: var(--brand);
+            box-shadow: 0 0 0 3px var(--brand-bg);
+          }
+          .handoff-input-inline .input-error {
+            font-size: 11px;
+            color: var(--danger);
+          }
+          
+          .contact-options {
+            display: flex;
+            gap: 10px;
+            padding-top: 4px;
+          }
+          .contact-option {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 16px;
+            border: 1px solid var(--rule);
+            border-radius: 10px;
+            background: var(--bg);
+            color: var(--fg);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+          }
+          .contact-option:hover {
+            border-color: var(--brand);
+            color: var(--brand);
+            background: var(--brand-bg);
+          }
+          .contact-option.whatsapp:hover {
+            border-color: #25D366;
+            color: #25D366;
+            background: rgba(37, 211, 102, 0.1);
+          }
+          .contact-option.email:hover {
+            border-color: var(--brand);
+            color: var(--brand);
+            background: var(--brand-bg);
+          }
           
           @keyframes fadeIn {
             from { opacity: 0; transform: translateY(4px); }
