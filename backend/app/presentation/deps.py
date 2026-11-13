@@ -16,6 +16,7 @@ from app.application.services import (
     ApplicationService,
     BillingService,
     LearningResourceService,
+    LearningService,
     MatchingService,
     PlacementService,
     SavedService,
@@ -26,7 +27,7 @@ from app.application.services import (
 from app.core.errors import AuthenticationError, UserNotFound
 from app.core.security import decode_access_token
 from app.domain.entities import User
-from app.infrastructure.db import get_session
+from app.infrastructure.db import get_session, SessionLocal
 from app.infrastructure.groq import GroqClient
 from app.infrastructure.payment_gateways.factory import get_gateway_factory
 from app.infrastructure.repositories import (
@@ -145,6 +146,10 @@ def get_admin_action_log_repository(
 # ---- Auth ------------------------------------------------------------------
 
 bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def get_learning_service(session: Session = Depends(get_session)) -> LearningService:
+    return LearningService(session)
 
 
 def get_auth_service(session: Session = Depends(get_session)) -> AuthService:

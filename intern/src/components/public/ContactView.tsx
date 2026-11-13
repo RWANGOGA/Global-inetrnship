@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useApp } from "../../context/AppContext";
+import { fetchContactInfo } from "../../lib/api";
+import { Icon } from "../icons/Icons";
 
 export function ContactView() {
   const { go, toast } = useApp();
@@ -10,6 +12,7 @@ export function ContactView() {
   const [org, setOrg] = useState("");
   const [roleType, setRoleType] = useState("Placement officer");
   const [message, setMessage] = useState("");
+  const [contactInfo, setContactInfo] = useState<{ email: string; whatsapp: string } | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,6 +22,17 @@ export function ContactView() {
     setOrg("");
     setMessage("");
   };
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await fetchContactInfo();
+        setContactInfo(data);
+      } catch (err) {
+        console.error("Failed to fetch contact info", err);
+      }
+    })();
+  }, []);
 
   return (
     <>
@@ -117,6 +131,30 @@ export function ContactView() {
           </div>
 
           <aside>
+            <div className="sbox" style={{ marginBottom: "12px" }}>
+              <div className="sh">
+                <span className="lbl">Quick Contact</span>
+              </div>
+              <div className="sb" style={{ display: "grid", gap: "10px" }}>
+                <a
+                  href={`mailto:${contactInfo?.email || "akandwanahojonan256@gmail.com"}`}
+                  className="btn btn-blue"
+                  style={{ justifyContent: "center", gap: "8px", display: "inline-flex", alignItems: "center" }}
+                >
+                  <Icon name="send" size={14} /> Email Us
+                </a>
+                <a
+                  href={`https://wa.me/${contactInfo?.whatsapp?.replace(/[^0-9]/g, "") || "256756348528"}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-green"
+                  style={{ justifyContent: "center", gap: "8px", display: "inline-flex", alignItems: "center" }}
+                >
+                  <Icon name="send" size={14} /> WhatsApp
+                </a>
+              </div>
+            </div>
+
             <div className="sbox" style={{ marginBottom: "12px" }}>
               <div className="sh">
                 <span className="lbl">Offices</span>
