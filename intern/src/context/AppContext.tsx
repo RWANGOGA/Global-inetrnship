@@ -911,34 +911,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Role-specific responses
       if (currentRole === "employer") {
         if (q.includes("applicant") || q.includes("candidate")) {
-          return { reply: `You can review all applicants in the Applicants tab — filter by placement, see match scores, and shortlist candidates.`, actions: [] };
+          return { reply: `You'll find all applicants in the Applicants tab — filter by placement, check match scores, and shortlist the ones you like.`, actions: [] };
         }
         if (q.includes("post") || q.includes("create") || q.includes("new internship")) {
-          return { reply: `Head to the Placements tab and click "New internship" — you'll set courses, grade, documents, dates, and duties.`, actions: [] };
+          return { reply: `Head to the Placements tab, hit "New internship," and you'll walk through courses, grade, documents, dates — the works.`, actions: [] };
         }
         if (q.includes("dashboard") || q.includes("overview")) {
-          return { reply: `Your employer dashboard shows live placements, applicant counts, shortlisted candidates, and your plan usage.`, actions: [] };
+          return { reply: `Your dashboard shows live placements, how many applicants each has, who you've shortlisted, and your plan usage.`, actions: [] };
         }
       }
 
       if (currentRole === "admin") {
         if (q.includes("queue") || q.includes("review") || q.includes("pending")) {
-          return { reply: `The Admin dashboard has a Review Queue for document verification. Use the Documents tab to verify or reject files.`, actions: [] };
+          return { reply: `The Admin dashboard has a Review Queue for document verification. Pop into the Documents tab to verify or reject.`, actions: [] };
         }
         if (q.includes("metric") || q.includes("stat") || q.includes("report")) {
-          return { reply: `Admin Overview shows open placements, pending documents, students placed, and placement record completion rate.`, actions: [] };
+          return { reply: `Admin Overview gives you open placements, pending docs, students placed, and completion rates at a glance.`, actions: [] };
         }
         if (q.includes("user") || q.includes("student") || q.includes("organisation")) {
-          return { reply: `Use the Students and Organisations tabs to manage platform users and host organisations.`, actions: [] };
+          return { reply: `Use the Students and Organisations tabs to manage platform users and host orgs.`, actions: [] };
         }
       }
 
       if (currentRole === "jobseeker") {
         if (q.includes("job") || q.includes("role") || q.includes("application")) {
-          return { reply: `Your Applications tab shows all job applications with status. Browse Roles to find new opportunities.`, actions: [] };
+          return { reply: `Your Applications tab tracks every job application. Browse Roles to find new opportunities.`, actions: [] };
         }
         if (q.includes("profile") || q.includes("cv") || q.includes("resume")) {
-          return { reply: `Your profile and CV are used to match you with roles. Keep your skills and experience updated.`, actions: [] };
+          return { reply: `Your profile and CV drive the matching — keep your skills and experience current for best results.`, actions: [] };
         }
       }
 
@@ -968,25 +968,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const impact = skillImpact();
         if (!impact.length) {
           const top = ranked[0];
-          return { reply: `You're in great shape — you cover all required skills for your top match${top ? ` (${top.p.title})` : ""}. To explore more options, check the Skills tab and add adjacent skills from placements you're interested in.`, actions: [] };
+          return { reply: `You're in great shape — you've got all the required skills for your top match${top ? ` (${top.p.title})` : ""}. Want to explore more? Check the Skills tab and add adjacent skills from placements that catch your eye.`, actions: [] };
         }
         const lead = impact.slice(0, 2);
-        return { reply: `The quickest wins for your profile: **${lead[0].skill}** (opens ${lead[0].count} more placements)${lead[1] ? ` and **${lead[1].skill}** (opens ${lead[1].count} more)` : ""}. Add them to your Skills profile and watch your matches improve.`, actions: [] };
+        return { reply: `The biggest unlocks for you: **${lead[0].skill}** (opens ${lead[0].count} more placements)${lead[1] ? ` and **${lead[1].skill}** (opens ${lead[1].count} more)` : ""}. Add them to your Skills profile and watch your matches climb.`, actions: [] };
       }
 
       // Best fit / recommendation questions
       if (q.includes("best") || q.includes("recommend") || q.includes("where do i fit") || q.includes("most match") || q.includes("top match") || q.includes("should i apply") || q.includes("fits me") || q.includes("good for me") || q.includes("which placement")) {
         const top = ranked[0];
-        if (!top) return { reply: `Ask about a specific role and I'll score it against your skills, course, and grade.`, actions: [] };
+        if (!top) return { reply: `Ask me about a specific role and I'll score it against your skills, course, and grade.`, actions: [] };
         const org = getOrg(top.p.orgId);
         const near = ranked[1];
         const gapText = top.m.missing.length ? ` Missing: ${top.m.missing.join(", ")}.` : ` You match every required skill.`;
-        return { reply: `Your top match is **${top.p.title} at ${org?.name || "the organisation"}** — ${top.m.score}% match, deadline ${top.p.deadline}.${gapText}${near ? ` Next best: ${near.p.title} (${near.m.score}%).` : ""}`, actions: [] };
+        return { reply: `Your strongest match is **${top.p.title} at ${org?.name || "the organisation"}** — ${top.m.score}% match, deadline ${top.p.deadline}.${gapText}${near ? ` Next up: ${near.p.title} (${near.m.score}%).` : ""}`, actions: [] };
       }
 
       // Match score explanation
       if (q.includes("match") || q.includes("score") || q.includes("how are you ranking") || q.includes("how do you calculate")) {
-        return { reply: `Match score = 60% skill coverage + 25% course fit + 15% CGPA. Every placement shows exactly which skills you have and which you're missing.`, actions: [] };
+        return { reply: `It's 60% skill coverage, 25% course fit, 15% CGPA. Every placement shows exactly which skills you have and which you're missing — fully transparent.`, actions: [] };
       }
 
       // Eligibility questions
@@ -999,14 +999,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const targetOrg = getOrg(targetP.orgId);
         const orgName = targetOrg ? targetOrg.name : "the organisation";
         return ok
-          ? { reply: `**Yes** — you're eligible for **${targetP.title} at ${orgName}**. Your course (${student.course}) and CGPA (${student.cgpa}) meet the requirements. You need ${targetP.docs.filter((d) => { const h = docs.find((x) => x.name === d); return !h || h.status === "missing"; }).length} document(s) uploaded. Deadline: ${targetP.deadline}.`, actions: [] }
-          : { reply: `**Not on paper** for **${targetP.title}** — it requires ${targetP.grade} and courses ${targetP.courses.join(", ")}. You have ${student.course} at ${student.cgpa}${courseOk ? "" : " (course not listed)"}. Your university can request an exception via the placement office.`, actions: [] };
+          ? { reply: `**Yes** — you're eligible for **${targetP.title} at ${orgName}**. Your course (${student.course}) and CGPA (${student.cgpa}) check out. You need ${targetP.docs.filter((d) => { const h = docs.find((x) => x.name === d); return !h || h.status === "missing"; }).length} document(s) uploaded. Deadline: ${targetP.deadline}.`, actions: [] }
+          : { reply: `**Not on paper** for **${targetP.title}** — it needs ${targetP.grade} and courses ${targetP.courses.join(", ")}. You've got ${student.course} at ${student.cgpa}${courseOk ? "" : " (course not listed)"}. Your uni can request an exception through the placement office.`, actions: [] };
       }
 
       // Document questions
       if (q.includes("document") || q.includes("upload") || q.includes("need")) {
         const missing = docs.filter((d) => d.status === "missing").map((d) => d.name);
-        return { reply: `Your docs: ${docs.filter((d) => d.status === "verified").length} verified, ${missing.length} missing${missing.length ? ` (${missing.join(", ")})` : ""}. Upload from Documents (PDF/JPG, ≤10 MB). Office reviews in ~48 hrs.`, actions: [] };
+        return { reply: `You've got ${docs.filter((d) => d.status === "verified").length} verified, ${missing.length} missing${missing.length ? ` (${missing.join(", ")})` : ""}. Upload from Documents (PDF/JPG, ≤10 MB). Office reviews in ~48 hrs.`, actions: [] };
       }
 
       // Government placements
@@ -1018,18 +1018,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       // Verification
       if (q.includes("verification") || q.includes("verify") || q.includes("transcript")) {
-        return { reply: `Transcript & student ID are verified by the placement office (not employers). Officer checks against university records — median 48 hrs. Employers only see verified files.`, actions: [] };
+        return { reply: `Transcripts and student IDs are verified by the placement office (not employers). Officer checks against uni records — median 48 hrs. Employers only see verified files.`, actions: [] };
       }
 
       // Deadlines
       if (q.includes("deadline") || q.includes("closing") || q.includes("close")) {
         const soon = placements.slice().sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime()).slice(0, 3);
-        return { reply: `Upcoming deadlines: ${soon.map((p) => `${p.title} (${p.deadline})`).join(", ")}. Want me to check eligibility for any of these?`, actions: [] };
+        return { reply: `Coming up: ${soon.map((p) => `${p.title} (${p.deadline})`).join(", ")}. Want me to check eligibility for any of these?`, actions: [] };
       }
 
       // Cost
       if (q.includes("cost") || q.includes("pay") || q.includes("free") || q.includes("price")) {
-        return { reply: `Applying is completely free — universities and host organisations fund the service. No premium tiers, no fees to unlock placements.`, actions: [] };
+        return { reply: `Applying is completely free — universities and host orgs fund the service. No premium tiers, no fees to unlock placements.`, actions: [] };
       }
 
       // Contact info
@@ -1039,7 +1039,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       // What is BrighterWorks
       if (q.includes("what is intern") || q.includes("about") || q.includes("how does it work")) {
-        return { reply: `BrighterWorks = separate internship & jobs portals. Universities publish placements from companies, gov agencies, NGOs with eligible courses, min grade, docs, testimonial rule. Students see eligibility before applying; office verifies docs; employers get qualified files only.`, actions: [] };
+        return { reply: `BrighterWorks = separate internship & jobs portals. Unis publish placements from companies, gov agencies, NGOs with eligible courses, min grade, docs, testimonial rule. Students see eligibility before applying; office verifies docs; employers get qualified files only.`, actions: [] };
       }
 
       // Identity
@@ -1066,7 +1066,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       // General fallback
-      return { reply: `I can help with placement matching, eligibility checks, skill gaps, documents, deadlines, and applications. What would you like to know?`, actions: [] };
+      return { reply: `I'm here to help with placement matching, eligibility, skill gaps, documents, deadlines, applications — whatever you need. What's on your mind?`, actions: [] };
     },
     [placements, pid, getPlacement, isEligible, student, getOrg, docs, role, handoffState]
   );

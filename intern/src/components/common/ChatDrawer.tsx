@@ -6,7 +6,20 @@ import { Icon } from "../icons/Icons";
 import { AdvisorAction } from "../../types";
 import { voiceService, VoiceOptions } from "../../lib/voice";
 
-const INTRO_MESSAGE = `Hi! I'm **Brightworks Virtual Assistant** — your career coach for BrighterWorks. I know your profile, all the placements, and can help with eligibility, applications, skill gaps, deadlines, and more. What can I help you with today?`;
+const INTRO_MESSAGE = `Hi! I'm Brightworks Virtual Assistant — your career coach for BrighterWorks. I know your profile, all the placements, and can help with eligibility, applications, skill gaps, deadlines, and more. What can I help you with today?`;
+
+// Simple markdown to HTML renderer for chat messages
+function renderMarkdown(text: string): string {
+  return text
+    // Bold
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    // Italic
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    // Code
+    .replace(/`(.+?)`/g, '<code>$1</code>')
+    // Line breaks
+    .replace(/\n/g, '<br>');
+}
 
 export function ChatDrawer() {
   const { 
@@ -323,7 +336,7 @@ export function ChatDrawer() {
             <div className="msg bot welcome-message" style={{ animation: "fadeIn 0.3s ease" }}>
               <div className="msg-avatar"><Icon name="user" size={16} /></div>
               <div className="msg-content">
-                <span dangerouslySetInnerHTML={{ __html: INTRO_MESSAGE }} />
+                <span dangerouslySetInnerHTML={{ __html: renderMarkdown(INTRO_MESSAGE) }} />
               </div>
             </div>
           )}
@@ -344,7 +357,7 @@ export function ChatDrawer() {
                   </span>
                 ) : (
                   <>
-                    <span dangerouslySetInnerHTML={{ __html: msg.text }} />
+                    <span dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }} />
                     {msg.actions && msg.actions.length > 0 && (
                       <div className="msg-actions">
                         {msg.actions.map((action: AdvisorAction, idx: number) => (
