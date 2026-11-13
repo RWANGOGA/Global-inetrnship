@@ -40,12 +40,17 @@ import { EmployerProfile } from "./employer/EmployerProfile";
 import { EmployerTalentSearch } from "./employer/EmployerTalentSearch";
 import { EmployerTeam } from "./employer/EmployerTeam";
 import { EmployerAnalytics } from "./employer/EmployerAnalytics";
+import { EmployerBilling } from "./employer/EmployerBilling";
 
 import { EmployeeTestimonial } from "./employee/EmployeeTestimonial";
 
 import { JobSeekerOverview } from "./jobseeker/JobSeekerOverview";
 import { JobSeekerRoles } from "./jobseeker/JobSeekerRoles";
 import { JobSeekerApps } from "./jobseeker/JobSeekerApps";
+
+// Billing dashboards
+import { StudentBilling } from "./student/StudentBilling";
+import { AdminBilling } from "./admin/AdminBilling";
 
 export function DashboardShell() {
   const {
@@ -99,6 +104,7 @@ export function DashboardShell() {
     profile: "Organization Profile",
     "talent-search": "Talent Search",
     team: "Team Members",
+    billing: "Billing",
   };
 
   const currentTitle = titles[dash] || "Overview";
@@ -133,6 +139,8 @@ export function DashboardShell() {
           return <AdminReports />;
         case "analytics":
           return <AdminAnalytics />;
+        case "billing":
+          return <AdminBilling />;
         default:
           return <AdminOverview />;
       }
@@ -156,6 +164,8 @@ export function DashboardShell() {
           return <StudentPack />;
         case "testimonial":
           return <StudentTestimonial />;
+        case "billing":
+          return <StudentBilling />;
         default:
           return <StudentOverview />;
       }
@@ -179,6 +189,8 @@ export function DashboardShell() {
           return <EmployerAnalytics />;
         case "testimonial":
           return <EmployerTestimonial />;
+        case "billing":
+          return <EmployerBilling />;
         default:
           return <EmployerOverview />;
       }

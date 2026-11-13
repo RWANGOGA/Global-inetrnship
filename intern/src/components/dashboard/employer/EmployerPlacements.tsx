@@ -433,6 +433,34 @@ export function EmployerPlacements() {
             </p>
           </div>
 
+          {/* Placement Limit Warning */}
+          {!isPremium && remaining <= 2 && (
+            <div
+              style={{
+                margin: "16px 32px 0",
+                padding: "14px 18px",
+                borderRadius: "10px",
+                background: remaining === 0 ? "var(--red-tint)" : "var(--amber-tint)",
+                border: `1px solid ${remaining === 0 ? "var(--red)" : "var(--amber)"}`,
+                color: remaining === 0 ? "var(--red)" : "var(--amber)",
+                fontSize: "13px",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+              }}
+            >
+              <Icon name={remaining === 0 ? "alert" : "alert"} size={16} />
+              <div>
+                <strong>{remaining === 0 ? "Placement limit reached" : "Approaching placement limit"}</strong>
+                <div style={{ marginTop: "2px", fontSize: "12px", opacity: 0.9 }}>
+                  {remaining === 0
+                    ? "Your Free plan allows 3 placements. Upgrade to Pro for unlimited."
+                    : `You have ${remaining} of ${FREE_ALLOWANCE} free placements remaining.`}
+                </div>
+              </div>
+            </div>
+          )}
+          
           {/* Form Content */}
           <form onSubmit={submitPosting} style={{ padding: "32px" }}>
             {formError && <FormError message={formError} />}
@@ -684,13 +712,17 @@ export function EmployerPlacements() {
               <button 
                 type="submit" 
                 className="btn btn-sm btn-blue" 
-                disabled={saving}
-                style={{ height: "44px" }}
+                disabled={saving || (!isPremium && remaining === 0)}
+                style={{ height: "44px", opacity: (!isPremium && remaining === 0) ? 0.6 : 1 }}
               >
                 {saving ? (
                   <>
                     <div className="spinner" style={{ width: "16px", height: "16px", border: "2px solid currentColor", borderRightColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite", marginRight: "10px" }} />
                     Submitting for review...
+                  </>
+                ) : (!isPremium && remaining === 0) ? (
+                  <>
+                    <span style={{ marginRight: "8px" }}><Icon name="lock" size={14} /></span> Upgrade Required
                   </>
                 ) : (
                   <>

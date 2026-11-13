@@ -107,6 +107,23 @@ def create_organization_internship(
         raise HTTPException(status_code=409, detail="Organisation record was not found")
     if not payload.title.strip() or not payload.courses:
         raise HTTPException(status_code=422, detail="Title and at least one eligible course are required")
+
+    # Check placement limit based on subscription
+    from app.application.services import BillingService
+    from app.presentation.deps import get_billing_service
+    billing_service = get_billing_service(session)
+    limit_check = billing_service.check_placement_limit(org_id, session)
+    if not limit_check["allowed"]:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "placement_limit_exceeded",
+                "message": limit_check["reason"],
+                "current": limit_check["current"],
+                "limit": limit_check["limit"],
+                "plan": billing_service.get_subscription(org_id).plan
+            }
+        )
     row = PlacementORM(
         id=f"p-{uuid4().hex[:12]}",
         title=payload.title.strip(),

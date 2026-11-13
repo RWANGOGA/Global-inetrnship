@@ -74,18 +74,6 @@ def get_advisor_service(
     return AdvisorService(MatchingService(SqlAlchemyPlacementRepository(session)), llm)
 
 
-def get_saved_service(session: Session = Depends(get_session)) -> SavedService:
-    return SavedService(SqlAlchemySavedRepository(session))
-
-
-def get_application_service(
-    session: Session = Depends(get_session),
-) -> ApplicationService:
-    return ApplicationService(
-        SqlAlchemyPlacementRepository(session), SqlAlchemyApplicationRepository(session)
-    )
-
-
 def get_billing_service(session: Session = Depends(get_session)) -> BillingService:
     gateway_factory = get_gateway_factory()
     return BillingService(
@@ -96,6 +84,21 @@ def get_billing_service(session: Session = Depends(get_session)) -> BillingServi
         gateway_factory=gateway_factory,
         student_usage_repo=SqlAlchemyStudentUsageRepository(session),
     )
+
+
+def get_application_service(
+    session: Session = Depends(get_session),
+    billing: BillingService = Depends(get_billing_service),
+) -> ApplicationService:
+    return ApplicationService(
+        SqlAlchemyPlacementRepository(session),
+        SqlAlchemyApplicationRepository(session),
+        billing,
+    )
+
+
+def get_saved_service(session: Session = Depends(get_session)) -> SavedService:
+    return SavedService(SqlAlchemySavedRepository(session))
 
 
 def get_student_profile_service(
