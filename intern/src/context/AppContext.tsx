@@ -275,8 +275,12 @@ interface AppContextType {
   // Billing / placement fees
   subscription: Subscription;
   isPremium: boolean;
+  isApiEnabled: boolean;
   freeAllowance: number;
   employerLiveCount: number;
+  fetchSubscription: () => Promise<SubscriptionDto>;
+  createSubscriptionApi: (plan: string, billing_cycle: "monthly" | "annual", payment_gateway: string) => Promise<SubscriptionDto>;
+  cancelSubscriptionApi: () => Promise<SubscriptionDto>;
   activatePlan: (
     plan: string,
     billing_cycle: "monthly" | "annual",
@@ -2129,6 +2133,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         subscription,
         isPremium,
+        isApiEnabled,
+        fetchSubscription,
+        createSubscriptionApi,
+        cancelSubscriptionApi,
         freeAllowance: FREE_ALLOWANCE,
         employerLiveCount,
         activatePlan,
