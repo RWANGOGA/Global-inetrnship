@@ -5,7 +5,7 @@ import { useApp } from "../../context/AppContext";
 import { Icon } from "../icons/Icons";
 import { voiceService } from "../../lib/voice";
 
-const INTRO_MESSAGE = `Hi! I'm Brightworks Virtual Assistant — your career coach for BrighterWorks. I know your profile, all placements, and can help with eligibility, applications, skill gaps, deadlines, and more. What can I help you with today?`;
+const INTRO_MESSAGE = `Hello. I am Brightworks Virtual Assistant — your career coach for BrighterWorks. I have full access to your profile, all placements, and can help with eligibility, applications, skill gaps, deadlines, and more. How can I help you today?`;
 
 function renderMarkdown(text: string): string {
   return text
@@ -57,30 +57,19 @@ interface UserChatSettings {
   show_original: boolean;
 }
 
-const LANGUAGES = [
-  { code: "en", name: "English" },
-  { code: "fr", name: "French" },
-  { code: "es", name: "Spanish" },
-  { code: "de", name: "German" },
-  { code: "it", name: "Italian" },
-  { code: "sw", name: "Swahili" },
-  { code: "ar", name: "Arabic" },
-];
-
-const GROUP_TYPE_ICONS: Record<string, string> = {
-  student: "🎓",
-  employer: "💼",
-  admin: "🛡️",
-  mixed: "💬",
-  placement: "📋",
-  organization: "🏢",
+const GROUP_TYPE_ICONS: Record<string, "uni" | "brief" | "shield-check" | "user-check" | "file-text" | "bldg"> = {
+  student: "uni",
+  employer: "brief",
+  admin: "shield-check",
+  mixed: "user-check",
+  placement: "file-text",
+  organization: "bldg",
 };
 
 export function ChatSidebar() {
   const {
     session,
     role,
-    chatMessages,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<"groups" | "direct">("groups");
@@ -88,6 +77,7 @@ export function ChatSidebar() {
   const [directChats, setDirectChats] = useState<DirectChat[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<ChatGroup | null>(null);
   const [selectedDirectChat, setSelectedDirectChat] = useState<DirectChat | null>(null);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [settings, setSettings] = useState<UserChatSettings | null>({
     preferred_language: "en",
@@ -164,17 +154,26 @@ export function ChatSidebar() {
     }
   };
 
-  const handleGroupSelect = (group: ChatGroup) => {
+  const openGroupChat = (group: ChatGroup) => {
     setSelectedGroup(group);
     setSelectedDirectChat(null);
     loadGroupMessages(group.id);
+    setIsChatOpen(true);
   };
 
-  const handleDirectSelect = (chat: DirectChat) => {
+  const openDirectChat = (chat: DirectChat) => {
     setSelectedDirectChat(chat);
     setSelectedGroup(null);
     const otherId = chat.user1_id === session?.id ? chat.user2_id : chat.user1_id;
     loadDirectMessages(otherId);
+    setIsChatOpen(true);
+  };
+
+  const closeChatView = () => {
+    setIsChatOpen(false);
+    setSelectedGroup(null);
+    setSelectedDirectChat(null);
+    setMessages([]);
   };
 
   const sendMessage = async () => {
@@ -252,11 +251,6 @@ export function ChatSidebar() {
     return date.toLocaleDateString();
   };
 
-  const createGroup = async () => {
-    if (!inputText.trim() && !recordingBlob) return;
-    // createGroup is not fully wired; kept for future use
-  };
-
   const getDisplayContent = (msg: ChatMessage) => {
     const preferredLang = settings?.preferred_language || "en";
     if (msg.translations && msg.translations[preferredLang] && settings?.auto_translate) {
@@ -267,39 +261,51 @@ export function ChatSidebar() {
     return msg.content;
   };
 
-  return (
-    <div className="chat-sidebar" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <div className="chat-header" style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "8px",
-        padding: "10px 14px",
-        borderBottom: "1px solid var(--rule)",
-        background: "var(--bg-elevated)",
-        flexShrink: 0,
-      }}>
-        <div className="chat-avatar" style={{
-          width: "32px", height: "32px", borderRadius: "50%",
-          background: "linear-gradient(135deg, var(--brand), var(--brand-hover))",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          color: "white", fontSize: "16px",
-        }}>
-          💬
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 600, fontSize: "13px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            Brightworks Assistant
-          </div>
-          <div style={{ fontSize: "11px", color: "var(--muted)" }}>
-            {role === "admin" ? "Admin channel" : "Your career coach"}
-          </div>
-        </div>
-      </div>
+  const renderGroupIcon = (type: string) => {
+    const iconName = GROUP_TYPE_ICONS[type] || "user-check";
+    return <Icon name={iconName} size={20} />;
+  };
 
-      <div className="chat-body" style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+  const renderDirectAvatar = (chat: DirectChat) => {
+    const name = chat.other_user?.name || "User";
+    return name.charAt(0).toUpperCase();
+  };
+
+  return (
+    <>
+      <div className="chat-sidebar" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+        {/* Sidebar header */}
+        <div className="chat-header" style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "10px",
+          padding: "12px 14px",
+          borderBottom: "1px solid var(--rule)",
+          background: "var(--bg-elevated)",
+          flexShrink: 0,
+        }}>
+          <div className="chat-avatar" style={{
+            width: "36px", height: "36px", borderRadius: "8px",
+            background: "linear-gradient(135deg, var(--brand), var(--brand-hover))",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            color: "white", fontSize: "18px",
+          }}>
+            <Icon name="inbox" size={20} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 600, fontSize: "14px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              Messages
+            </div>
+            <div style={{ fontSize: "12px", color: "var(--muted)" }}>
+              {role === "admin" ? "Administration" : "Groups & conversations"}
+            </div>
+          </div>
+        </div>
+
+        {/* Sidebar list */}
         <div className="chat-list" style={{ flex: 1, overflowY: "auto", padding: "8px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", padding: "0 8px 4px" }}>
-            <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "0 8px 8px" }}>
+            <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
               {activeTab === "groups" ? "Groups" : "Direct Messages"}
             </span>
           </div>
@@ -309,44 +315,44 @@ export function ChatSidebar() {
               {groups.map(group => (
                 <button
                   key={group.id}
-                  onClick={() => handleGroupSelect(group)}
+                  onClick={() => openGroupChat(group)}
                   style={{
                     width: "100%",
-                    padding: "8px 12px",
+                    padding: "12px 12px",
                     display: "flex",
                     alignItems: "center",
-                    gap: "10px",
+                    gap: "12px",
                     border: "none",
-                    background: selectedGroup?.id === group.id ? "var(--brand-bg)" : "transparent",
+                    background: "transparent",
                     color: "var(--fg)",
                     textAlign: "left",
                     cursor: "pointer",
-                    borderRadius: "8px",
-                    marginBottom: "4px",
+                    borderRadius: "10px",
+                    marginBottom: "6px",
                   }}
                 >
                   <div style={{
-                    width: "32px", height: "32px", borderRadius: "50%",
+                    width: "42px", height: "42px", borderRadius: "10px",
                     background: "linear-gradient(135deg, var(--brand), var(--brand-hover))",
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    color: "white", fontSize: "16px", flexShrink: 0,
+                    color: "white", flexShrink: 0,
                   }}>
-                    {GROUP_TYPE_ICONS[group.type] || "💬"}
+                    {renderGroupIcon(group.type)}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: "13px", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <div style={{ fontSize: "14px", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {group.name}
                     </div>
-                    <div style={{ fontSize: "11px", color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <div style={{ fontSize: "12px", color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {group.description || `${group.type} group`}
                     </div>
                   </div>
                   {(group.unread_count || 0) > 0 && (
                     <span style={{
                       background: "var(--brand)", color: "white",
-                      fontSize: "10px", fontWeight: 600,
-                      padding: "2px 6px", borderRadius: "10px",
-                      minWidth: "18px", textAlign: "center",
+                      fontSize: "11px", fontWeight: 600,
+                      padding: "2px 8px", borderRadius: "12px",
+                      minWidth: "22px", textAlign: "center",
                     }}>
                       {group.unread_count}
                     </span>
@@ -354,8 +360,11 @@ export function ChatSidebar() {
                 </button>
               ))}
               {groups.length === 0 && (
-                <div style={{ padding: "16px 8px", textAlign: "center", color: "var(--muted)", fontSize: "12px" }}>
-                  No groups yet.
+                <div style={{ padding: "24px 12px", textAlign: "center", color: "var(--muted)", fontSize: "13px" }}>
+                  <div style={{ marginBottom: "8px", opacity: 0.4 }}>
+                <Icon name="inbox" size={24} />
+              </div>
+                  <div>No groups yet</div>
                 </div>
               )}
             </>
@@ -364,44 +373,44 @@ export function ChatSidebar() {
               {directChats.map(chat => (
                 <button
                   key={chat.id}
-                  onClick={() => handleDirectSelect(chat)}
+                  onClick={() => openDirectChat(chat)}
                   style={{
                     width: "100%",
-                    padding: "8px 12px",
+                    padding: "12px 12px",
                     display: "flex",
                     alignItems: "center",
-                    gap: "10px",
+                    gap: "12px",
                     border: "none",
-                    background: selectedDirectChat?.id === chat.id ? "var(--brand-bg)" : "transparent",
+                    background: "transparent",
                     color: "var(--fg)",
                     textAlign: "left",
                     cursor: "pointer",
-                    borderRadius: "8px",
-                    marginBottom: "4px",
+                    borderRadius: "10px",
+                    marginBottom: "6px",
                   }}
                 >
                   <div style={{
-                    width: "32px", height: "32px", borderRadius: "50%",
+                    width: "42px", height: "42px", borderRadius: "50%",
                     background: "linear-gradient(135deg, var(--brand), var(--brand-hover))",
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    color: "white", fontSize: "16px", flexShrink: 0,
+                    color: "white", fontSize: "16px", fontWeight: 600, flexShrink: 0,
                   }}>
-                    {chat.other_user?.name?.charAt(0).toUpperCase() || "?"}
+                    {renderDirectAvatar(chat)}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: "13px", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <div style={{ fontSize: "14px", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {chat.other_user?.name || "Unknown"}
                     </div>
-                    <div style={{ fontSize: "11px", color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {chat.last_message?.content ? (chat.last_message.sender_id === session?.id ? "You: " : "") + chat.last_message.content.substring(0, 40) : "No messages yet"}
+                    <div style={{ fontSize: "12px", color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {chat.last_message?.content ? (chat.last_message.sender_id === session?.id ? "You: " : "") + chat.last_message.content.substring(0, 50) : "No messages yet"}
                     </div>
                   </div>
                   {(chat.unread_count || 0) > 0 && (
                     <span style={{
                       background: "var(--brand)", color: "white",
-                      fontSize: "10px", fontWeight: 600,
-                      padding: "2px 6px", borderRadius: "10px",
-                      minWidth: "18px", textAlign: "center",
+                      fontSize: "11px", fontWeight: 600,
+                      padding: "2px 8px", borderRadius: "12px",
+                      minWidth: "22px", textAlign: "center",
                     }}>
                       {chat.unread_count}
                     </span>
@@ -409,176 +418,268 @@ export function ChatSidebar() {
                 </button>
               ))}
               {directChats.length === 0 && (
-                <div style={{ padding: "16px 8px", textAlign: "center", color: "var(--muted)", fontSize: "12px" }}>
-                  No direct chats yet.
+                <div style={{ padding: "24px 12px", textAlign: "center", color: "var(--muted)", fontSize: "13px" }}>
+                  <Icon name="user" size={24} />
+                  <div>No direct conversations</div>
                 </div>
               )}
             </>
           )}
 
-          <div style={{ padding: "0 8px 4px" }}>
+          <div style={{ padding: "8px 8px 4px" }}>
             <button
               type="button"
               onClick={() => setActiveTab(activeTab === "groups" ? "direct" : "groups")}
               style={{
                 width: "100%",
-                padding: "8px",
-                borderRadius: "6px",
+                padding: "10px",
+                borderRadius: "8px",
                 border: "1px solid var(--rule)",
                 background: "transparent",
                 color: "var(--muted)",
-                fontSize: "12px",
+                fontSize: "13px",
+                fontWeight: 500,
                 cursor: "pointer",
                 textAlign: "left",
               }}
             >
-              {activeTab === "groups" ? "💬 Switch to Direct Messages" : "👥 Switch to Groups"}
-            </button>
-          </div>
-        </div>
-
-        {(selectedGroup || selectedDirectChat) && (
-          <div className="chat-messages" style={{
-            flex: 1, overflowY: "auto", padding: "12px",
-            display: "flex", flexDirection: "column", gap: "8px",
-          }}>
-            {messages.length === 0 && (
-              <div style={{ textAlign: "center", color: "var(--muted)", fontSize: "12px", paddingTop: "40px" }}>
-                No messages yet. Start the conversation!
-              </div>
-            )}
-            {messages.map(msg => (
-              <div key={msg.id} className={`msg ${msg.sender_id === session?.id ? "me" : "bot"}`}>
-                {msg.sender_id === session?.id ? (
-                  <div style={{ display: "flex", flexDirection: "row-reverse", alignItems: "flex-end", gap: "6px" }}>
-                    <div className="msg-content" style={{
-                      background: "var(--brand)", color: "white",
-                      borderRadius: "16px 16px 4px 16px",
-                    }}>
-                      <span dangerouslySetInnerHTML={{ __html: renderMarkdown(getDisplayContent(msg)) }} />
-                      {msg.is_edited && (
-                        <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.7)", marginTop: "4px" }}>Edited</div>
-                      )}
-                    </div>
-                    <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.6)" }}>
-                      {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: "6px" }}>
-                    <div className="chat-avatar" style={{
-                      width: "28px", height: "28px", borderRadius: "50%",
-                      background: "linear-gradient(135deg, var(--brand), var(--brand-hover))",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      color: "white", fontSize: "14px", flexShrink: 0,
-                    }}>
-                      {msg.sender_name?.charAt(0).toUpperCase() || "?"}
-                    </div>
-                    <div className="msg-content" style={{
-                      background: "var(--bg-elevated)", color: "var(--fg)",
-                      borderRadius: "16px 16px 16px 4px",
-                    }}>
-                      <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", marginBottom: "2px" }}>
-                        {msg.sender_name || "Assistant"}
-                      </div>
-                      <span dangerouslySetInnerHTML={{ __html: renderMarkdown(getDisplayContent(msg)) }} />
-                      {msg.is_edited && (
-                        <div style={{ fontSize: "10px", color: "var(--muted)", marginTop: "4px", opacity: 0.7 }}>Edited</div>
-                      )}
-                    </div>
-                    <div style={{ fontSize: "10px", color: "var(--muted)" }}>
-                      {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-            <div ref={messagesEndRef} />
-          </div>
-        )}
-
-        <div className="chat-input" style={{
-          padding: "10px",
-          borderTop: "1px solid var(--rule)",
-          background: "var(--bg-elevated)",
-          flexShrink: 0,
-        }}>
-          {isRecording && (
-            <div style={{
-              display: "flex", alignItems: "center", gap: "8px",
-              padding: "8px", background: "var(--danger-bg)",
-              border: "1px solid var(--danger-border)", borderRadius: "8px",
-              color: "var(--danger)", fontSize: "12px", fontWeight: 500,
-              marginBottom: "8px",
-            }}>
-              <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--danger)", animation: "pulse 0.8s infinite" }} />
-              <span>Recording...</span>
-              <button type="button" onClick={stopRecording} style={{
-                padding: "4px 10px", borderRadius: "4px", border: "1px solid var(--danger)",
-                background: "transparent", color: "var(--danger)", cursor: "pointer", fontSize: "11px",
-              }}>
-                Stop
-              </button>
-              <button type="button" onClick={cancelRecording} style={{
-                padding: "4px 10px", borderRadius: "4px", border: "1px solid var(--rule)",
-                background: "transparent", color: "var(--muted)", cursor: "pointer", fontSize: "11px",
-              }}>
-                Cancel
-              </button>
-            </div>
-          )}
-          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <button
-              type="button"
-              className={`voice-btn ${isRecording ? "recording" : ""}`}
-              onClick={isRecording ? cancelRecording : startRecording}
-              disabled={isRecording}
-              style={{
-                width: "36px", height: "36px", borderRadius: "10px",
-                border: "1px solid var(--rule)", background: "var(--bg)",
-                color: "var(--fg)", display: "flex", alignItems: "center",
-                justifyContent: "center", cursor: "pointer", flexShrink: 0,
-              }}
-            >
-              <Icon name={isRecording ? "x" : "send"} size={18} />
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
-              onChange={() => {}}
-              style={{ display: "none" }}
-            />
-            <textarea
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  if (inputText.trim()) sendMessage();
-                }
-              }}
-              placeholder="Type a message..."
-              disabled={isRecording}
-              rows={1}
-              style={{
-                flex: 1, minHeight: "36px", maxHeight: "120px",
-                padding: "8px 14px", border: "1px solid var(--rule)",
-                borderRadius: "10px", background: "var(--bg)", color: "var(--fg)",
-                fontSize: "13px", outline: "none", resize: "none",
-              }}
-            />
-            <button type="button" onClick={sendMessage} disabled={!inputText.trim() && !recordingBlob} style={{
-              width: "36px", height: "36px", borderRadius: "10px",
-              border: "none", background: "var(--brand)", color: "white",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              cursor: "pointer", flexShrink: 0,
-            }}>
-              <Icon name="arrow" size={16} />
+              <Icon name={activeTab === "groups" ? "inbox" : "user-check"} size={14} />
+              <span style={{ marginRight: "8px" }} />
+              {activeTab === "groups" ? "Switch to Direct Messages" : "Switch to Groups"}
             </button>
           </div>
         </div>
       </div>
-    </div>
+
+      {/* Full WhatsApp-style chat overlay */}
+      {isChatOpen && (
+        <>
+          <div className="chat-overlay" onClick={closeChatView} style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            zIndex: 2000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}>
+            <div onClick={e => e.stopPropagation()} className="chat-window" style={{
+              position: "relative",
+              width: "92vw",
+              maxWidth: "1100px",
+              height: "92vh",
+              maxHeight: "850px",
+              background: "var(--bg)",
+              border: "1px solid var(--rule)",
+              borderRadius: "16px",
+              boxShadow: "0 25px 80px rgba(0,0,0,0.25)",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}>
+              {/* Chat window header */}
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "14px",
+                padding: "16px 22px",
+                borderBottom: "1px solid var(--rule)",
+                background: "var(--bg-elevated)",
+                flexShrink: 0,
+              }}>
+                <button type="button" onClick={closeChatView} style={{
+                  width: "40px", height: "40px", borderRadius: "50%",
+                  border: "none", background: "transparent", color: "var(--fg)",
+                  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <Icon name="x" size={20} />
+                </button>
+                <div style={{
+                  width: "46px", height: "46px", borderRadius: "12px",
+                  background: "linear-gradient(135deg, var(--brand), var(--brand-hover))",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  color: "white", fontSize: "22px", flexShrink: 0,
+                }}>
+                  {selectedGroup ? renderGroupIcon(selectedGroup.type) : renderDirectAvatar(selectedDirectChat!)}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: "16px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {selectedGroup?.name || selectedDirectChat?.other_user?.name || "Conversation"}
+                  </div>
+                  <div style={{ fontSize: "13px", color: "var(--muted)" }}>
+                    {selectedGroup
+                      ? `${selectedGroup.type} group${selectedGroup.unread_count ? ` • ${selectedGroup.unread_count} unread` : ""}`
+                      : selectedDirectChat?.other_user?.role || "Direct message"}
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <button type="button" style={{
+                    width: "40px", height: "40px", borderRadius: "10px",
+                    border: "1px solid var(--rule)", background: "transparent", color: "var(--fg)",
+                    cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    <Icon name="search" size={18} />
+                  </button>
+                  <button type="button" style={{
+                    width: "40px", height: "40px", borderRadius: "10px",
+                    border: "1px solid var(--rule)", background: "transparent", color: "var(--fg)",
+                    cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    <Icon name="menu" size={18} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Messages */}
+              <div ref={messagesEndRef} className="chat-messages" style={{
+                flex: 1, overflowY: "auto", padding: "24px",
+                display: "flex", flexDirection: "column", gap: "16px",
+                background: "var(--bg)",
+              }}>
+                {messages.length === 0 && (
+                  <div style={{ textAlign: "center", color: "var(--muted)", paddingTop: "100px" }}>
+                    <div style={{ fontSize: "56px", marginBottom: "16px", opacity: 0.3 }}>💬</div>
+                    <div style={{ fontSize: "16px", fontWeight: 500, marginBottom: "6px" }}>No messages yet</div>
+                    <div style={{ fontSize: "14px" }}>Send the first message</div>
+                  </div>
+                )}
+                {messages.map(msg => (
+                  <div key={msg.id} className={`msg ${msg.sender_id === session?.id ? "me" : "bot"}`}>
+                    {msg.sender_id === session?.id ? (
+                      <div style={{ display: "flex", flexDirection: "row-reverse", alignItems: "flex-end", gap: "10px", maxWidth: "80%" }}>
+                        <div className="msg-content" style={{
+                          background: "var(--brand)", color: "white",
+                          borderRadius: "20px 20px 4px 20px",
+                          padding: "12px 16px",
+                        }}>
+                          <span dangerouslySetInnerHTML={{ __html: renderMarkdown(getDisplayContent(msg)) }} />
+                          {msg.is_edited && (
+                            <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.7)", marginTop: "6px" }}>Edited</div>
+                          )}
+                        </div>
+                        <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.6)", marginTop: "2px" }}>
+                          {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: "10px", maxWidth: "80%" }}>
+                        <div style={{
+                          width: "38px", height: "38px", borderRadius: "50%",
+                          background: "linear-gradient(135deg, var(--brand), var(--brand-hover))",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          color: "white", fontSize: "16px", fontWeight: 600, flexShrink: 0,
+                        }}>
+                          {msg.sender_name?.charAt(0).toUpperCase() || "?"}
+                        </div>
+                        <div className="msg-content" style={{
+                          background: "var(--bg-elevated)", color: "var(--fg)",
+                          borderRadius: "20px 20px 20px 4px",
+                          padding: "12px 16px",
+                        }}>
+                          <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "4px" }}>
+                            {msg.sender_name || "Assistant"}
+                          </div>
+                          <span dangerouslySetInnerHTML={{ __html: renderMarkdown(getDisplayContent(msg)) }} />
+                          {msg.is_edited && (
+                            <div style={{ fontSize: "11px", color: "var(--muted)", marginTop: "6px", opacity: 0.7 }}>Edited</div>
+                          )}
+                        </div>
+                        <div style={{ fontSize: "11px", color: "var(--muted)", marginTop: "2px" }}>
+                          {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Input area */}
+              <div className="chat-input-area" style={{
+                padding: "16px 22px",
+                borderTop: "1px solid var(--rule)",
+                background: "var(--bg-elevated)",
+                flexShrink: 0,
+              }}>
+                {isRecording && (
+                  <div style={{
+                    display: "flex", alignItems: "center", gap: "10px",
+                    padding: "12px", background: "var(--danger-bg)",
+                    border: "1px solid var(--danger-border)", borderRadius: "10px",
+                    color: "var(--danger)", fontSize: "13px", fontWeight: 500,
+                    marginBottom: "12px",
+                  }}>
+                    <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--danger)", animation: "pulse 0.8s infinite" }} />
+                    <span>Recording voice message...</span>
+                    <button type="button" onClick={stopRecording} style={{
+                      padding: "8px 16px", borderRadius: "8px", border: "1px solid var(--danger)",
+                      background: "transparent", color: "var(--danger)", cursor: "pointer", fontSize: "12px",
+                    }}>
+                      Stop
+                    </button>
+                    <button type="button" onClick={cancelRecording} style={{
+                      padding: "8px 16px", borderRadius: "8px", border: "1px solid var(--rule)",
+                      background: "transparent", color: "var(--muted)", cursor: "pointer", fontSize: "12px",
+                    }}>
+                      Cancel
+                    </button>
+                  </div>
+                )}
+                <div style={{ display: "flex", alignItems: "flex-end", gap: "10px" }}>
+                  <button
+                    type="button"
+                    className={`voice-btn ${isRecording ? "recording" : ""}`}
+                    onClick={isRecording ? cancelRecording : startRecording}
+                    disabled={isRecording}
+                    style={{
+                      width: "48px", height: "48px", borderRadius: "14px",
+                      border: "1px solid var(--rule)", background: "var(--bg)",
+                      color: "var(--fg)", display: "flex", alignItems: "center",
+                      justifyContent: "center", cursor: "pointer", flexShrink: 0,
+                    }}
+                  >
+                    <Icon name={isRecording ? "x" : "send"} size={22} />
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
+                    onChange={() => {}}
+                    style={{ display: "none" }}
+                  />
+                  <textarea
+                    value={inputText}
+                    onChange={(e) => setInputText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        if (inputText.trim()) sendMessage();
+                      }
+                    }}
+                    placeholder="Type a message..."
+                    disabled={isRecording}
+                    rows={1}
+                    style={{
+                      flex: 1, minHeight: "48px", maxHeight: "180px",
+                      padding: "14px 18px", border: "1px solid var(--rule)",
+                      borderRadius: "14px", background: "var(--bg)", color: "var(--fg)",
+                      fontSize: "14px", outline: "none", resize: "none",
+                    }}
+                  />
+                  <button type="button" onClick={sendMessage} disabled={!inputText.trim() && !recordingBlob} style={{
+                    width: "48px", height: "48px", borderRadius: "14px",
+                    border: "none", background: "var(--brand)", color: "white",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    cursor: "pointer", flexShrink: 0,
+                  }}>
+                    <Icon name="send" size={20} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </>
   );
 }
