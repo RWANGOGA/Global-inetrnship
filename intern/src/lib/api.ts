@@ -679,6 +679,25 @@ export async function reopenPlacement(
   return mapPlacement(data);
 }
 
+export interface PlacementRequirementsInput {
+  courses?: string[];
+  grade?: string;
+  docs?: string[];
+  testimonial?: boolean;
+  requirements?: string[];
+}
+
+export async function updatePlacementRequirementsApi(
+  placementId: string,
+  input: PlacementRequirementsInput
+): Promise<Placement> {
+  const data = await patchJson<ApiPlacement>(
+    `/placements/${placementId}/requirements`,
+    input
+  );
+  return mapPlacement(data);
+}
+
 // GET /placements -> placements plus the orgs referenced by them (deduped from
 // the nested `org` the repository resolves, so we don't need a separate
 // /organisations endpoint).

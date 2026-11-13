@@ -156,6 +156,9 @@ def update_subscription(
     if current_user.role != "employer" or not current_user.org_id:
         raise HTTPException(status_code=403, detail="Only employers can manage subscriptions")
     
+    if not payload.plan and not payload.billing_cycle:
+        raise HTTPException(status_code=422, detail="Provide at least one of plan or billing_cycle")
+    
     if payload.plan:
         try:
             subscription = service.upgrade_subscription(
@@ -261,9 +264,8 @@ def list_transactions(
     if current_user.role != "employer" or not current_user.org_id:
         raise HTTPException(status_code=403, detail="Only employers can view transactions")
     
-    # This would need to be added to BillingService
-    # For now, return empty list
-    return []
+    transactions = service.list_transactions(current_user.org_id, status)
+    return [TransactionResponse.model_validate(tx, from_attributes=True) for tx in transactions]
 
 
 @router.get("/usage")
@@ -288,7 +290,9 @@ def get_usage(
 
 
 @router.get("/gateways")
-def list_gateways():
+def list_gateways(
+    current_user: User = Depends(get_current_user),
+):
     """List available payment gateways."""
     return {
         "gateways": [
@@ -314,7 +318,7 @@ def get_student_usage(
         raise HTTPException(status_code=403, detail="Only students can view their usage")
     
     usage = service.get_student_usage(current_user.id)
-    overage = max(0, usage.application_count - 30)
+    overage = max(0, usage.application_count - service.STUDENT_FREE_APPS)
     
     return StudentUsageResponse(
         id=usage.id,
@@ -323,9 +327,9 @@ def get_student_usage(
         application_count=usage.application_count,
         billed_count=usage.billed_count,
         last_billed_at=usage.last_billed_at,
-        free_limit=30,
+        free_limit=service.STUDENT_FREE_APPS,
         overage_apps=overage,
-        overage_cents=50,
+        overage_cents=service.STUDENT_OVERAGE_CENTS,
     )
 
 
@@ -338,9 +342,8 @@ def list_student_invoices(
     if current_user.role != "student":
         raise HTTPException(status_code=403, detail="Only students can view their invoices")
     
-    # Invoices where org_id == user_id (student billing)
-    # This would need a new method in BillingService
-    return []
+    invoices = service.list_student_invoices(current_user.id)
+    return [InvoiceResponse.model_validate(inv, from_attributes=True) for inv in invoices]
 
 
 @router.post("/student/invoices/{invoice_id}/pay", response_model=TransactionResponse)

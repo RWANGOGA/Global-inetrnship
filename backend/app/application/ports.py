@@ -34,6 +34,10 @@ class PlacementRepository(ABC):
     def get(self, placement_id: str) -> Optional[Placement]:
         """Return a single placement by id, or None."""
 
+    @abstractmethod
+    def update(self, placement_id: str, **fields) -> Optional[Placement]:
+        """Update mutable fields on a placement and return the updated domain object."""
+
 
 class JobRepository(ABC):
     @abstractmethod
@@ -221,6 +225,10 @@ class InvoiceRepository(ABC):
 
     @abstractmethod
     def find_by_number(self, invoice_number: str) -> Optional[Invoice]: ...
+
+    @abstractmethod
+    def list_outstanding(self) -> list[Invoice]:
+        """All unpaid invoices past their due date (admin view)."""
 
     @abstractmethod
     def save(self, invoice: Invoice) -> Invoice: ...

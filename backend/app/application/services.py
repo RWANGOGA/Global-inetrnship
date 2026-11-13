@@ -62,6 +62,12 @@ class PlacementService:
     def get_placement(self, placement_id: str) -> Optional[Placement]:
         return self._repo.get(placement_id)
 
+    def update_placement(
+        self, placement_id: str, **fields
+    ) -> Optional[Placement]:
+        """Update mutable fields on a placement (requirements, courses, grade, ...)."""
+        return self._repo.update(placement_id, **fields)
+
     def catalog_meta(self) -> dict:
         """Catalogue metadata the UI needs to render filters and explain matches.
 
@@ -319,6 +325,27 @@ class BillingService:
 
             # 2. Validate plan
             self._validate_plan(plan, billing_cycle)
+
+            # Free plan: no gateway customer, no invoice, no payment — just a
+            # local Free subscription record.
+            if plan == "Free":
+                now = datetime.utcnow()
+                subscription = Subscription(
+                    org_id=org_id,
+                    plan="Free",
+                    billing="",
+                    seats=1,
+                    status="active",
+                    current_period_start=None,
+                    current_period_end=None,
+                    payment_gateway=None,
+                    gateway_customer_id=None,
+                    gateway_subscription_id=None,
+                    since="",
+                )
+                self._subscriptions.save(subscription)
+                return subscription
+
             gateway = self._gateways.get(payment_gateway)
             self._validate_gateway(gateway, org.currency if hasattr(org, 'currency') else "USD")
 
@@ -458,50 +485,48 @@ class BillingService:
         return transaction
 
     def cancel_subscription(self, org_id: str) -> Subscription:
-        """Cancel subscription at period end."""
+        """Cancel subscription at period end (does not immediately downgrade)."""
         subscription = self._subscriptions.get(org_id)
         if subscription.plan == "Free":
             return subscription
 
         with self._transaction():
-            # Only cancel gateway subscription if we have a gateway
             if subscription.payment_gateway and subscription.gateway_subscription_id:
                 gateway = self._gateways.get(subscription.payment_gateway)
                 gateway.cancel_subscription(subscription.gateway_subscription_id, at_period_end=True)
-            
-            # Create new subscription with updated fields (frozen dataclass)
+
             updated = Subscription(
                 org_id=subscription.org_id,
-                plan="Free",  # Immediately revert to Free
-                billing="",
-                seats=1,
-                since="",
-                status="cancelled",
+                plan=subscription.plan,
+                billing=subscription.billing,
+                seats=subscription.seats,
+                since=subscription.since,
+                status=subscription.status,
                 current_period_start=subscription.current_period_start,
                 current_period_end=subscription.current_period_end,
-                cancel_at_period_end=False,
+                cancel_at_period_end=True,
                 trial_end=subscription.trial_end,
                 payment_gateway=subscription.payment_gateway,
                 gateway_customer_id=subscription.gateway_customer_id,
                 gateway_subscription_id=subscription.gateway_subscription_id,
             )
-            
+
             self._subscriptions.save(updated)
             return updated
 
     def resume_subscription(self, org_id: str) -> Subscription:
-        """Resume a cancelled subscription."""
+        """Resume a subscription cancelled at period end."""
         subscription = self._subscriptions.get(org_id)
+        if subscription.plan == "Free":
+            return subscription
         if not subscription.cancel_at_period_end:
             return subscription
 
         with self._transaction():
             gateway = self._gateways.get(subscription.payment_gateway)
-            if subscription.gateway_subscription_id:
-                # In real implementation, resume the gateway subscription
-                pass
-            
-            # Create new subscription with updated fields
+            if subscription.gateway_subscription_id and hasattr(gateway, "resume_subscription"):
+                gateway.resume_subscription(subscription.gateway_subscription_id)
+
             updated = Subscription(
                 org_id=subscription.org_id,
                 plan=subscription.plan,
@@ -517,7 +542,7 @@ class BillingService:
                 gateway_customer_id=subscription.gateway_customer_id,
                 gateway_subscription_id=subscription.gateway_subscription_id,
             )
-            
+
             self._subscriptions.save(updated)
             return updated
 
@@ -528,24 +553,23 @@ class BillingService:
         new_billing_cycle: str = None,
         payment_method_id: str = None,
     ) -> Subscription:
-        """Upgrade/downgrade subscription with proration."""
+        """Upgrade/downgrade to a new plan effective now (replaces current plan)."""
         subscription = self._subscriptions.get(org_id)
-        
-        with self._transaction():
-            # Cancel current at period end
-            subscription.cancel_at_period_end = True
-            self._subscriptions.save(subscription)
+        if subscription.plan == "Free" and new_plan == "Free":
+            return subscription
 
-            # Create new subscription
-            billing_cycle = new_billing_cycle or subscription.billing
-            new_sub = self.create_subscription(
-                org_id=org_id,
-                plan=new_plan,
-                billing_cycle=billing_cycle,
-                payment_gateway=subscription.payment_gateway,
-                payment_method_id=payment_method_id,
-            )
-            return new_sub
+        billing_cycle = new_billing_cycle or subscription.billing or "monthly"
+        self._validate_plan(new_plan, billing_cycle)
+
+        # Replace the current plan effective now. Proration (credit for unused
+        # time on the old plan) is applied as a line item on the next invoice.
+        return self.create_subscription(
+            org_id=org_id,
+            plan=new_plan,
+            billing_cycle=billing_cycle,
+            payment_gateway=subscription.payment_gateway or "stripe",
+            payment_method_id=payment_method_id,
+        )
 
     # ============ INVOICE MANAGEMENT ============
 
@@ -554,6 +578,9 @@ class BillingService:
 
     def list_invoices(self, org_id: str, status: Optional[str] = None) -> list[Invoice]:
         return self._invoices.list_for_org(org_id, status)
+
+    def list_transactions(self, org_id: str, status: Optional[str] = None) -> list[Transaction]:
+        return self._transactions.list_for_org(org_id, status)
 
     def pay_invoice(self, invoice_id: str, payment_method_id: str) -> Transaction:
         """Pay an open invoice."""
@@ -623,6 +650,10 @@ class BillingService:
                 application_count=0,
             )
         return usage
+
+    def list_student_invoices(self, user_id: str) -> list[Invoice]:
+        """Invoices issued to a student (student acts as their own org for billing)."""
+        return self._invoices.list_for_org(user_id)
 
     # ============ WEBHOOK HANDLING ============
 
@@ -787,10 +818,7 @@ class BillingService:
 
     def get_outstanding_invoices(self) -> list[Invoice]:
         """Admin: All unpaid invoices past due date."""
-        return self._session.query(InvoiceORM).filter(
-            InvoiceORM.status == "open",
-            InvoiceORM.due_date < datetime.utcnow()
-        ).all()
+        return self._invoices.list_outstanding()
 
     # ============ UTILITIES ============
 

@@ -164,6 +164,34 @@ class SqlAlchemyPlacementRepository(PlacementRepository):
             return None
         return self._to_domain(row[0], row[1])
 
+    def update(self, placement_id: str, **fields) -> Optional[Placement]:
+        row = (
+            self._session.query(PlacementORM)
+            .filter(PlacementORM.id == placement_id)
+            .first()
+        )
+        if row is None:
+            return None
+        allowed = {
+            "title", "courses", "grade", "loc", "mode", "duration", "stipend",
+            "deadline", "slots", "status", "docs", "testimonial", "about",
+            "duties", "requirements", "opportunity_type", "duration_hours",
+            "budget_range", "milestones", "remote_ok", "salary_range",
+            "probation_period", "training_included", "career_path",
+            "skills_required", "review_status",
+        }
+        for key, value in fields.items():
+            if key in allowed and value is not None:
+                setattr(row, key, value)
+        self._session.commit()
+        self._session.refresh(row)
+        org = (
+            self._session.query(OrganisationORM)
+            .filter(OrganisationORM.id == row.org_id)
+            .first()
+        )
+        return self._to_domain(row, org)
+
 
 class SqlAlchemyJobRepository(JobRepository):
     def __init__(self, session: Session) -> None:
@@ -561,6 +589,16 @@ class SqlAlchemyInvoiceRepository(InvoiceRepository):
     def find_by_number(self, invoice_number: str) -> Optional[Invoice]:
         row = self._session.query(InvoiceORM).filter_by(invoice_number=invoice_number).first()
         return self._to_domain(row) if row else None
+
+    def list_outstanding(self) -> list[Invoice]:
+        rows = (
+            self._session.query(InvoiceORM)
+            .filter(InvoiceORM.status == "open")
+            .filter(InvoiceORM.due_date < datetime.utcnow())
+            .order_by(InvoiceORM.due_date.asc())
+            .all()
+        )
+        return [self._to_domain(r) for r in rows]
 
     def save(self, invoice: Invoice) -> Invoice:
         row = self._session.query(InvoiceORM).filter_by(id=invoice.id).first()

@@ -1,4 +1,5 @@
 """Test doubles. A deterministic LLMClient so advisor tests never hit Groq."""
+import dataclasses
 from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Optional
@@ -43,6 +44,14 @@ class InMemoryPlacementRepository(PlacementRepository):
 
     def get(self, placement_id: str) -> Optional[Placement]:
         return self._by_id.get(placement_id)
+
+    def update(self, placement_id: str, **fields) -> Optional[Placement]:
+        existing = self._by_id.get(placement_id)
+        if existing is None:
+            return None
+        updated = dataclasses.replace(existing, **fields)
+        self._by_id[placement_id] = updated
+        return updated
 
 
 class InMemoryApplicationRepository(ApplicationRepository):
@@ -130,6 +139,16 @@ class InMemoryInvoiceRepository(InvoiceRepository):
         if status:
             items = [inv for inv in items if inv.status == status]
         return items
+
+    def list_outstanding(self) -> list[Invoice]:
+        now = datetime.utcnow()
+        return [
+            inv
+            for inv in self._items.values()
+            if inv.status == "open"
+            and inv.due_date is not None
+            and inv.due_date < now.isoformat()
+        ]
 
     def find_by_gateway_id(self, gateway: str, gateway_invoice_id: str) -> Optional[Invoice]:
         for inv in self._items.values():
