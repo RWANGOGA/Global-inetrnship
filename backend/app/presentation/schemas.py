@@ -427,6 +427,14 @@ class InternshipPostingListResponse(BaseModel):
     items: list[InternshipPostingRead]
 
 
+class PlacementRequirementsUpdate(BaseModel):
+    """Partial update of a placement's requirement-related fields."""
+    requirements: Optional[list[str]] = None
+    courses: Optional[list[str]] = None
+    grade: Optional[str] = None
+    docs: Optional[list[str]] = None
+    testimonial: Optional[bool] = None
+
 class InternshipReviewRequest(BaseModel):
     decision: str
     reason: str = ""

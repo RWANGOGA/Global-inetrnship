@@ -139,15 +139,23 @@ def test_billing_activate_marks_premium_and_clamps_seats():
     assert service.get_subscription("o1").plan == "Pro"
 
 
-def test_billing_cancel_reverts_to_free():
+def test_billing_cancel_sets_cancel_at_period_end():
     service = make_billing_service()
     service.create_subscription("o1", plan="Pro", billing_cycle="monthly")
 
     sub = service.cancel_subscription("o1")
-    # Cancellation immediately reverts to Free
+    # Cancellation is at period end: the paid plan stays active until then
+    assert sub.plan == "Pro"
+    assert sub.is_premium is True
+    assert sub.cancel_at_period_end is True
+    assert sub.status == "active"
+
+
+def test_billing_cancel_free_plan_is_noop():
+    service = make_billing_service()
+    sub = service.cancel_subscription("o1")
     assert sub.plan == "Free"
-    assert sub.is_premium is False
-    assert sub.seats == 1
+    assert sub.cancel_at_period_end is False
 
 
 # ---- Subscription value object --------------------------------------------

@@ -51,6 +51,7 @@ import {
   createSubscriptionApi,
   updateSubscriptionApi,
   resumeSubscriptionApi,
+  updatePlacementRequirementsApi,
   MatchResponse,
   fetchMe,
   fetchSaved,
@@ -90,9 +91,11 @@ import {
   type UserListResponse,
   type UserActionRequest,
   type UserActionResponse,
+  type PlacementRequirementsInput,
 } from "../lib/api";
 import type { ApplicationDto, JobApplicationDto } from "../types";
 import { ApplicationForm } from "../components/dashboard/student/ApplicationForm";
+import { RequirementsEditor } from "../components/dashboard/admin/RequirementsEditor";
 
 // Placement-fee model. Free host organisations (seed org "o4") publish up to
 // this many placements, then the fee applies. Mirrors the site's "first three
@@ -184,6 +187,7 @@ interface AppContextType {
   // Data
   orgs: Org[];
   placements: Placement[];
+  setPlacements: (value: Placement[] | ((prev: Placement[]) => Placement[])) => void;
   meta: CatalogMeta;
   metaReady: boolean;
   student: Student;
@@ -1210,72 +1214,53 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const p = getPlacement(id);
       if (!p) return;
 
+      const handleSave = async (input: PlacementRequirementsInput) => {
+        if (!isApiEnabled) {
+          setPlacements((prev) =>
+            prev.map((x) =>
+              x.id === id
+                ? { ...x, courses: input.courses ?? x.courses, grade: input.grade ?? x.grade, docs: input.docs ?? x.docs, testimonial: input.testimonial ?? x.testimonial }
+                : x
+            )
+          );
+          toast(`Requirements updated · ${p.title}`);
+          closeModal();
+          return;
+        }
+        try {
+          const updated = await updatePlacementRequirementsApi(id, input);
+          setPlacements((prev) =>
+            prev.map((x) => (x.id === id ? updated : x))
+          );
+          toast(`Requirements updated · ${updated.title}`);
+          closeModal();
+        } catch (err) {
+          toast(err instanceof Error ? err.message : "Failed to update requirements");
+        }
+      };
+
       openModal(
         `Requirements — ${p.title}`,
-        <div className="form">
-          <div className="field">
-            <label>Eligible courses</label>
-            <div className="checks">
-              {meta.courses.map((c) => (
-                <label key={c}>
-                  <input type="checkbox" defaultChecked={p.courses.includes(c)} />
-                  {c}
-                </label>
-              ))}
-            </div>
-          </div>
-          <div className="row2">
-            <div className="field">
-              <label>Minimum grade</label>
-              <select defaultValue={p.grade}>
-                {Object.keys(meta.gradeRules).map((g) => (
-                  <option key={g} value={g}>
-                    {g}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <label>Testimonial required</label>
-              <select
-                defaultValue={p.testimonial ? "Required" : "Not required"}
-              >
-                <option value="Required">Required</option>
-                <option value="Not required">Not required</option>
-              </select>
-            </div>
-          </div>
-          <div className="field">
-            <label>Required documents</label>
-            <div className="checks">
-              {[
-                "Transcript",
-                "Student ID",
-                "National ID",
-                "Recommendation letter",
-                "Portfolio",
-                "CV",
-                "Writing sample",
-                "Testimonial",
-              ].map((d) => (
-                <label key={d}>
-                  <input
-                    type="checkbox"
-                    defaultChecked={p.docs.includes(d)}
-                  />
-                  {d}
-                </label>
-              ))}
-            </div>
-          </div>
-        </div>,
-        "Save requirements",
-        () => {
-          toast(`Requirements updated · ${p.title}`);
-        }
+        <RequirementsEditor
+          placement={p}
+          availableCourses={meta.courses}
+          gradeOptions={Object.keys(meta.gradeRules)}
+          onSave={handleSave}
+        />,
+        null,
+        null
       );
     },
-    [getPlacement, openModal, toast]
+    [
+      getPlacement,
+      openModal,
+      closeModal,
+      setPlacements,
+      toast,
+      isApiEnabled,
+      updatePlacementRequirementsApi,
+      meta,
+    ]
   );
 
   // Billing actions and derived state. Declared before the domain actions so
@@ -2070,6 +2055,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         orgs,
         placements,
+        setPlacements,
         meta,
         metaReady,
         student,
