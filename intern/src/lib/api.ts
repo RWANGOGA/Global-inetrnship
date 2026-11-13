@@ -2178,3 +2178,120 @@ export async function deleteLearningResource(id: string): Promise<void> {
   });
   if (!res.ok) await readError(res, `/learning-resources/${id}`);
 }
+
+// ---- Testimonials (public) --------------------------------------------------
+
+export interface TestimonialDto {
+  id: string;
+  user_id: string;
+  filename: string;
+  document_type: string;
+  status: string;
+  is_public: boolean;
+  uploaded_at: string;
+  author_role: string;
+}
+
+export async function fetchPublicTestimonials(limit = 10, role?: string): Promise<TestimonialDto[]> {
+  const params = new URLSearchParams();
+  params.append("limit", String(limit));
+  if (role) params.append("role", role);
+  return getJson<TestimonialDto[]>(`/admin/testimonials?${params.toString()}`);
+}
+
+// ---- Contact info -----------------------------------------------------------
+
+export interface ContactInfoDto {
+  email: string;
+  whatsapp: string;
+}
+
+export async function fetchContactInfo(): Promise<ContactInfoDto> {
+  return getJson<ContactInfoDto>("/contact/info");
+}
+
+// ---- Featured placements (for home page) ------------------------------------
+
+export interface FeaturedPlacementDto {
+  id: string;
+  title: string;
+  organization: string;
+  organization_type: string;
+  location: string;
+  mode: string;
+  duration: string;
+  stipend: string;
+  deadline: string;
+  opportunity_type: string;
+  skills_required: string[];
+}
+
+export async function fetchFeaturedPlacements(limit = 6): Promise<FeaturedPlacementDto[]> {
+  return getJson<FeaturedPlacementDto[]>(`/placements?limit=${limit}`);
+}
+
+// ---- Student learning tracking ----------------------------------------------
+
+export interface LearningProgressDto {
+  course_id: string;
+  course_name: string;
+  completed_modules: number;
+  total_modules: number;
+  progress_percentage: number;
+  last_accessed: string;
+  badge_earned: string | null;
+}
+
+export interface StudentLearningProfileDto {
+  user_id: string;
+  completed_courses: LearningProgressDto[];
+  in_progress_courses: LearningProgressDto[];
+  achievements: Array<{
+    id: string;
+    name: string;
+    description: string;
+    earned_at: string;
+    badge_icon: string;
+  }>;
+  badges: Array<{
+    id: string;
+    name: string;
+    icon: string;
+    earned: boolean;
+    earned_at?: string;
+  }>;
+}
+
+export async function fetchStudentLearningProfile(): Promise<StudentLearningProfileDto> {
+  return getJson<StudentLearningProfileDto>("/student/learning/profile");
+}
+
+export async function markModuleComplete(courseId: string, moduleId: string): Promise<{ success: boolean; badge_earned?: string }> {
+  const data = await postJson<{ success: boolean; badge_earned?: string }>("/student/learning/complete-module", {
+    course_id: courseId,
+    module_id: moduleId,
+  });
+  return data;
+}
+
+// ---- Home page stats --------------------------------------------------------
+
+export interface HomeStatsDto {
+  total_placements: number;
+  total_organizations: number;
+  total_students: number;
+  total_applications: number;
+  recent_placements: Array<{
+    id: string;
+    title: string;
+    organization: string;
+    organization_type: string;
+    opportunity_type: string;
+    deadline: string;
+  }>;
+  org_counts: Record<string, number>;
+}
+
+export async function fetchHomeStats(): Promise<HomeStatsDto> {
+  return getJson<HomeStatsDto>("/home/stats");
+}

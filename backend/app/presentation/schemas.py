@@ -359,7 +359,7 @@ class AdminApplicationsResponse(BaseModel):
 
 
 class ApplyRequest(BaseModel):
-    placement_id: str
+    placement_id: str | None = None
     statement: str = ""
     cover_letter: str = ""
     cv_url: str | None = None
@@ -1122,3 +1122,80 @@ class AdvancedStudentProfileRead(BaseModel):
 class EnrichmentResponse(BaseModel):
     profile: AdvancedStudentProfileRead
     message: str = "Profile enriched successfully"
+
+
+# ---------------- Contact Info --------------------------------------------
+
+class ContactInfoRead(BaseModel):
+    email: str
+    whatsapp: str
+
+
+# ---------------- Featured Placements ------------------------------------
+
+class FeaturedPlacementRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    title: str
+    organization: str
+    organization_type: str
+    location: str
+    mode: str
+    duration: str
+    stipend: str
+    deadline: str
+    opportunity_type: str
+    skills_required: list[str] = []
+
+
+class FeaturedPlacementsResponse(BaseModel):
+    total: int
+    items: list[FeaturedPlacementRead]
+
+
+# ---------------- Home Stats --------------------------------------------
+
+class HomeStatsRead(BaseModel):
+    total_placements: int
+    total_organizations: int
+    total_students: int
+    total_applications: int
+    recent_placements: list[dict] = []
+    org_counts: dict[str, int] = {}
+
+
+# ---------------- Student Learning Tracking -------------------------------
+
+class LearningProgressRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    course_id: str
+    course_name: str
+    completed_modules: int
+    total_modules: int
+    progress_percentage: float
+    last_accessed: str
+    badge_earned: str | None = None
+
+
+class StudentLearningProfileRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    user_id: str
+    completed_courses: list[LearningProgressRead] = []
+    in_progress_courses: list[LearningProgressRead] = []
+    achievements: list[dict] = []
+    badges: list[dict] = []
+    skills_confidence: dict[str, int] = {}
+    skills_source: dict[str, str] = {}
+
+
+class MarkModuleCompleteRequest(BaseModel):
+    course_id: str
+    module_id: str
+
+
+class MarkModuleCompleteResponse(BaseModel):
+    success: bool
+    badge_earned: str | None = None

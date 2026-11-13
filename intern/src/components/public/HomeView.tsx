@@ -5,7 +5,7 @@ import { useApp } from "../../context/AppContext";
 import { Icon } from "../icons/Icons";
 import { PlacementCard } from "./PlacementCard";
 import { TestimonialCarousel } from "./TestimonialCarousel";
-import { fetchCatalog, fetchJobs, isApiEnabled } from "../../lib/api";
+import { fetchCatalog, fetchJobs, isApiEnabled, fetchPublicTestimonials, fetchHomeStats } from "../../lib/api";
 import type { Placement } from "../../types";
 
 export function HomeView() {
@@ -20,6 +20,8 @@ export function HomeView() {
 
   const [heroType, setHeroType] = useState("All");
   const [heroQuery, setHeroQuery] = useState("");
+  const [testimonials, setTestimonials] = useState<any[]>([]);
+  const [stats, setStats] = useState<any>(null);
 
   const handleHeroSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,6 +56,32 @@ export function HomeView() {
         setJobs(jobList);
       } catch (err) {
         console.error("backend fetch error", err);
+      }
+    })();
+  }, []);
+
+  // Fetch testimonials for carousel
+  useEffect(() => {
+    if (!isApiEnabled) return;
+    (async () => {
+      try {
+        const data = await fetchPublicTestimonials(10);
+        setTestimonials(data);
+      } catch (err) {
+        console.error("Failed to fetch testimonials", err);
+      }
+    })();
+  }, []);
+
+  // Fetch home stats
+  useEffect(() => {
+    if (!isApiEnabled) return;
+    (async () => {
+      try {
+        const data = await fetchHomeStats();
+        setStats(data);
+      } catch (err) {
+        console.error("Failed to fetch home stats", err);
       }
     })();
   }, []);
@@ -285,7 +313,7 @@ export function HomeView() {
       </section>
 
       {/* Testimonial Carousel */}
-      <TestimonialCarousel testimonials={[]} />
+      <TestimonialCarousel testimonials={testimonials} />
 
       <section className="sec" style={{ paddingTop: 0 }}>
         <div className="wrap">
