@@ -24,6 +24,7 @@ def advise(
             cgpa=payload.cgpa,
             role=current_user.role if current_user else "student",
             history=payload.history,
+            is_first_message=payload.is_first_message,
         )
     except LLMNotConfigured as exc:
         raise HTTPException(status_code=503, detail=str(exc))

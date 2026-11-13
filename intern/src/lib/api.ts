@@ -1250,7 +1250,8 @@ export async function askAdvisor(
   course: string,
   cgpa: number,
   role: string = "student",
-  history: { id: string; who: string; text: string }[] = []
+  history: { id: string; who: string; text: string }[] = [],
+  isFirstMessage: boolean = false
 ): Promise<AdvisorResponse> {
   const data = await postJson<AdvisorResponse>("/advisor", {
     message,
@@ -1259,6 +1260,7 @@ export async function askAdvisor(
     cgpa,
     role,
     history,
+    is_first_message: isFirstMessage,
   });
   return data;
 }

@@ -1,6 +1,6 @@
 """Application settings.
 
-Single source of truth for environment configuration. The Groq key and the
+Single source of truth for environment configuration. The Groq key, DeepL key and the
 database URL are read from the environment (or a local ``.env``); they are
 never committed. Swapping Postgres for Neon/Render is a URL change only.
 """
@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     # never hardcoded). Empty by default so the API boots without an advisor.
     groq_api_key: str = ""
     groq_model: str = ""
+    # DeepL credentials for voice (TTS/STT). Empty by default so the API boots without voice.
+    deepl_api_key: str = ""
     # Auth. The signing secret comes from the environment only; tokens are short
     # lived. In production a real secret is required (guarded at startup).
     secret_key: str = ""

@@ -67,6 +67,34 @@ class LLMClient(ABC):
         """Return the model's answer to a single prompt."""
 
 
+class VoiceClient(ABC):
+    """Port for the voice service (TTS/STT) behind the voice features.
+
+    The voice features depend on this abstraction, so production can talk to DeepL
+    while tests inject a deterministic fake — no network, no API key, fully
+    offline. (SOLID: DIP.)
+    """
+
+    @abstractmethod
+    async def text_to_speech(self, text: str, options: "VoiceOptions" = None) -> bytes:
+        """Convert text to speech audio bytes."""
+
+    @abstractmethod
+    async def speech_to_text(self, audio_data: bytes, options: "VoiceOptions" = None) -> str:
+        """Convert speech audio bytes to text."""
+
+    @abstractmethod
+    async def close(self) -> None:
+        """Close any open connections."""
+
+
+@dataclass
+class VoiceOptions:
+    lang: str = "EN-US"
+    voice: str = "default"
+    speed: float = 1.0
+
+
 class SavedRepository(ABC):
     """A user's bookmarked placements."""
 

@@ -812,41 +812,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Chat assistant logic
   const answerChat = useCallback(
-    (query: string): string => {
+    (query: string): { reply: string; actions: AdvisorAction[] } => {
       const q = query.toLowerCase();
       const currentRole = role;
 
       // Role-specific responses
       if (currentRole === "employer") {
         if (q.includes("applicant") || q.includes("candidate")) {
-          return `Use the Applicants tab to review candidates for your placements. You can filter by placement, see match scores, and shortlist candidates.`;
+          return { reply: `Use the Applicants tab to review candidates for your placements. You can filter by placement, see match scores, and shortlist candidates.`, actions: [] };
         }
         if (q.includes("post") || q.includes("create") || q.includes("new internship")) {
-          return `Go to the Placements tab and click "New internship" to create a posting. You'll specify courses, grade, documents, dates, and duties.`;
+          return { reply: `Go to the Placements tab and click "New internship" to create a posting. You'll specify courses, grade, documents, dates, and duties.`, actions: [] };
         }
         if (q.includes("dashboard") || q.includes("overview")) {
-          return `Your employer dashboard shows live placements, applicant counts, shortlisted candidates, and your plan usage.`;
+          return { reply: `Your employer dashboard shows live placements, applicant counts, shortlisted candidates, and your plan usage.`, actions: [] };
         }
       }
 
       if (currentRole === "admin") {
         if (q.includes("queue") || q.includes("review") || q.includes("pending")) {
-          return `The Admin dashboard has a Review Queue showing students awaiting document verification. Use the Documents tab to verify or reject uploaded files.`;
+          return { reply: `The Admin dashboard has a Review Queue showing students awaiting document verification. Use the Documents tab to verify or reject uploaded files.`, actions: [] };
         }
         if (q.includes("metric") || q.includes("stat") || q.includes("report")) {
-          return `Admin Overview shows open placements, pending documents, students placed, and placement record completion rate.`;
+          return { reply: `Admin Overview shows open placements, pending documents, students placed, and placement record completion rate.`, actions: [] };
         }
         if (q.includes("user") || q.includes("student") || q.includes("organisation")) {
-          return `Use the Students and Organisations tabs to manage platform users and host organisations.`;
+          return { reply: `Use the Students and Organisations tabs to manage platform users and host organisations.`, actions: [] };
         }
       }
 
       if (currentRole === "jobseeker") {
         if (q.includes("job") || q.includes("role") || q.includes("application")) {
-          return `Your Applications tab shows all job applications with their status. Browse Roles to find new opportunities.`;
+          return { reply: `Your Applications tab shows all job applications with their status. Browse Roles to find new opportunities.`, actions: [] };
         }
         if (q.includes("profile") || q.includes("cv") || q.includes("resume")) {
-          return `Your profile and CV are used to match you with roles. Keep your skills and experience updated.`;
+          return { reply: `Your profile and CV are used to match you with roles. Keep your skills and experience updated.`, actions: [] };
         }
       }
 
@@ -894,15 +894,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const impact = skillImpact();
         if (!impact.length) {
           const top = ranked[0];
-          return `You already cover all required skills for your best fit${top ? ` (${top.p.title}, ${top.m.score}% match)` : ""}. To widen options, add adjacent skills on your Skills profile — pick a placement you can't reach yet and learn its missing skills.`;
+          return { reply: `You already cover all required skills for your best fit${top ? ` (${top.p.title}, ${top.m.score}% match)` : ""}. To widen options, add adjacent skills on your Skills profile — pick a placement you can't reach yet and learn its missing skills.`, actions: [] };
         }
         const lead = impact.slice(0, 2);
-        return `Fastest wins for your profile (${student.skills.length} skills, ${student.course}, CGPA ${student.cgpa}): ${lead
+        return { reply: `Fastest wins for your profile (${student.skills.length} skills, ${student.course}, CGPA ${student.cgpa}): ${lead
           .map(
             (i) =>
               `**${i.skill}** (unlocks ${i.count} placement${i.count > 1 ? "s" : ""} you already clear on course/grade)`
           )
-          .join("; ")}. Add **${lead[0].skill}** to your Skills profile and watch match scores jump. Paste a project/CV line into the extractor if you've used it before — it'll claim the skill for you.`;
+          .join("; ")}. Add **${lead[0].skill}** to your Skills profile and watch match scores jump. Paste a project/CV line into the extractor if you've used it before — it'll claim the skill for you.`, actions: [] };
       }
 
       if (
@@ -918,13 +918,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ) {
         const top = ranked[0];
         if (!top)
-          return `Ask about a specific role and I'll score it against your skills, course and grade.`;
+          return { reply: `Ask about a specific role and I'll score it against your skills, course and grade.`, actions: [] };
         const org = getOrg(top.p.orgId);
         const near = ranked[1];
         const gapText = top.m.missing.length
           ? ` Missing: ${top.m.missing.join(", ")}.`
           : ` You match every required skill.`;
-        return `**Top fit:** ${top.p.title} at ${org?.name || "host org"} — ${top.m.score}% match, closes ${top.p.deadline}.${gapText}${near ? ` Next: ${near.p.title} (${near.m.score}%).` : ""} Open Placements for full ranking or Skills to close the gap.`;
+        return { reply: `**Top fit:** ${top.p.title} at ${org?.name || "host org"} — ${top.m.score}% match, closes ${top.p.deadline}.${gapText}${near ? ` Next: ${near.p.title} (${near.m.score}%).` : ""} Open Placements for full ranking or Skills to close the gap.`, actions: [] };
       }
 
       if (
@@ -933,7 +933,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         q.includes("how are you ranking") ||
         q.includes("how do you calculate")
       ) {
-        return `Match = 60% skill coverage + 25% course fit + 15% CGPA. Fully explainable — every row lists required skills and which you bring. Same score powers the server-side advisor.`;
+        return { reply: `Match = 60% skill coverage + 25% course fit + 15% CGPA. Fully explainable — every row lists required skills and which you bring. Same score powers the server-side advisor.`, actions: [] };
       }
 
       if (
@@ -951,18 +951,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         const targetP = found;
         if (!targetP)
-          return `Catalog not loaded yet. Open Placements and ask again once the live list appears.`;
+          return { reply: `Catalog not loaded yet. Open Placements and ask again once the live list appears.`, actions: [] };
         const ok = isEligible(targetP);
         const courseOk = targetP.courses.includes(student.course);
         const targetOrg = getOrg(targetP.orgId);
         const orgName = targetOrg ? targetOrg.name : "the organisation";
 
         return ok
-          ? `**Yes** — ${targetP.title} at ${orgName}. Your course (${student.course}) is listed and CGPA ${student.cgpa} clears ${targetP.grade}. You need ${targetP.docs.filter((d) => {
+          ? { reply: `**Yes** — ${targetP.title} at ${orgName}. Your course (${student.course}) is listed and CGPA ${student.cgpa} clears ${targetP.grade}. You need ${targetP.docs.filter((d) => {
               const h = docs.find((x) => x.name === d);
               return !h || h.status === "missing";
-            }).length} document(s) uploaded before the office forwards your file. Deadline: ${targetP.deadline}.`
-          : `**Not on paper.** ${targetP.title} requires ${targetP.grade} and courses ${targetP.courses.join(", ")}. Your record: ${student.course} at ${student.cgpa}${courseOk ? "" : " — course not on their list"}. University can request an exception via the placement office.`;
+            }).length} document(s) uploaded before the office forwards your file. Deadline: ${targetP.deadline}.`, actions: [] }
+          : { reply: `**Not on paper.** ${targetP.title} requires ${targetP.grade} and courses ${targetP.courses.join(", ")}. Your record: ${student.course} at ${student.cgpa}${courseOk ? "" : " — course not on their list"}. University can request an exception via the placement office.`, actions: [] };
       }
 
       if (
@@ -973,7 +973,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const missing = docs
           .filter((d) => d.status === "missing")
           .map((d) => d.name);
-        return `Three states: **verified**, **pending**, **missing**. You have ${docs.filter((d) => d.status === "verified").length} verified, ${missing.length} missing${missing.length ? ` (${missing.join(", ")})` : ""}. Upload from Documents (PDF/JPG, ≤10 MB). Office reviews in ~48 hrs; rejections keep reasons so you can replace without restarting.`;
+        return { reply: `Three states: **verified**, **pending**, **missing**. You have ${docs.filter((d) => d.status === "verified").length} verified, ${missing.length} missing${missing.length ? ` (${missing.join(", ")})` : ""}. Upload from Documents (PDF/JPG, ≤10 MB). Office reviews in ~48 hrs; rejections keep reasons so you can replace without restarting.`, actions: [] };
       }
 
       if (
@@ -990,7 +990,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           .filter(Boolean)
           .slice(0, 3)
           .join(", ");
-        return `${gov.length} government placements live (e.g., ${orgNames}). Same requirements as companies — courses, grade, documents, testimonial. Data Analyst Intern closes soonest (28 Feb).`;
+        return { reply: `${gov.length} government placements live (e.g., ${orgNames}). Same requirements as companies — courses, grade, documents, testimonial. Data Analyst Intern closes soonest (28 Feb).`, actions: [] };
       }
 
       if (
@@ -998,7 +998,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         q.includes("verify") ||
         q.includes("transcript")
       ) {
-        return `Transcript & student ID verified by placement office, not employer. Officer checks against university record → marks verified or returns with reason. Median: 48 hrs. Employers only see verified files.`;
+        return { reply: `Transcript & student ID verified by placement office, not employer. Officer checks against university record → marks verified or returns with reason. Median: 48 hrs. Employers only see verified files.`, actions: [] };
       }
 
       if (
@@ -1013,7 +1013,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
           )
           .slice(0, 3);
-        return `Next deadlines: ${soon.map((p) => `${p.title} (${p.deadline})`).join(", ")}. Atlas Health closes first. Ask me to check eligibility for any before you apply.`;
+        return { reply: `Next deadlines: ${soon.map((p) => `${p.title} (${p.deadline})`).join(", ")}. Atlas Health closes first. Ask me to check eligibility for any before you apply.`, actions: [] };
       }
 
       if (
@@ -1022,7 +1022,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         q.includes("free") ||
         q.includes("price")
       ) {
-        return `Applying is free and always will be. Universities and host organisations fund the service. No premium tier for students, no fee to unlock a placement.`;
+        return { reply: `Applying is free and always will be. Universities and host organisations fund the service. No premium tier for students, no fee to unlock a placement.`, actions: [] };
       }
 
       if (
@@ -1031,7 +1031,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         q.includes("phone") ||
         q.includes("email")
       ) {
-        return `Office: Plot 9, Nkrumah Road, Kampala — Mon–Fri 08:30–17:00 EAT, 1-day reply. Nairobi & Berlin offices on Contact page.`;
+        return { reply: `Office: Plot 9, Nkrumah Road, Kampala — Mon–Fri 08:30–17:00 EAT, 1-day reply. Nairobi & Berlin offices on Contact page.`, actions: [] };
       }
 
       if (
@@ -1039,7 +1039,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         q.includes("about") ||
         q.includes("how does it work")
       ) {
-        return `BrighterWorks = separate internship & jobs portals. Universities publish placements from companies, gov agencies, NGOs with eligible courses, min grade, docs, testimonial rule. Students see eligibility before applying; office verifies docs; employers get qualified files only.`;
+        return { reply: `BrighterWorks = separate internship & jobs portals. Universities publish placements from companies, gov agencies, NGOs with eligible courses, min grade, docs, testimonial rule. Students see eligibility before applying; office verifies docs; employers get qualified files only.`, actions: [] };
       }
 
       if (
@@ -1047,10 +1047,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
         q.includes("what are you") ||
         q.includes("identity")
       ) {
-        return `I'm your career advisor. I use your actual profile (skills, course, CGPA) to rank placements, suggest skills to learn, check eligibility, list missing documents, and show deadlines. Ask "what should I learn" or "which placement fits me" and I'll use your real data.`;
+        return { reply: `I'm your career advisor — **Brightworks Virtual Assistant**. I use your actual profile (skills, course, CGPA) to rank placements, suggest skills to learn, check eligibility, list missing documents, and show deadlines. Ask "what should I learn" or "which placement fits me" and I'll use your real data.`, actions: [] };
       }
 
-      return `I rank placements against your skills, suggest the single skill that unlocks the most roles, check eligibility for any placement, list missing documents, and show upcoming deadlines. Ask about a role or say "what should I learn".`;
+      // Human handoff triggers
+      if (
+        q.includes("account") && (q.includes("lock") || q.includes("access") || q.includes("password") || q.includes("login")) ||
+        q.includes("technical") && (q.includes("issue") || q.includes("problem") || q.includes("bug") || q.includes("error")) ||
+        q.includes("billing") || q.includes("subscription") || q.includes("payment") ||
+        q.includes("privacy") || q.includes("data deletion") || q.includes("gdpr") ||
+        q.includes("complaint") || q.includes("escalat") || q.includes("speak to human") || q.includes("talk to person") ||
+        q.includes("special request") || q.includes("exception") || q.includes("appeal") ||
+        q.includes("human") && (q.includes("help") || q.includes("assist") || q.includes("support"))
+      ) {
+        return {
+          reply: `This issue requires human assistance. I'll connect you with our support team. Please provide your email and phone number with country code, and choose WhatsApp or email for contact.`,
+          actions: [{ type: "human_handoff", label: "Connect with Support", payload: {} }]
+        };
+      }
+
+      return { reply: `I rank placements against your skills, suggest the single skill that unlocks the most roles, check eligibility for any placement, list missing documents, and show upcoming deadlines. Ask about a role or say "what should I learn".`, actions: [] };
     },
     [placements, pid, getPlacement, isEligible, student, getOrg, docs, role]
   );
@@ -1089,14 +1105,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Prefer the Groq advisor (grounded by the server-side matcher). If the
       // API is off/unreachable or Groq isn't configured (503), fall back to the
       // built-in deterministic assistant so the chat always answers.
+      const isFirstMessage = chatMessages.length <= 1;
       if (isApiEnabled) {
-        askAdvisor(trimmed, student.skills, student.course, student.cgpa, role, history)
+        askAdvisor(trimmed, student.skills, student.course, student.cgpa, role, history, isFirstMessage)
           .then(finalize)
-          .catch(() => finalize({ reply: answerChat(trimmed), actions: [] }));
+          .catch(() => {
+            const fallback = answerChat(trimmed);
+            finalize({ reply: fallback.reply, actions: fallback.actions });
+          });
         return;
       }
 
-      setTimeout(() => finalize({ reply: answerChat(trimmed), actions: [] }), 650);
+      setTimeout(() => {
+        const fallback = answerChat(trimmed);
+        finalize({ reply: fallback.reply, actions: fallback.actions });
+      }, 650);
     },
     [answerChat, student, role, chatMessages]
   );
