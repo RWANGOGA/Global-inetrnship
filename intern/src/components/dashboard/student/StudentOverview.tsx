@@ -14,6 +14,14 @@ export function StudentOverview() {
     getPlacement,
     getOrg,
   } = useApp();
+  
+  // Simple monthly application counter (current month only)
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const monthlyApps = applications.filter(a => 
+    a.created_at?.startsWith(currentMonth)
+  ).length;
+  const FREE_LIMIT = 30;
+  const overLimit = monthlyApps >= FREE_LIMIT;
   if (dashboardDataStatus === "loading" || dashboardDataStatus === "idle") {
     return (
       <div className="dpane-h">
@@ -52,13 +60,42 @@ export function StudentOverview() {
             {matches.length} recommended internship{matches.length === 1 ? "" : "s"}
           </p>
         </div>
-        <button
-          type="button"
-          className="btn btn-sm btn-blue"
-          onClick={() => dashGo("placements")}
-        >
-          Find placements
-        </button>
+        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+          <button
+            type="button"
+            className="btn btn-sm btn-blue"
+            onClick={() => dashGo("placements")}
+          >
+            Find placements
+          </button>
+          {/* Application limit counter */}
+          <div
+            className="ticket"
+            style={{
+              padding: "10px 14px",
+              minWidth: "220px",
+              borderColor: overLimit ? "var(--red)" : monthlyApps >= FREE_LIMIT * 0.8 ? "var(--amber)" : "var(--green)",
+              background: overLimit ? "var(--red-tint)" : monthlyApps >= FREE_LIMIT * 0.8 ? "var(--amber-tint)" : "var(--green-tint)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
+              <span style={{ fontWeight: 600, color: overLimit ? "var(--red)" : monthlyApps >= FREE_LIMIT * 0.8 ? "var(--amber)" : "var(--green)" }}>
+                {monthlyApps} / {FREE_LIMIT}
+              </span>
+              <span style={{ color: "var(--muted)", fontSize: "11px" }}>this month</span>
+              {overLimit && (
+                <span className="tg red" style={{ fontSize: "10px", marginLeft: "auto" }}>
+                  Overage
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: "10px", color: "var(--muted)", marginTop: "2px" }}>
+              {overLimit
+                ? "Free limit exceeded · overage invoices apply"
+                : `${FREE_LIMIT - monthlyApps} free applications remaining`}
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="dsplit">

@@ -170,9 +170,15 @@ class ApplicationService:
     placement, and applying twice for the same placement is idempotent.
     """
 
-    def __init__(self, placements: PlacementRepository, apps: ApplicationRepository) -> None:
+    def __init__(
+        self,
+        placements: PlacementRepository,
+        apps: ApplicationRepository,
+        billing: BillingService = None,
+    ) -> None:
         self._placements = placements
         self._apps = apps
+        self._billing = billing
 
     def apply(
         self,
@@ -206,6 +212,21 @@ class ApplicationService:
         if existing is not None:
             return existing  # idempotent: no duplicate applications
 
+        # Check student application limit (billing gate)
+        if self._billing:
+            limit_check = self._billing.check_student_application_limit(user_id)
+            if not limit_check["allowed"]:
+                raise HTTPException(
+                    status_code=403,
+                    detail={
+                        "error": "application_limit_exceeded",
+                        "message": limit_check["reason"],
+                        "current": limit_check["current"],
+                        "limit": limit_check["limit"],
+                        "unpaid_invoice": limit_check.get("unpaid_invoice")
+                    }
+                )
+
         now = date.today().isoformat()
         application = Application(
             id=uuid4().hex,
@@ -232,7 +253,13 @@ class ApplicationService:
             created_at=now,
             updated_at=now,
         )
-        return self._apps.add(application)
+        application = self._apps.add(application)
+
+        # Record for student billing (tracks free tier / overage)
+        if self._billing:
+            self._billing.record_student_application(user_id)
+
+        return application
 
     def list_for_user(self, user_id: str) -> list[Application]:
         return self._apps.list_for_user(user_id)
@@ -265,6 +292,13 @@ class BillingService:
         "Enterprise": {"monthly": 0, "annual": 0},  # Custom pricing
     }
 
+    # Placement limits per plan
+    PLACEMENT_LIMITS = {
+        "Free": 3,
+        "Pro": -1,  # -1 = unlimited
+        "Enterprise": -1,
+    }
+
     # Student billing
     STUDENT_FREE_APPS = 30
     STUDENT_OVERAGE_CENTS = 50  # $0.50 per application
@@ -295,6 +329,34 @@ class BillingService:
     def get_subscription(self, org_id: str) -> Subscription:
         """Get subscription with Free default."""
         return self._subscriptions.get(org_id)
+
+    def check_placement_limit(self, org_id: str, session: Session = None) -> dict:
+        """Check if org can create another placement. Returns dict with allowed, current, limit, reason."""
+        sub = self.get_subscription(org_id)
+        limit = self.PLACEMENT_LIMITS.get(sub.plan, 3)
+        
+        if limit == -1:
+            return {"allowed": True, "current": 0, "limit": -1, "reason": "unlimited"}
+        
+        # Count active/open placements for this org
+        if session:
+            from app.infrastructure.orm import PlacementORM
+            current = session.query(PlacementORM).filter(
+                PlacementORM.org_id == org_id,
+                PlacementORM.status.in_(["Open", "Closing"]),
+                PlacementORM.review_status == "approved"
+            ).count()
+        else:
+            # Fallback for tests without session
+            current = 0
+        
+        allowed = current < limit
+        return {
+            "allowed": allowed,
+            "current": current,
+            "limit": limit,
+            "reason": f"Free plan allows {limit} placements. Upgrade to Pro for unlimited." if not allowed else None
+        }
 
     def create_subscription(
         self,
@@ -650,6 +712,47 @@ class BillingService:
                 application_count=0,
             )
         return usage
+
+    def check_student_application_limit(self, user_id: str) -> dict:
+        """Check if student can apply. Returns dict with allowed, current, limit, reason, unpaid_invoice."""
+        usage = self.get_student_usage(user_id)
+        free_limit = self.STUDENT_FREE_APPS
+        
+        if usage.application_count < free_limit:
+            return {
+                "allowed": True,
+                "current": usage.application_count,
+                "limit": free_limit,
+                "reason": None
+            }
+        
+        # Over free limit - check for unpaid overage invoice
+        invoices = self._invoices.list_for_org(user_id, status="open")
+        overage_invoices = [inv for inv in invoices if inv.metadata.get("type") == "student_overage"]
+        
+        if overage_invoices:
+            # Has unpaid overage invoice - block until paid
+            unpaid = overage_invoices[0]
+            return {
+                "allowed": False,
+                "current": usage.application_count,
+                "limit": free_limit,
+                "reason": f"Free limit of {free_limit} applications/month exceeded. Pay overage invoice {unpaid.invoice_number} (${unpaid.amount_cents/100:.2f}) to continue applying.",
+                "unpaid_invoice": {
+                    "id": unpaid.id,
+                    "invoice_number": unpaid.invoice_number,
+                    "amount_cents": unpaid.amount_cents,
+                    "due_date": unpaid.due_date
+                }
+            }
+        
+        # No unpaid invoice - allowed (next application will create new overage invoice)
+        return {
+            "allowed": True,
+            "current": usage.application_count,
+            "limit": free_limit,
+            "reason": f"Free limit exceeded. Next application will create overage invoice at ${self.STUDENT_OVERAGE_CENTS/100:.2f}/application."
+        }
 
     def list_student_invoices(self, user_id: str) -> list[Invoice]:
         """Invoices issued to a student (student acts as their own org for billing)."""
