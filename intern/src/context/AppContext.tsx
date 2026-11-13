@@ -839,6 +839,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const q = query.toLowerCase().trim();
       const currentRole = role;
 
+      // Helper to extract country code from phone
+      const extractCountryCode = (phone: string): string => {
+        const match = phone.match(/^\+(\d{1,4})/);
+        return match ? `+${match[1]}` : "+256";
+      };
+
       // Handle handoff flow first
       if (handoffState.step !== "idle" && handoffState.step !== "complete") {
         if (handoffState.step === "collecting_email") {
@@ -856,16 +862,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
           };
         }
         if (handoffState.step === "collecting_phone") {
-          const phoneRegex = /^[\+]?[\d\s\-\(\)]{10,}$/;
+          // More permissive phone regex - just needs + and digits
+          const phoneRegex = /^\+[\d\s\-\(\)]{7,}$/;
           if (phoneRegex.test(q)) {
-            setHandoffState({ ...handoffState, phone: q, step: "collecting_method" });
+            const countryCode = extractCountryCode(q);
+            setHandoffState({ ...handoffState, phone: q, countryCode, step: "collecting_method" });
             return { 
               reply: `Great! How would you like our team to reach you — **WhatsApp** or **email**?`, 
               actions: [] 
             };
           }
           return { 
-            reply: `Please include your country code (e.g., +256 700 123456 or +1 555-123-4567).`, 
+            reply: `Please include your country code starting with + (e.g., +256 700 123456 or +1 555-123-4567).`, 
             actions: [] 
           };
         }
