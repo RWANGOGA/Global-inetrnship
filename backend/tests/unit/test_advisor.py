@@ -22,7 +22,7 @@ def test_compose_prompt_is_grounded_in_matches():
     pr = compose_prompt("What should I do?", ["Figma"], "Design", 3.5, _ranked())
     assert "Product Design Intern @ Lumen Labs" in pr
     assert "55%" in pr
-    assert "add: UI Design" in pr
+    assert "missing: UI Design" in pr
     assert "What should I do?" in pr
 
 

@@ -207,6 +207,14 @@ interface AppContextType {
   modal: ModalConfig | null;
   isChatOpen: boolean;
   chatMessages: ChatMessage[];
+  handoffState: {
+    step: "idle" | "collecting_email" | "collecting_phone" | "collecting_method" | "complete";
+    email: string;
+    phone: string;
+    countryCode: string;
+    preferredContact: "whatsapp" | "email" | "";
+  };
+  setHandoffState: (state: any) => void;
 
   // Setters & Actions
   setTypeFilter: (t: string) => void;
@@ -386,9 +394,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     {
       id: "init",
       who: "INTERN",
-      text: "I can check whether you qualify for a placement, list the documents you still need, or explain how verification works. You are signed in as a Design student with a 3.7 CGPA.",
+      text: "Hi! I'm **Brightworks Virtual Assistant** — your career coach for BrighterWorks. I know your profile, all the placements, and can help with eligibility, applications, skill gaps, deadlines, and more. What can I help you with today?",
     },
   ]);
+  
+  // Human handoff state
+  const [handoffState, setHandoffState] = useState<{
+    step: "idle" | "collecting_email" | "collecting_phone" | "collecting_method" | "complete";
+    email: string;
+    phone: string;
+    countryCode: string;
+    preferredContact: "whatsapp" | "email" | "";
+  }>({
+    step: "idle",
+    email: "",
+    phone: "",
+    countryCode: "+256",
+    preferredContact: "",
+  });
 
   const getOrg = useCallback(
     (id: string) => orgs.find((o) => o.id === id),
@@ -813,16 +836,77 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Chat assistant logic
   const answerChat = useCallback(
     (query: string): { reply: string; actions: AdvisorAction[] } => {
-      const q = query.toLowerCase();
+      const q = query.toLowerCase().trim();
       const currentRole = role;
+
+      // Handle handoff flow first
+      if (handoffState.step !== "idle" && handoffState.step !== "complete") {
+        if (handoffState.step === "collecting_email") {
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (emailRegex.test(q)) {
+            setHandoffState({ ...handoffState, email: q, step: "collecting_phone" });
+            return { 
+              reply: `Thanks! Now I need your phone number with country code (e.g., +256 700 123456).`, 
+              actions: [] 
+            };
+          }
+          return { 
+            reply: `That doesn't look like a valid email. Could you please share your email address?`, 
+            actions: [] 
+          };
+        }
+        if (handoffState.step === "collecting_phone") {
+          const phoneRegex = /^[\+]?[\d\s\-\(\)]{10,}$/;
+          if (phoneRegex.test(q)) {
+            setHandoffState({ ...handoffState, phone: q, step: "collecting_method" });
+            return { 
+              reply: `Great! How would you like our team to reach you — **WhatsApp** or **email**?`, 
+              actions: [] 
+            };
+          }
+          return { 
+            reply: `Please include your country code (e.g., +256 700 123456 or +1 555-123-4567).`, 
+            actions: [] 
+          };
+        }
+        if (handoffState.step === "collecting_method") {
+          if (q.includes("whatsapp") || q.includes("whats")) {
+            setHandoffState({ ...handoffState, preferredContact: "whatsapp", step: "complete" });
+            const whatsappUrl = `https://wa.me/${handoffState.countryCode.replace("+", "")}${handoffState.phone.replace(/\D/g, "")}?text=Hello%20Brightworks%20Support%2C%20I%20need%20assistance.`;
+            window.open(whatsappUrl, "_blank");
+            return { 
+              reply: `Perfect! I've opened WhatsApp for you. Our support team will message you there shortly. They have your email (${handoffState.email}) and phone (${handoffState.phone}).`, 
+              actions: [] 
+            };
+          }
+          if (q.includes("email") || q.includes("mail")) {
+            setHandoffState({ ...handoffState, preferredContact: "email", step: "complete" });
+            const mailtoUrl = `mailto:support@brightworks.com?subject=Support%20Request&body=Hello%20Brightworks%20Support%2C%0A%0AI%20need%20assistance.%0A%0AEmail%3A%20${encodeURIComponent(handoffState.email)}%0APhone%3A%20${encodeURIComponent(handoffState.phone)}`;
+            window.open(mailtoUrl, "_blank");
+            return { 
+              reply: `Perfect! I've opened your email client. Our support team will reach out to ${handoffState.email} shortly. They also have your phone (${handoffState.phone}).`, 
+              actions: [] 
+            };
+          }
+          return { 
+            reply: `Please choose **WhatsApp** or **email** for our team to contact you.`, 
+            actions: [] 
+          };
+        }
+      }
+
+      // Reset handoff if user changes topic
+      if (handoffState.step === "complete" && !q.includes("support") && !q.includes("human") && !q.includes("team")) {
+        setHandoffState({ step: "idle", email: "", phone: "", countryCode: "+256", preferredContact: "" });
+      }
 
       // Role-specific responses
       if (currentRole === "employer") {
         if (q.includes("applicant") || q.includes("candidate")) {
-          return { reply: `Use the Applicants tab to review candidates for your placements. You can filter by placement, see match scores, and shortlist candidates.`, actions: [] };
+          return { reply: `You can review all applicants in the Applicants tab — filter by placement, see match scores, and shortlist candidates.`, actions: [] };
         }
         if (q.includes("post") || q.includes("create") || q.includes("new internship")) {
-          return { reply: `Go to the Placements tab and click "New internship" to create a posting. You'll specify courses, grade, documents, dates, and duties.`, actions: [] };
+          return { reply: `Head to the Placements tab and click "New internship" — you'll set courses, grade, documents, dates, and duties.`, actions: [] };
         }
         if (q.includes("dashboard") || q.includes("overview")) {
           return { reply: `Your employer dashboard shows live placements, applicant counts, shortlisted candidates, and your plan usage.`, actions: [] };
@@ -831,7 +915,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       if (currentRole === "admin") {
         if (q.includes("queue") || q.includes("review") || q.includes("pending")) {
-          return { reply: `The Admin dashboard has a Review Queue showing students awaiting document verification. Use the Documents tab to verify or reject uploaded files.`, actions: [] };
+          return { reply: `The Admin dashboard has a Review Queue for document verification. Use the Documents tab to verify or reject files.`, actions: [] };
         }
         if (q.includes("metric") || q.includes("stat") || q.includes("report")) {
           return { reply: `Admin Overview shows open placements, pending documents, students placed, and placement record completion rate.`, actions: [] };
@@ -843,30 +927,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       if (currentRole === "jobseeker") {
         if (q.includes("job") || q.includes("role") || q.includes("application")) {
-          return { reply: `Your Applications tab shows all job applications with their status. Browse Roles to find new opportunities.`, actions: [] };
+          return { reply: `Your Applications tab shows all job applications with status. Browse Roles to find new opportunities.`, actions: [] };
         }
         if (q.includes("profile") || q.includes("cv") || q.includes("resume")) {
           return { reply: `Your profile and CV are used to match you with roles. Keep your skills and experience updated.`, actions: [] };
         }
       }
 
-      // Skills-driven career guidance for students (default)
-      // ... rest of the existing logic
+      // Build ranked placements for context
       const ranked = placements
         .map((p) => ({
           p,
-          m: matchPlacement(
-            p,
-            student.skills,
-            student.course,
-            student.cgpa,
-            student.skillsConfidence
-          ),
+          m: matchPlacement(p, student.skills, student.course, student.cgpa, student.skillsConfidence),
         }))
         .sort((a, b) => b.m.score - a.m.score);
 
-      // Which missing skill unlocks the most placements the student could
-      // realistically land (course + grade already fit).
       const skillImpact = (): { skill: string; count: number }[] => {
         const have = new Set(student.skills);
         const tally = new Map<string, number>();
@@ -877,198 +952,115 @@ export function AppProvider({ children }: { children: ReactNode }) {
             tally.set(miss, (tally.get(miss) || 0) + 1);
           }
         }
-        return [...tally.entries()]
-          .map(([skill, count]) => ({ skill, count }))
-          .sort((a, b) => b.count - a.count);
+        return [...tally.entries()].map(([skill, count]) => ({ skill, count })).sort((a, b) => b.count - a.count);
       };
 
-      if (
-        q.includes("learn") ||
-        q.includes("skill") ||
-        q.includes("improve") ||
-        q.includes("gap") ||
-        q.includes("boost") ||
-        q.includes("stronger") ||
-        q.includes("increase")
-      ) {
+      // Skill gap questions
+      if (q.includes("learn") || q.includes("skill") || q.includes("improve") || q.includes("gap") || q.includes("boost") || q.includes("stronger") || q.includes("increase")) {
         const impact = skillImpact();
         if (!impact.length) {
           const top = ranked[0];
-          return { reply: `You already cover all required skills for your best fit${top ? ` (${top.p.title}, ${top.m.score}% match)` : ""}. To widen options, add adjacent skills on your Skills profile — pick a placement you can't reach yet and learn its missing skills.`, actions: [] };
+          return { reply: `You're in great shape — you cover all required skills for your top match${top ? ` (${top.p.title})` : ""}. To explore more options, check the Skills tab and add adjacent skills from placements you're interested in.`, actions: [] };
         }
         const lead = impact.slice(0, 2);
-        return { reply: `Fastest wins for your profile (${student.skills.length} skills, ${student.course}, CGPA ${student.cgpa}): ${lead
-          .map(
-            (i) =>
-              `**${i.skill}** (unlocks ${i.count} placement${i.count > 1 ? "s" : ""} you already clear on course/grade)`
-          )
-          .join("; ")}. Add **${lead[0].skill}** to your Skills profile and watch match scores jump. Paste a project/CV line into the extractor if you've used it before — it'll claim the skill for you.`, actions: [] };
+        return { reply: `The quickest wins for your profile: **${lead[0].skill}** (opens ${lead[0].count} more placements)${lead[1] ? ` and **${lead[1].skill}** (opens ${lead[1].count} more)` : ""}. Add them to your Skills profile and watch your matches improve.`, actions: [] };
       }
 
-      if (
-        q.includes("best") ||
-        q.includes("recommend") ||
-        q.includes("where do i fit") ||
-        q.includes("most match") ||
-        q.includes("top match") ||
-        q.includes("should i apply") ||
-        q.includes("fits me") ||
-        q.includes("good for me") ||
-        q.includes("which placement")
-      ) {
+      // Best fit / recommendation questions
+      if (q.includes("best") || q.includes("recommend") || q.includes("where do i fit") || q.includes("most match") || q.includes("top match") || q.includes("should i apply") || q.includes("fits me") || q.includes("good for me") || q.includes("which placement")) {
         const top = ranked[0];
-        if (!top)
-          return { reply: `Ask about a specific role and I'll score it against your skills, course and grade.`, actions: [] };
+        if (!top) return { reply: `Ask about a specific role and I'll score it against your skills, course, and grade.`, actions: [] };
         const org = getOrg(top.p.orgId);
         const near = ranked[1];
-        const gapText = top.m.missing.length
-          ? ` Missing: ${top.m.missing.join(", ")}.`
-          : ` You match every required skill.`;
-        return { reply: `**Top fit:** ${top.p.title} at ${org?.name || "host org"} — ${top.m.score}% match, closes ${top.p.deadline}.${gapText}${near ? ` Next: ${near.p.title} (${near.m.score}%).` : ""} Open Placements for full ranking or Skills to close the gap.`, actions: [] };
+        const gapText = top.m.missing.length ? ` Missing: ${top.m.missing.join(", ")}.` : ` You match every required skill.`;
+        return { reply: `Your top match is **${top.p.title} at ${org?.name || "the organisation"}** — ${top.m.score}% match, deadline ${top.p.deadline}.${gapText}${near ? ` Next best: ${near.p.title} (${near.m.score}%).` : ""}`, actions: [] };
       }
 
-      if (
-        q.includes("match") ||
-        q.includes("score") ||
-        q.includes("how are you ranking") ||
-        q.includes("how do you calculate")
-      ) {
-        return { reply: `Match = 60% skill coverage + 25% course fit + 15% CGPA. Fully explainable — every row lists required skills and which you bring. Same score powers the server-side advisor.`, actions: [] };
+      // Match score explanation
+      if (q.includes("match") || q.includes("score") || q.includes("how are you ranking") || q.includes("how do you calculate")) {
+        return { reply: `Match score = 60% skill coverage + 25% course fit + 15% CGPA. Every placement shows exactly which skills you have and which you're missing.`, actions: [] };
       }
 
-      if (
-        q.includes("eligible") ||
-        q.includes("qualify") ||
-        q.includes("can i apply")
-      ) {
-        const found =
-          placements.find((x) =>
-            q.includes(x.title.toLowerCase().split(" ")[0].toLowerCase())
-          ) ||
-          (pid ? getPlacement(pid) : null) ||
-          placements[1] ||
-          placements[0];
-
+      // Eligibility questions
+      if (q.includes("eligible") || q.includes("qualify") || q.includes("can i apply")) {
+        const found = placements.find((x) => q.includes(x.title.toLowerCase().split(" ")[0].toLowerCase())) || (pid ? getPlacement(pid) : null) || placements[1] || placements[0];
         const targetP = found;
-        if (!targetP)
-          return { reply: `Catalog not loaded yet. Open Placements and ask again once the live list appears.`, actions: [] };
+        if (!targetP) return { reply: `Catalog not loaded yet. Open Placements and ask again once the live list appears.`, actions: [] };
         const ok = isEligible(targetP);
         const courseOk = targetP.courses.includes(student.course);
         const targetOrg = getOrg(targetP.orgId);
         const orgName = targetOrg ? targetOrg.name : "the organisation";
-
         return ok
-          ? { reply: `**Yes** — ${targetP.title} at ${orgName}. Your course (${student.course}) is listed and CGPA ${student.cgpa} clears ${targetP.grade}. You need ${targetP.docs.filter((d) => {
-              const h = docs.find((x) => x.name === d);
-              return !h || h.status === "missing";
-            }).length} document(s) uploaded before the office forwards your file. Deadline: ${targetP.deadline}.`, actions: [] }
-          : { reply: `**Not on paper.** ${targetP.title} requires ${targetP.grade} and courses ${targetP.courses.join(", ")}. Your record: ${student.course} at ${student.cgpa}${courseOk ? "" : " — course not on their list"}. University can request an exception via the placement office.`, actions: [] };
+          ? { reply: `**Yes** — you're eligible for **${targetP.title} at ${orgName}**. Your course (${student.course}) and CGPA (${student.cgpa}) meet the requirements. You need ${targetP.docs.filter((d) => { const h = docs.find((x) => x.name === d); return !h || h.status === "missing"; }).length} document(s) uploaded. Deadline: ${targetP.deadline}.`, actions: [] }
+          : { reply: `**Not on paper** for **${targetP.title}** — it requires ${targetP.grade} and courses ${targetP.courses.join(", ")}. You have ${student.course} at ${student.cgpa}${courseOk ? "" : " (course not listed)"}. Your university can request an exception via the placement office.`, actions: [] };
       }
 
-      if (
-        q.includes("document") ||
-        q.includes("upload") ||
-        q.includes("need")
-      ) {
-        const missing = docs
-          .filter((d) => d.status === "missing")
-          .map((d) => d.name);
-        return { reply: `Three states: **verified**, **pending**, **missing**. You have ${docs.filter((d) => d.status === "verified").length} verified, ${missing.length} missing${missing.length ? ` (${missing.join(", ")})` : ""}. Upload from Documents (PDF/JPG, ≤10 MB). Office reviews in ~48 hrs; rejections keep reasons so you can replace without restarting.`, actions: [] };
+      // Document questions
+      if (q.includes("document") || q.includes("upload") || q.includes("need")) {
+        const missing = docs.filter((d) => d.status === "missing").map((d) => d.name);
+        return { reply: `Your docs: ${docs.filter((d) => d.status === "verified").length} verified, ${missing.length} missing${missing.length ? ` (${missing.join(", ")})` : ""}. Upload from Documents (PDF/JPG, ≤10 MB). Office reviews in ~48 hrs.`, actions: [] };
       }
 
-      if (
-        q.includes("government") ||
-        q.includes("ministry") ||
-        q.includes("agency")
-      ) {
-        const gov = placements.filter(
-          (p) => getOrg(p.orgId)?.type === "Government"
-        );
-        const orgNames = Array.from(
-          new Set(gov.map((p) => getOrg(p.orgId)?.name || ""))
-        )
-          .filter(Boolean)
-          .slice(0, 3)
-          .join(", ");
-        return { reply: `${gov.length} government placements live (e.g., ${orgNames}). Same requirements as companies — courses, grade, documents, testimonial. Data Analyst Intern closes soonest (28 Feb).`, actions: [] };
+      // Government placements
+      if (q.includes("government") || q.includes("ministry") || q.includes("agency")) {
+        const gov = placements.filter((p) => getOrg(p.orgId)?.type === "Government");
+        const orgNames = Array.from(new Set(gov.map((p) => getOrg(p.orgId)?.name || ""))).filter(Boolean).slice(0, 3).join(", ");
+        return { reply: `${gov.length} government placements live (e.g., ${orgNames}). Same requirements as companies — courses, grade, documents, testimonial.`, actions: [] };
       }
 
-      if (
-        q.includes("verification") ||
-        q.includes("verify") ||
-        q.includes("transcript")
-      ) {
-        return { reply: `Transcript & student ID verified by placement office, not employer. Officer checks against university record → marks verified or returns with reason. Median: 48 hrs. Employers only see verified files.`, actions: [] };
+      // Verification
+      if (q.includes("verification") || q.includes("verify") || q.includes("transcript")) {
+        return { reply: `Transcript & student ID are verified by the placement office (not employers). Officer checks against university records — median 48 hrs. Employers only see verified files.`, actions: [] };
       }
 
-      if (
-        q.includes("deadline") ||
-        q.includes("closing") ||
-        q.includes("close")
-      ) {
-        const soon = placements
-          .slice()
-          .sort(
-            (a, b) =>
-              new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
-          )
-          .slice(0, 3);
-        return { reply: `Next deadlines: ${soon.map((p) => `${p.title} (${p.deadline})`).join(", ")}. Atlas Health closes first. Ask me to check eligibility for any before you apply.`, actions: [] };
+      // Deadlines
+      if (q.includes("deadline") || q.includes("closing") || q.includes("close")) {
+        const soon = placements.slice().sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime()).slice(0, 3);
+        return { reply: `Upcoming deadlines: ${soon.map((p) => `${p.title} (${p.deadline})`).join(", ")}. Want me to check eligibility for any of these?`, actions: [] };
       }
 
-      if (
-        q.includes("cost") ||
-        q.includes("pay") ||
-        q.includes("free") ||
-        q.includes("price")
-      ) {
-        return { reply: `Applying is free and always will be. Universities and host organisations fund the service. No premium tier for students, no fee to unlock a placement.`, actions: [] };
+      // Cost
+      if (q.includes("cost") || q.includes("pay") || q.includes("free") || q.includes("price")) {
+        return { reply: `Applying is completely free — universities and host organisations fund the service. No premium tiers, no fees to unlock placements.`, actions: [] };
       }
 
-      if (
-        q.includes("contact") ||
-        q.includes("office") ||
-        q.includes("phone") ||
-        q.includes("email")
-      ) {
-        return { reply: `Office: Plot 9, Nkrumah Road, Kampala — Mon–Fri 08:30–17:00 EAT, 1-day reply. Nairobi & Berlin offices on Contact page.`, actions: [] };
+      // Contact info
+      if (q.includes("contact") || q.includes("office") || q.includes("phone") || q.includes("email")) {
+        return { reply: `Office: Plot 9, Nkrumah Road, Kampala — Mon–Fri 08:30–17:00 EAT. Nairobi & Berlin offices on the Contact page.`, actions: [] };
       }
 
-      if (
-        q.includes("what is intern") ||
-        q.includes("about") ||
-        q.includes("how does it work")
-      ) {
+      // What is BrighterWorks
+      if (q.includes("what is intern") || q.includes("about") || q.includes("how does it work")) {
         return { reply: `BrighterWorks = separate internship & jobs portals. Universities publish placements from companies, gov agencies, NGOs with eligible courses, min grade, docs, testimonial rule. Students see eligibility before applying; office verifies docs; employers get qualified files only.`, actions: [] };
       }
 
-      if (
-        q.includes("who are you") ||
-        q.includes("what are you") ||
-        q.includes("identity")
-      ) {
-        return { reply: `I'm your career advisor — **Brightworks Virtual Assistant**. I use your actual profile (skills, course, CGPA) to rank placements, suggest skills to learn, check eligibility, list missing documents, and show deadlines. Ask "what should I learn" or "which placement fits me" and I'll use your real data.`, actions: [] };
+      // Identity
+      if (q.includes("who are you") || q.includes("what are you") || q.includes("identity")) {
+        return { reply: `I'm **Brightworks Virtual Assistant** — your career coach. I use your actual profile (skills, course, CGPA) to rank placements, suggest skills to learn, check eligibility, list missing documents, and show deadlines. Ask me anything!`, actions: [] };
       }
 
       // Human handoff triggers
       if (
-        q.includes("account") && (q.includes("lock") || q.includes("access") || q.includes("password") || q.includes("login")) ||
-        q.includes("technical") && (q.includes("issue") || q.includes("problem") || q.includes("bug") || q.includes("error")) ||
+        (q.includes("account") && (q.includes("lock") || q.includes("access") || q.includes("password") || q.includes("login"))) ||
+        (q.includes("technical") && (q.includes("issue") || q.includes("problem") || q.includes("bug") || q.includes("error"))) ||
         q.includes("billing") || q.includes("subscription") || q.includes("payment") ||
         q.includes("privacy") || q.includes("data deletion") || q.includes("gdpr") ||
         q.includes("complaint") || q.includes("escalat") || q.includes("speak to human") || q.includes("talk to person") ||
         q.includes("special request") || q.includes("exception") || q.includes("appeal") ||
-        q.includes("human") && (q.includes("help") || q.includes("assist") || q.includes("support"))
+        (q.includes("human") && (q.includes("help") || q.includes("assist") || q.includes("support"))) ||
+        (q.includes("manager") || q.includes("employer") || q.includes("contact")) && (q.includes("email") || q.includes("phone") || q.includes("reach"))
       ) {
-        return {
-          reply: `This issue requires human assistance. I'll connect you with our support team. Please provide your email and phone number with country code, and choose WhatsApp or email for contact.`,
-          actions: [{ type: "human_handoff", label: "Connect with Support", payload: {} }]
+        setHandoffState({ ...handoffState, step: "collecting_email" });
+        return { 
+          reply: `I'd be happy to connect you with our support team for that. Could you share your email address so they can reach out?`, 
+          actions: [] 
         };
       }
 
-      return { reply: `I rank placements against your skills, suggest the single skill that unlocks the most roles, check eligibility for any placement, list missing documents, and show upcoming deadlines. Ask about a role or say "what should I learn".`, actions: [] };
+      // General fallback
+      return { reply: `I can help with placement matching, eligibility checks, skill gaps, documents, deadlines, and applications. What would you like to know?`, actions: [] };
     },
-    [placements, pid, getPlacement, isEligible, student, getOrg, docs, role]
+    [placements, pid, getPlacement, isEligible, student, getOrg, docs, role, handoffState]
   );
 
   const sendChat = useCallback(
@@ -2102,6 +2094,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         modal,
         isChatOpen,
         chatMessages,
+        handoffState,
+        setHandoffState,
 
         setTypeFilter,
         setSectorFilter,
