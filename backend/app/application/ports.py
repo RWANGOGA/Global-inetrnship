@@ -11,7 +11,9 @@ from dataclasses import dataclass
 from app.domain.entities import (
     AdminActionLog, Application, Job, LearningResource, Placement, Resume,
     StudentDocument, StudentProfile, Subscription, User, Invoice, Transaction,
-    StudentUsage, JobApplication
+    StudentUsage, JobApplication,
+    ChatGroup, GroupParticipant, ChatMessage, DirectChat, UserChatSettings,
+    GroupType, MessageType
 )
 
 
@@ -438,3 +440,128 @@ class AdminActionLogRepository(ABC):
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
     ) -> int: ...
+
+
+# =============================================================================
+# CHAT / MESSAGING PORTS
+# =============================================================================
+
+class TranslationClient(ABC):
+    """Port for translation service (DeepL, Google, etc.)."""
+
+    @abstractmethod
+    async def translate(self, text: str, target_lang: str, source_lang: str = "auto") -> str:
+        """Translate text to target language."""
+
+    @abstractmethod
+    async def detect_language(self, text: str) -> str:
+        """Detect the language of text."""
+
+
+class ChatGroupRepository(ABC):
+    """Chat group persistence."""
+
+    @abstractmethod
+    def add(self, group: ChatGroup) -> ChatGroup: ...
+
+    @abstractmethod
+    def get(self, group_id: str) -> Optional[ChatGroup]: ...
+
+    @abstractmethod
+    def list_for_user(self, user_id: str) -> list[ChatGroup]: ...
+
+    @abstractmethod
+    def list_by_type(self, group_type: str, org_id: Optional[str] = None) -> list[ChatGroup]: ...
+
+    @abstractmethod
+    def update(self, group_id: str, **fields) -> Optional[ChatGroup]: ...
+
+    @abstractmethod
+    def delete(self, group_id: str) -> bool: ...
+
+
+class GroupParticipantRepository(ABC):
+    """Group participant persistence."""
+
+    @abstractmethod
+    def add(self, participant: GroupParticipant) -> GroupParticipant: ...
+
+    @abstractmethod
+    def get(self, group_id: str, user_id: str) -> Optional[GroupParticipant]: ...
+
+    @abstractmethod
+    def list_for_group(self, group_id: str) -> list[GroupParticipant]: ...
+
+    @abstractmethod
+    def list_for_user(self, user_id: str) -> list[GroupParticipant]: ...
+
+    @abstractmethod
+    def update(self, group_id: str, user_id: str, **fields) -> Optional[GroupParticipant]: ...
+
+    @abstractmethod
+    def remove(self, group_id: str, user_id: str) -> bool: ...
+
+
+class ChatMessageRepository(ABC):
+    """Chat message persistence."""
+
+    @abstractmethod
+    def add(self, message: ChatMessage) -> ChatMessage: ...
+
+    @abstractmethod
+    def get(self, message_id: str) -> Optional[ChatMessage]: ...
+
+    @abstractmethod
+    def list_for_group(
+        self,
+        group_id: str,
+        *,
+        limit: int = 50,
+        before: Optional[str] = None,
+        after: Optional[str] = None,
+    ) -> list[ChatMessage]: ...
+
+    @abstractmethod
+    def list_direct(
+        self,
+        user1_id: str,
+        user2_id: str,
+        *,
+        limit: int = 50,
+        before: Optional[str] = None,
+    ) -> list[ChatMessage]: ...
+
+    @abstractmethod
+    def update(self, message_id: str, **fields) -> Optional[ChatMessage]: ...
+
+    @abstractmethod
+    def soft_delete(self, message_id: str) -> bool: ...
+
+    @abstractmethod
+    def mark_read(self, group_id: str, user_id: str, message_id: str) -> None: ...
+
+
+class DirectChatRepository(ABC):
+    """Direct (1-on-1) chat persistence."""
+
+    @abstractmethod
+    def get_or_create(self, user1_id: str, user2_id: str) -> DirectChat: ...
+
+    @abstractmethod
+    def get(self, user1_id: str, user2_id: str) -> Optional[DirectChat]: ...
+
+    @abstractmethod
+    def list_for_user(self, user_id: str) -> list[DirectChat]: ...
+
+    @abstractmethod
+    def update_last_message(self, user1_id: str, user2_id: str, message_id: str) -> None: ...
+
+
+class UserChatSettingsRepository(ABC):
+    """User chat settings persistence."""
+
+    @abstractmethod
+    def get(self, user_id: str) -> Optional[UserChatSettings]: ...
+
+    @abstractmethod
+    def upsert(self, settings: UserChatSettings) -> UserChatSettings: ...

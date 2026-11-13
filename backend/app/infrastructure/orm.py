@@ -376,3 +376,92 @@ class LearningResourceORM(Base):
     resource_type: Mapped[str] = mapped_column(String, default="Course")
     duration: Mapped[str] = mapped_column(String, default="")
     created_at: Mapped[str] = mapped_column(String, default="")
+
+
+# =============================================================================
+# CHAT / MESSAGING ORM MODELS
+# =============================================================================
+
+class ChatGroupORM(Base):
+    __tablename__ = "chat_groups"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    type: Mapped[str] = mapped_column(String, nullable=False)  # student, employer, admin, mixed, placement, organization
+    description: Mapped[str] = mapped_column(Text, default="")
+    avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[str] = mapped_column(String, default="")
+    updated_at: Mapped[str] = mapped_column(String, default="")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    placement_id: Mapped[str | None] = mapped_column(ForeignKey("placements.id"), nullable=True, index=True)
+    org_id: Mapped[str | None] = mapped_column(ForeignKey("organisations.id"), nullable=True, index=True)
+
+
+class GroupParticipantORM(Base):
+    __tablename__ = "group_participants"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    group_id: Mapped[str] = mapped_column(ForeignKey("chat_groups.id"), index=True, nullable=False)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
+    role: Mapped[str] = mapped_column(String, default="member")  # member, admin, owner
+    joined_at: Mapped[str] = mapped_column(String, default="")
+    last_read_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    is_muted: Mapped[bool] = mapped_column(Boolean, default=False)
+    notifications_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    __table_args__ = (UniqueConstraint('group_id', 'user_id', name='uq_group_participant'),)
+
+
+class ChatMessageORM(Base):
+    __tablename__ = "chat_messages"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    group_id: Mapped[str | None] = mapped_column(ForeignKey("chat_groups.id"), index=True, nullable=True)
+    sender_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
+    recipient_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), index=True, nullable=True)
+    type: Mapped[str] = mapped_column(String, default="text")  # text, voice, image, file, system
+    content: Mapped[str] = mapped_column(Text, default="")
+    original_language: Mapped[str] = mapped_column(String(2), default="en")
+    # For voice messages
+    duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    waveform_data: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # For files/images
+    file_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    mime_type: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Metadata
+    created_at: Mapped[str] = mapped_column(String, default="")
+    updated_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    deleted_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    is_edited: Mapped[bool] = mapped_column(Boolean, default=False)
+    reply_to_id: Mapped[str | None] = mapped_column(ForeignKey("chat_messages.id"), nullable=True)
+    # Translation cache
+    translations: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class DirectChatORM(Base):
+    __tablename__ = "direct_chats"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    user1_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
+    user2_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
+    created_at: Mapped[str] = mapped_column(String, default="")
+    last_message_at: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    __table_args__ = (UniqueConstraint('user1_id', 'user2_id', name='uq_direct_chat'),)
+
+
+class UserChatSettingsORM(Base):
+    __tablename__ = "user_chat_settings"
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    preferred_language: Mapped[str] = mapped_column(String(2), default="en")
+    auto_translate: Mapped[bool] = mapped_column(Boolean, default=True)
+    show_original: Mapped[bool] = mapped_column(Boolean, default=True)
+    notification_sound: Mapped[bool] = mapped_column(Boolean, default=True)
+    desktop_notifications: Mapped[bool] = mapped_column(Boolean, default=True)
+    theme: Mapped[str] = mapped_column(String, default="light")
+    font_size: Mapped[int] = mapped_column(Integer, default=14)
+    created_at: Mapped[str] = mapped_column(String, default="")
+    updated_at: Mapped[str] = mapped_column(String, default="")

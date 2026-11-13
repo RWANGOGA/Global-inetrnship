@@ -25,6 +25,11 @@ from app.infrastructure.orm import (  # noqa: F401 (register tables)
     ResumeORM,
     StudentDocumentORM,
     UserORM,
+    ChatGroupORM,
+    GroupParticipantORM,
+    ChatMessageORM,
+    DirectChatORM,
+    UserChatSettingsORM,
 )
 from app.infrastructure.seed import seed_if_empty
 from app.presentation.routers import (
@@ -40,6 +45,7 @@ from app.presentation.routers import (
     billing,
     webhooks,
     ai_enrichment,
+    chat,
 )
 
 
@@ -80,6 +86,7 @@ def create_sub_app() -> FastAPI:
     sub.include_router(billing.router)
     sub.include_router(webhooks.router)
     sub.include_router(ai_enrichment.router)
+    sub.include_router(chat.router)
     return sub
 
 

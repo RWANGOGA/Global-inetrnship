@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.ai.enrichment_service import GroqEnrichmentService
 from app.application.advisor import AdvisorService
 from app.application.auth import AuthService
-from app.application.ports import LLMClient, VoiceClient
+from app.application.ports import LLMClient, VoiceClient, TranslationClient
 from app.application.services import (
     ApplicationService,
     BillingService,
@@ -24,12 +24,13 @@ from app.application.services import (
     ResumeService,
     StudentDocumentService,
 )
-from app.core.errors import AuthenticationError, UserNotFound, VoiceNotConfigured
+from app.core.errors import AuthenticationError, UserNotFound, VoiceNotConfigured, TranslationNotConfigured
 from app.core.security import decode_access_token
 from app.domain.entities import User
 from app.infrastructure.db import get_session, SessionLocal
 from app.infrastructure.groq import GroqClient
 from app.infrastructure.deepl import DeepLClient
+from app.infrastructure.translation import DeepLTranslationClient
 from app.infrastructure.payment_gateways.factory import get_gateway_factory
 from app.infrastructure.repositories import (
     SqlAlchemyAdminActionLogRepository,
@@ -47,6 +48,11 @@ from app.infrastructure.repositories import (
     SqlAlchemyTransactionRepository,
     SqlAlchemyStudentUsageRepository,
     SqlAlchemyUserRepository,
+    SqlAlchemyChatGroupRepository,
+    SqlAlchemyGroupParticipantRepository,
+    SqlAlchemyChatMessageRepository,
+    SqlAlchemyDirectChatRepository,
+    SqlAlchemyUserChatSettingsRepository,
 )
 
 
@@ -66,6 +72,11 @@ def get_llm_client() -> LLMClient:
 def get_voice_client() -> VoiceClient:
     """Production binds DeepL; tests override this to a deterministic fake."""
     return DeepLClient()
+
+
+def get_translation_client() -> TranslationClient:
+    """Production binds DeepL; tests override this to a deterministic fake."""
+    return DeepLTranslationClient()
 
 
 def get_enrichment_service() -> GroqEnrichmentService:
@@ -130,6 +141,28 @@ def get_learning_resource_service(
         SqlAlchemyLearningResourceRepository(session),
         SqlAlchemyPlacementRepository(session),
     )
+
+
+# ---- Chat / Messaging ---------------------------------------------------------
+
+def get_chat_group_repository(session: Session = Depends(get_session)):
+    return SqlAlchemyChatGroupRepository(session)
+
+
+def get_group_participant_repository(session: Session = Depends(get_session)):
+    return SqlAlchemyGroupParticipantRepository(session)
+
+
+def get_chat_message_repository(session: Session = Depends(get_session)):
+    return SqlAlchemyChatMessageRepository(session)
+
+
+def get_direct_chat_repository(session: Session = Depends(get_session)):
+    return SqlAlchemyDirectChatRepository(session)
+
+
+def get_user_chat_settings_repository(session: Session = Depends(get_session)):
+    return SqlAlchemyUserChatSettingsRepository(session)
 
 
 # ---- Job Applications --------------------------------------------------------
