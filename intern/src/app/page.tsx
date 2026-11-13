@@ -6,7 +6,6 @@ import { SvgDefs } from "../components/icons/Icons";
 import { PublicSite } from "../components/public/PublicSite";
 import { DashboardShell } from "../components/dashboard/DashboardShell";
 import { MobileMenu } from "../components/common/MobileMenu";
-import { ChatDrawer } from "../components/common/ChatDrawer";
 import { Modal } from "../components/common/Modal";
 import { Toast } from "../components/common/Toast";
 
@@ -34,9 +33,6 @@ function MainApp() {
 
       {/* Mobile Drawer Menu */}
       <MobileMenu />
-
-      {/* Assistant Chat Drawer */}
-      <ChatDrawer />
 
       {/* Global Modals */}
       <Modal />

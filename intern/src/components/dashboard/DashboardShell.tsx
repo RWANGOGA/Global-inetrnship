@@ -5,6 +5,7 @@ import { useApp } from "../../context/AppContext";
 import { NAV, ROLE_META } from "../../data";
 import { DashboardView, UserRole } from "../../types";
 import { Icon } from "../icons/Icons";
+import { ChatSidebar } from "../common/ChatSidebar";
 
 // Views
 import { AdminOverview } from "./admin/AdminOverview";
@@ -249,6 +250,11 @@ export function DashboardShell() {
           </a>
         ))}
       </nav>
+
+      <div className="chat-sidebar-wrapper" style={{ marginTop: "auto" }}>
+        <ChatSidebar />
+      </div>
+
       <div className="sfoot">
         <a
           className="slink"
