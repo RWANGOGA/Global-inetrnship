@@ -930,7 +930,7 @@ export interface SkillSuggestionListDto {
 }
 
 export async function fetchSkillSuggestions(): Promise<SkillSuggestionListDto> {
-  return getJson<SkillSuggestionListDto>("/profile/skill-suggestions");
+  return getJson<SkillSuggestionListDto>("/skills/suggestions");
 }
 
 export interface RankedPlacementDto {

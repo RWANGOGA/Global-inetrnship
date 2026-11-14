@@ -6,6 +6,8 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 from uuid import uuid4
 
+from fastapi import HTTPException
+
 from app.application.ports import (
     ApplicationRepository,
     LearningResourceRepository,
@@ -207,6 +209,16 @@ class ApplicationService:
             raise PlacementNotFound(placement_id)
         if placement.status == "Closed" or placement.review_status != "approved":
             raise PlacementNotOpen(placement_id)
+
+        # Check deadline
+        if placement.deadline and date.fromisoformat(placement.deadline) < date.today():
+            raise HTTPException(status_code=409, detail="Application deadline has passed")
+
+        # Check slots
+        if placement.slots and placement.slots > 0:
+            current_applications = len(self._apps.list_for_placement(placement_id))
+            if current_applications >= placement.slots:
+                raise HTTPException(status_code=409, detail="No slots available for this placement")
 
         existing = self._apps.find(user_id, placement_id)
         if existing is not None:
