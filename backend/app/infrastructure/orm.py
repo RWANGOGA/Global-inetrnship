@@ -23,6 +23,10 @@ class OrganisationORM(Base):
     loc: Mapped[str] = mapped_column(String, default="")
     seal: Mapped[str] = mapped_column(String, default="")
     about: Mapped[str] = mapped_column(Text, default="")
+    # The user account that owns this organisation (nullable: orgs created
+    # before ownership was tracked, or orgs without a designated owner).
+    owner_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    created_at: Mapped[str] = mapped_column(String, default="")
     billing_email: Mapped[str | None] = mapped_column(String, nullable=True)
     tax_id: Mapped[str | None] = mapped_column(String, nullable=True)
     billing_address: Mapped[dict] = mapped_column(JSON, default=dict)

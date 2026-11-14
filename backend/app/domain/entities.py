@@ -14,6 +14,7 @@ class Organisation:
     sector: str
     loc: str
     seal: str  # monogram shown in place of a logo
+    owner_id: Optional[str] = None  # the user account that owns this organisation
     about: str = ""
     billing_email: Optional[str] = None
     tax_id: Optional[str] = None
