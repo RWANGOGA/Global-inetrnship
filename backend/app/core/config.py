@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     secret_key: str = ""
     access_token_ttl_minutes: int = 7 * 24 * 60  # one week
     # CORS origins (comma-separated). Default to localhost for dev.
-    cors_origins: str = "http://localhost:3000,http://localhost:8000,http://127.0.0.1:3000,http://127.0.0.1:8000"
+    cors_origins: str = "http://localhost:3000,http://localhost:8000,http://127.0.0.1:3000,http://127.0.0.1:8000,https://rwangoga.github.io"
 
     @property
     def is_test(self) -> bool:
