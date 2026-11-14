@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useApp } from "../../../context/AppContext";
 import { Icon } from "../../icons/Icons";
-import PaymentModal from "../common/PaymentModal";
+import PaymentModal from "../../common/PaymentModal";
 import { payInvoiceApi, fetchInvoices, fetchTransactions, fetchGateways, createSubscriptionApi, cancelSubscriptionApi } from "../../../lib/api";
 import type { InvoiceResponse, TransactionResponse, GatewayOption } from "../../../lib/api";
 
