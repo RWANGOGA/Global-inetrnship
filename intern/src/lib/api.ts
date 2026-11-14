@@ -1878,17 +1878,31 @@ export async function loginApi(username: string, password: string): Promise<ApiU
 }
 
 // POST /auth/register -> creates the account and signs straight in.
+export interface RegisterOrgDetails {
+  orgName: string;
+  orgType: string;
+  orgSector: string;
+  orgLoc: string;
+  orgAbout: string;
+}
+
 export async function registerApi(
   email: string,
   name: string,
   role: string,
-  password: string
+  password: string,
+  orgDetails?: RegisterOrgDetails
 ): Promise<ApiUser> {
   const data = await postJson<ApiAuthResponse>("/auth/register", {
     email,
     name,
     role,
     password,
+    org_name: orgDetails?.orgName || "",
+    org_type: orgDetails?.orgType || "",
+    org_sector: orgDetails?.orgSector || "",
+    org_loc: orgDetails?.orgLoc || "",
+    org_about: orgDetails?.orgAbout || "",
   });
   setToken(data.access_token);
   return data.user;

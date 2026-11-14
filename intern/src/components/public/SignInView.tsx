@@ -16,6 +16,11 @@ export function SignInView() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<UserRole>("student");
+  const [orgName, setOrgName] = useState("");
+  const [orgType, setOrgType] = useState("");
+  const [orgSector, setOrgSector] = useState("");
+  const [orgLoc, setOrgLoc] = useState("");
+  const [orgAbout, setOrgAbout] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,7 +30,13 @@ export function SignInView() {
     setBusy(true);
     try {
       if (mode === "signin") await signIn(email.trim(), password);
-      else await signUp(email.trim(), name.trim(), role, password);
+      else await signUp(email.trim(), name.trim(), role, password, {
+        orgName: orgName.trim(),
+        orgType: orgType.trim(),
+        orgSector: orgSector.trim(),
+        orgLoc: orgLoc.trim(),
+        orgAbout: orgAbout.trim(),
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
       setBusy(false);
@@ -119,6 +130,58 @@ export function SignInView() {
                   <option value="jobseeker">Job seeker</option>
                   <option value="employer">Employer</option>
                 </select>
+              </div>
+            )}
+            {mode === "signup" && role === "employer" && (
+              <div style={{ display: "grid", gap: "12px" }}>
+                <div className="field">
+                  <label>Organisation name <span style={{color: "var(--red)"}}>*</span></label>
+                  <input
+                    value={orgName}
+                    onChange={(e) => setOrgName(e.target.value)}
+                    placeholder="Acme Corp"
+                    required
+                  />
+                </div>
+                <div className="field">
+                  <label>Organisation type</label>
+                  <select
+                    value={orgType}
+                    onChange={(e) => setOrgType(e.target.value)}
+                  >
+                    <option value="">Select type</option>
+                    <option value="Company">Company</option>
+                    <option value="Government">Government</option>
+                    <option value="NGO">NGO</option>
+                    <option value="University">University</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Sector</label>
+                  <input
+                    value={orgSector}
+                    onChange={(e) => setOrgSector(e.target.value)}
+                    placeholder="Technology, Healthcare, Finance, etc."
+                  />
+                </div>
+                <div className="field">
+                  <label>Location</label>
+                  <input
+                    value={orgLoc}
+                    onChange={(e) => setOrgLoc(e.target.value)}
+                    placeholder="Kampala, Uganda"
+                  />
+                </div>
+                <div className="field">
+                  <label>About</label>
+                  <textarea
+                    value={orgAbout}
+                    onChange={(e) => setOrgAbout(e.target.value)}
+                    placeholder="Brief description of your organisation"
+                    rows={3}
+                  />
+                </div>
               </div>
             )}
             {error && (
