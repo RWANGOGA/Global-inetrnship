@@ -241,7 +241,14 @@ interface AppContextType {
     email: string,
     name: string,
     role: UserRole,
-    password: string
+    password: string,
+    orgDetails?: {
+      orgName: string;
+      orgType: string;
+      orgSector: string;
+      orgLoc: string;
+      orgAbout: string;
+    }
   ) => Promise<void>;
   signOut: () => void;
   openDashboardFor: (r: UserRole) => void;
@@ -800,10 +807,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       email: string,
       name: string,
       userRole: UserRole,
-      password: string
+      password: string,
+      orgDetails?: {
+        orgName: string;
+        orgType: string;
+        orgSector: string;
+        orgLoc: string;
+        orgAbout: string;
+      }
     ) => {
       if (!isApiEnabled) throw new Error("Sign-up needs the backend API.");
-      const user = await registerApi(email, name, userRole, password);
+      const user = await registerApi(email, name, userRole, password, orgDetails);
       const r = mapApiRole(user.role);
       setSession(user);
       setRole(r);

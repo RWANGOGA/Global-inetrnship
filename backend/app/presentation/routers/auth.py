@@ -38,6 +38,11 @@ def register(
             name=payload.name,
             role=payload.role,
             password=payload.password,
+            org_name=payload.org_name,
+            org_type=payload.org_type,
+            org_sector=payload.org_sector,
+            org_loc=payload.org_loc,
+            org_about=payload.org_about,
         )
     except EmailAlreadyExists:
         raise HTTPException(status_code=409, detail="Email already registered")
