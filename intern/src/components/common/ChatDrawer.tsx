@@ -359,7 +359,7 @@ export function ChatDrawer() {
               ))}
               {groups.length === 0 && (
                 <div style={{ padding: "24px 12px", textAlign: "center", color: "var(--muted)", fontSize: "13px" }}>
-                  <Icon name="user-check" size={24} style={{ marginBottom: "8px", opacity: 0.4 }} />
+                  <span style={{ marginBottom: "8px", opacity: 0.4, display: "inline-block" }}><Icon name="user-check" size={24} /></span>
                   <div>No groups yet</div>
                 </div>
               )}
@@ -415,7 +415,7 @@ export function ChatDrawer() {
               ))}
               {directChats.length === 0 && (
                 <div style={{ padding: "24px 12px", textAlign: "center", color: "var(--muted)", fontSize: "13px" }}>
-                  <Icon name="user" size={24} style={{ marginBottom: "8px", opacity: 0.4 }} />
+                  <span style={{ marginBottom: "8px", opacity: 0.4, display: "inline-block" }}><Icon name="user" size={24} /></span>
                   <div>No direct conversations</div>
                 </div>
               )}
@@ -438,7 +438,7 @@ export function ChatDrawer() {
                 textAlign: "left",
               }}
             >
-              <Icon name={activeTab === "groups" ? "brief" : "user-check"} size={14} style={{ marginRight: "8px" }} />
+              <span style={{ marginRight: "8px", display: "inline-block" }}><Icon name={activeTab === "groups" ? "brief" : "user-check"} size={14} /></span>
               {activeTab === "groups" ? "Switch to Direct Messages" : "Switch to Groups"}
             </button>
           </div>

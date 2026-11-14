@@ -339,7 +339,7 @@ export function PaymentModal({
           {step === "success" && (
             <div style={{ padding: "48px 24px", textAlign: "center" }}>
               <div style={{ width: "64px", height: "64px", background: "var(--green-tint)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-                <Icon name="check" size={28} style={{ color: "var(--success)" }} />
+                <span style={{ color: "var(--success)", display: "inline-block" }}><Icon name="check" size={28} /></span>
               </div>
               <div style={{ fontSize: "20px", fontWeight: 600, color: "var(--fg)", marginBottom: "8px" }}>Payment Successful</div>
               <div style={{ color: "var(--muted)", fontSize: "14px", marginBottom: "24px" }}><span style={{ fontWeight: 600, color: "var(--fg)" }}>${(amount / 100).toFixed(2)}</span> has been charged successfully.</div>
@@ -353,7 +353,7 @@ export function PaymentModal({
           {step === "error" && (
             <div style={{ padding: "48px 24px", textAlign: "center" }}>
               <div style={{ width: "64px", height: "64px", background: "var(--danger-tint)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-                <Icon name="x" size={24} style={{ color: "var(--danger)" }} />
+                <span style={{ color: "var(--danger)", display: "inline-block" }}><Icon name="x" size={24} /></span>
               </div>
               <div style={{ fontSize: "20px", fontWeight: 600, color: "var(--fg)", marginBottom: "8px" }}>Payment Failed</div>
               <div style={{ color: "var(--muted)", fontSize: "14px", marginBottom: "24px" }}>{error}</div>
