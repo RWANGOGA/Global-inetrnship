@@ -63,9 +63,6 @@ def create_sub_app() -> FastAPI:
     sub = FastAPI(
         title="BrighterWorks API — features", version="0.1.0", lifespan=lifespan
     )
-    sub.add_middleware(
-        CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
-    )
 
     # A dependency (get_current_user) raises AuthenticationError for missing /
     # invalid tokens; the routers below are thin, so map it once at the app
