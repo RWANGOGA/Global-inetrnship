@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { useApp } from "../../../context/AppContext";
+import { useApp } from "../../context/AppContext";
 import { Icon } from "../icons/Icons";
-import { payInvoiceApi } from "../../../lib/api";
+import { payInvoiceApi } from "../../lib/api";
 
 export interface PaymentModalProps {
   isOpen: boolean;
