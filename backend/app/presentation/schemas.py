@@ -459,14 +459,21 @@ class StudentProfileRead(BaseModel):
 
 
 class StudentProfileUpdate(BaseModel):
-    course: str = ""
-    year: str = ""
-    cgpa: float = 0.0
-    university: str = ""
-    skills: list[str] = []
-    talent_search_opt_in: bool = False
-    skills_confidence: dict[str, int] = {}
-    skills_source: dict[str, str] = {}
+    course: Optional[str] = None
+    year: Optional[str] = None
+    cgpa: Optional[float] = None
+    university: Optional[str] = None
+    skills: Optional[list[str]] = None
+    talent_search_opt_in: Optional[bool] = None
+    skills_confidence: Optional[dict[str, int]] = None
+    skills_source: Optional[dict[str, str]] = None
+
+    @field_validator("cgpa")
+    @classmethod
+    def validate_cgpa(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and (v < 0.0 or v > 5.0):
+            raise ValueError("CGPA must be between 0.0 and 5.0")
+        return v
 
 
 class ApplicationPackRead(BaseModel):
