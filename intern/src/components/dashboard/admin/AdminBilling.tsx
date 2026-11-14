@@ -46,12 +46,12 @@ function formatDate(iso: string | null) {
 
 function MetricCard({ label, value, icon, color }: { label: string; value: string | number; icon: string; color: string }) {
   return (
-    <div style={{ padding: "16px 18px", borderRight: "1px solid var(--rule)", position: "relative" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-        <span style={{ fontSize: "22px" }}>{icon}</span>
-        <div style={{ fontSize: "12px", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 600, fontFamily: "var(--mono)" }}>{label}</div>
+    <div style={{ padding: "12px 14px", borderRight: "1px solid var(--rule)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        <span style={{ fontSize: "18px" }}>{icon}</span>
+        <div style={{ fontSize: "10px", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 600, fontFamily: "var(--mono)" }}>{label}</div>
       </div>
-      <div style={{ fontSize: "30px", fontWeight: 700, color, fontFamily: "var(--serif)" }}>{value}</div>
+      <div style={{ fontSize: "20px", fontWeight: 700, color, fontFamily: "var(--sans)" }}>{value}</div>
     </div>
   );
 }
@@ -83,19 +83,14 @@ export function AdminBilling() {
 
   const loadData = async () => {
     try {
-    const [inv, txn] = await Promise.all([
-      fetchInvoices(),
-      fetchTransactions(),
-    ]);
+      const [inv, txn] = await Promise.all([fetchInvoices(), fetchTransactions()]);
       setInvoices(Array.isArray(inv) ? inv : []);
       setTransactions(Array.isArray(txn) ? txn : []);
     } catch (e) {
       toast("Failed to load billing data");
       setInvoices([]);
       setTransactions([]);
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
   const outstanding = Array.isArray(invoices)
@@ -104,15 +99,10 @@ export function AdminBilling() {
   const totalOutstanding = outstanding.reduce((sum, inv) => sum + inv.amount_cents, 0);
   const paidInvoices = Array.isArray(invoices) ? invoices.filter(i => i.status === "paid").length : 0;
   const paidTxns = Array.isArray(transactions) ? transactions.filter(t => t.status === "succeeded").length : 0;
-
   const overdue = outstanding.length > 0;
 
   if (loading) {
-    return (
-      <div className="dpane-h" style={{ padding: "24px", textAlign: "center" }}>
-        <p style={{ fontWeight: 600, color: "var(--ink)" }}>Loading billing…</p>
-      </div>
-    );
+    return <div className="dpane-h" style={{ padding: "24px", textAlign: "center" }}><p style={{ fontWeight: 600, color: "var(--ink)" }}>Loading billing…</p></div>;
   }
 
   return (
@@ -120,19 +110,14 @@ export function AdminBilling() {
       <div className="dpane-h">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
           <div>
-            <h2>Billing</h2>
-            <p style={{ color: "var(--muted)", marginTop: "4px" }}>Revenue overview, invoices, and transaction log</p>
+            <h2 style={{ fontSize: "16px", fontWeight: 600, color: "var(--ink)", margin: 0, textAlign: "left", fontFamily: "var(--sans)" }}>Billing</h2>
+            <p style={{ color: "var(--muted)", marginTop: "4px", fontSize: "12px" }}>Revenue overview, invoices, and transaction log</p>
           </div>
         </div>
       </div>
 
       {/* Billing status banner — visible step in every dashboard */}
-      <BillingStatusBanner
-        plan="All plans"
-        status={overdue ? "open" : "active"}
-        activeStep="receipt"
-        overdue={overdue}
-      />
+      <BillingStatusBanner plan="All plans" status={overdue ? "open" : "active"} activeStep="receipt" overdue={overdue} />
 
       {/* Revenue overview KPI strip */}
       <div className="kpis" style={{ marginBottom: "22px" }}>
@@ -145,15 +130,13 @@ export function AdminBilling() {
       {/* Revenue by gateway */}
       {revenue && revenue.by_gateway && revenue.by_gateway.length > 0 && (
         <div className="panel" style={{ marginBottom: "20px", overflow: "hidden" }}>
-          <div className="ph">
-            <span className="lbl blue">Revenue by gateway</span>
-          </div>
-          <div className="pb" style={{ padding: "20px 24px 24px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
+          <div className="ph"><span className="lbl blue">Revenue by gateway</span></div>
+          <div className="pb" style={{ padding: "16px 20px 20px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
             {revenue.by_gateway.map((g) => (
-              <div key={g.gateway} style={{ padding: "20px", border: "1px solid var(--rule)", borderRadius: "var(--r-lg)", background: "var(--paper-2)" }}>
-                <div style={{ fontWeight: 700, fontSize: "14px", marginBottom: "8px", color: "var(--ink)" }}>{g.gateway}</div>
-                <div style={{ fontSize: "22px", fontWeight: 700, color: "var(--ink)" }}>{formatCents(g.revenue_cents)}</div>
-                <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "4px", fontFamily: "var(--mono)" }}>{g.count} transactions</div>
+              <div key={g.gateway} style={{ padding: "16px", border: "1px solid var(--rule)", borderRadius: "var(--r-lg)", background: "var(--paper-2)" }}>
+                <div style={{ fontWeight: 700, fontSize: "13px", marginBottom: "6px", color: "var(--ink)", fontFamily: "var(--sans)" }}>{g.gateway}</div>
+                <div style={{ fontSize: "18px", fontWeight: 700, color: "var(--ink)", fontFamily: "var(--sans)" }}>{formatCents(g.revenue_cents)}</div>
+                <div style={{ fontSize: "11px", color: "var(--muted)", marginTop: "4px", fontFamily: "var(--mono)" }}>{g.count} transactions</div>
               </div>
             ))}
           </div>
@@ -163,15 +146,13 @@ export function AdminBilling() {
       {/* Revenue by plan */}
       {revenue && revenue.by_plan && revenue.by_plan.length > 0 && (
         <div className="panel" style={{ marginBottom: "20px", overflow: "hidden" }}>
-          <div className="ph">
-            <span className="lbl blue">Subscriptions by plan</span>
-          </div>
-          <div className="pb" style={{ padding: "20px 24px 24px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
+          <div className="ph"><span className="lbl blue">Subscriptions by plan</span></div>
+          <div className="pb" style={{ padding: "16px 20px 20px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
             {revenue.by_plan.map((p) => (
-              <div key={p.plan} style={{ padding: "20px", border: "1px solid var(--rule)", borderRadius: "var(--r-lg)", background: "var(--paper-2)" }}>
-                <div style={{ fontWeight: 700, fontSize: "14px", marginBottom: "8px", color: "var(--ink)" }}>{p.plan}</div>
-                <div style={{ fontSize: "24px", fontWeight: 700, color: "var(--ink)" }}>{p.subscriptions}</div>
-                <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "4px", fontFamily: "var(--mono)" }}>active subscriptions</div>
+              <div key={p.plan} style={{ padding: "16px", border: "1px solid var(--rule)", borderRadius: "var(--r-lg)", background: "var(--paper-2)" }}>
+                <div style={{ fontWeight: 700, fontSize: "13px", marginBottom: "6px", color: "var(--ink)", fontFamily: "var(--sans)" }}>{p.plan}</div>
+                <div style={{ fontSize: "20px", fontWeight: 700, color: "var(--ink)", fontFamily: "var(--sans)" }}>{p.subscriptions}</div>
+                <div style={{ fontSize: "11px", color: "var(--muted)", marginTop: "4px", fontFamily: "var(--mono)" }}>active subscriptions</div>
               </div>
             ))}
           </div>
@@ -180,29 +161,26 @@ export function AdminBilling() {
 
       {/* Outstanding invoices */}
       <div className="panel" style={{ marginBottom: "20px", overflow: "hidden" }}>
-        <div className="ph">
-          <span className="lbl blue">Outstanding invoices</span>
-          <span className={`tg ${overdue ? "red" : "green"}`} style={{ fontSize: "11px", fontWeight: 700 }}>{outstanding.length} overdue</span>
-        </div>
-        <div className="pb" style={{ padding: "20px 24px 24px" }}>
+        <div className="ph"><span className="lbl blue">Outstanding invoices</span><span className={`tg ${overdue ? "red" : "green"}`} style={{ fontSize: "10px", fontWeight: 700 }}>{outstanding.length} overdue</span></div>
+        <div className="pb" style={{ padding: "16px 20px 20px" }}>
           {outstanding.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--muted)" }}>
-              <div style={{ fontSize: "32px", marginBottom: "12px" }}>✅</div>
-              <p style={{ fontSize: "15px", margin: 0, fontWeight: 600, color: "var(--ink)" }}>No overdue invoices</p>
-              <p style={{ fontSize: "13px", marginTop: "4px", color: "var(--ink-2)", fontWeight: 500 }}>All payments current.</p>
+            <div style={{ textAlign: "center", padding: "32px 20px", color: "var(--muted)" }}>
+              <div style={{ fontSize: "24px", marginBottom: "10px" }}>✅</div>
+              <p style={{ fontSize: "14px", margin: 0, fontWeight: 600, color: "var(--ink)" }}>No overdue invoices</p>
+              <p style={{ fontSize: "12px", marginTop: "4px", color: "var(--ink-2)", fontWeight: 500 }}>All payments current.</p>
             </div>
           ) : (
             <div style={{ overflowX: "auto", borderRadius: "var(--r-md)", border: "1px solid var(--rule)" }}>
               <table className="dtable">
                 <thead>
                   <tr style={{ textAlign: "left", background: "var(--paper-2)", borderBottom: "1px solid var(--rule)" }}>
-                    <th style={{ padding: "8px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Invoice</th>
-                    <th style={{ padding: "8px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Organization</th>
-                    <th style={{ padding: "8px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Due date</th>
-                    <th style={{ padding: "8px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Days overdue</th>
-                    <th style={{ padding: "8px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Amount</th>
-                    <th style={{ padding: "8px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Gateway</th>
-                    <th style={{ padding: "8px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Actions</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Invoice</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Organization</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Due date</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Days overdue</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Amount</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Gateway</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -210,17 +188,13 @@ export function AdminBilling() {
                     const daysOverdue = inv.due_date ? Math.floor((Date.now() - new Date(inv.due_date).getTime()) / (1000 * 60 * 60 * 24)) : 0;
                     return (
                       <tr key={inv.id} style={{ borderBottom: "1px solid var(--rule)" }}>
-                        <td style={{ padding: "11px 12px", fontWeight: 500, color: "var(--ink)" }}>{inv.invoice_number}</td>
-                        <td style={{ padding: "11px 12px", color: "var(--ink-2)" }}>{inv.org_id}</td>
-                        <td style={{ padding: "11px 12px", color: "var(--ink-2)" }}>{formatDate(inv.due_date)}</td>
-                        <td style={{ padding: "11px 12px", color: "var(--red)", fontWeight: 600, fontFamily: "var(--mono)" }}>{daysOverdue}d</td>
-                        <td style={{ padding: "11px 12px", fontWeight: 600, color: "var(--ink)" }}>{formatCents(inv.amount_cents)}</td>
-                        <td style={{ padding: "11px 12px", color: "var(--ink-2)" }}>{inv.payment_gateway || "—"}</td>
-                        <td style={{ padding: "11px 12px" }}>
-                          <button className="btn btn-sm" onClick={() => toast("Opening invoice details…")} style={{ padding: "6px 14px", fontWeight: 700 }}>
-                            View details
-                          </button>
-                        </td>
+                        <td style={{ padding: "10px 12px", fontWeight: 500, color: "var(--ink)", fontSize: "12px" }}>{inv.invoice_number}</td>
+                        <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{inv.org_id}</td>
+                        <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{formatDate(inv.due_date)}</td>
+                        <td style={{ padding: "10px 12px", color: "var(--red)", fontWeight: 600, fontFamily: "var(--mono)", fontSize: "12px" }}>{daysOverdue}d</td>
+                        <td style={{ padding: "10px 12px", fontWeight: 600, color: "var(--ink)", fontSize: "12px" }}>{formatCents(inv.amount_cents)}</td>
+                        <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{inv.payment_gateway || "—"}</td>
+                        <td style={{ padding: "10px 12px" }}><button className="btn btn-sm" onClick={() => toast("Opening invoice details…")} style={{ padding: "5px 12px", fontWeight: 700, fontSize: "11.5px" }}>View details</button></td>
                       </tr>
                     );
                   })}
@@ -233,46 +207,41 @@ export function AdminBilling() {
 
       {/* All invoices table */}
       <div className="panel" style={{ marginBottom: "20px", overflow: "hidden" }}>
-        <div className="ph">
-          <span className="lbl blue">All invoices</span>
-          <span className="lbl" style={{ fontSize: "12px" }}>{Array.isArray(invoices) ? invoices.length : 0} total</span>
-        </div>
-        <div className="pb" style={{ padding: "20px 24px 24px" }}>
+        <div className="ph"><span className="lbl blue">All invoices</span><span className="lbl" style={{ fontSize: "12px" }}>{Array.isArray(invoices) ? invoices.length : 0} total</span></div>
+        <div className="pb" style={{ padding: "16px 20px 20px" }}>
           {Array.isArray(invoices) && invoices.length > 0 ? (
             <div style={{ overflowX: "auto", borderRadius: "var(--r-md)", border: "1px solid var(--rule)" }}>
               <table className="dtable">
                 <thead>
                   <tr style={{ textAlign: "left", background: "var(--paper-2)", borderBottom: "1px solid var(--rule)" }}>
-                    <th style={{ padding: "8px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Number</th>
-                    <th style={{ padding: "8px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Org</th>
-                    <th style={{ padding: "8px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Date</th>
-                    <th style={{ padding: "8px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Due</th>
-                    <th style={{ padding: "8px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Amount</th>
-                    <th style={{ padding: "8px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Status</th>
-                    <th style={{ padding: "8px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Gateway</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Number</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Org</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Date</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Due</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Amount</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Status</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Gateway</th>
                   </tr>
                 </thead>
                 <tbody>
                   {invoices.slice(0, 100).map((inv) => (
                     <tr key={inv.id} style={{ borderBottom: "1px solid var(--rule)" }}>
-                      <td style={{ padding: "11px 12px", fontWeight: 500, color: "var(--ink)" }}>{inv.invoice_number}</td>
-                      <td style={{ padding: "11px 12px", color: "var(--ink-2)" }}>{inv.org_id}</td>
-                      <td style={{ padding: "11px 12px", color: "var(--ink-2)" }}>{formatDate(inv.created_at)}</td>
-                      <td style={{ padding: "11px 12px", color: "var(--ink-2)" }}>{formatDate(inv.due_date)}</td>
-                      <td style={{ padding: "11px 12px", fontWeight: 600, color: "var(--ink)" }}>{formatCents(inv.amount_cents)}</td>
-                      <td style={{ padding: "11px 12px" }}>
-                        <span className={`tg ${inv.status === "paid" ? "green" : inv.status === "open" ? "blue" : "red"}`}>{inv.status}</span>
-                      </td>
-                      <td style={{ padding: "11px 12px", color: "var(--ink-2)" }}>{inv.payment_gateway || "—"}</td>
+                      <td style={{ padding: "10px 12px", fontWeight: 500, color: "var(--ink)", fontSize: "12px" }}>{inv.invoice_number}</td>
+                      <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{inv.org_id}</td>
+                      <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{formatDate(inv.created_at)}</td>
+                      <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{formatDate(inv.due_date)}</td>
+                      <td style={{ padding: "10px 12px", fontWeight: 600, color: "var(--ink)", fontSize: "12px" }}>{formatCents(inv.amount_cents)}</td>
+                      <td style={{ padding: "10px 12px" }}><span className={`tg ${inv.status === "paid" ? "green" : inv.status === "open" ? "blue" : "red"}`}>{inv.status}</span></td>
+                      <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{inv.payment_gateway || "—"}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           ) : (
-            <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--muted)" }}>
-              <div style={{ fontSize: "32px", marginBottom: "12px" }}>📄</div>
-              <p style={{ fontSize: "15px", margin: 0, fontWeight: 600, color: "var(--ink)" }}>No invoices found</p>
+            <div style={{ textAlign: "center", padding: "32px 20px", color: "var(--muted)" }}>
+              <div style={{ fontSize: "24px", marginBottom: "10px" }}>📄</div>
+              <p style={{ fontSize: "14px", margin: 0, fontWeight: 600, color: "var(--ink)" }}>No invoices found</p>
             </div>
           )}
           {Array.isArray(invoices) && invoices.length > 100 && (
@@ -283,43 +252,39 @@ export function AdminBilling() {
 
       {/* Transaction log */}
       <div className="panel" style={{ overflow: "hidden" }}>
-        <div className="ph">
-          <span className="lbl blue">Transaction log</span>
-        </div>
-        <div className="pb" style={{ padding: "20px 24px 24px" }}>
+        <div className="ph"><span className="lbl blue">Transaction log</span></div>
+        <div className="pb" style={{ padding: "16px 20px 20px" }}>
           {Array.isArray(transactions) && transactions.length > 0 ? (
             <div style={{ overflowX: "auto", borderRadius: "var(--r-md)", border: "1px solid var(--rule)" }}>
               <table className="dtable">
                 <thead>
                   <tr style={{ textAlign: "left", background: "var(--paper-2)", borderBottom: "1px solid var(--rule)" }}>
-                    <th style={{ padding: "8px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Date</th>
-                    <th style={{ padding: "8px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Org</th>
-                    <th style={{ padding: "8px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Amount</th>
-                    <th style={{ padding: "8px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Type</th>
-                    <th style={{ padding: "8px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Gateway</th>
-                    <th style={{ padding: "8px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Status</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Date</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Org</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Amount</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Type</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Gateway</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {transactions.slice(0, 100).map((txn) => (
                     <tr key={txn.id} style={{ borderBottom: "1px solid var(--rule)" }}>
-                      <td style={{ padding: "11px 12px", color: "var(--ink-2)" }}>{formatDate(txn.processed_at || txn.created_at)}</td>
-                      <td style={{ padding: "11px 12px", color: "var(--ink-2)" }}>{txn.org_id}</td>
-                      <td style={{ padding: "11px 12px", fontWeight: 600, color: "var(--ink)" }}>{formatCents(txn.amount_cents)}</td>
-                      <td style={{ padding: "11px 12px", color: "var(--ink-2)", fontWeight: 500 }}>{txn.type}</td>
-                      <td style={{ padding: "11px 12px", color: "var(--ink-2)" }}>{txn.payment_gateway}</td>
-                      <td style={{ padding: "11px 12px" }}>
-                        <span className={`tg ${txn.status === "succeeded" ? "blue" : ""}`} style={{ fontSize: "11px" }}>{txn.status}</span>
-                      </td>
+                      <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{formatDate(txn.processed_at || txn.created_at)}</td>
+                      <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{txn.org_id}</td>
+                      <td style={{ padding: "10px 12px", fontWeight: 600, color: "var(--ink)", fontSize: "12px" }}>{formatCents(txn.amount_cents)}</td>
+                      <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontWeight: 500, fontSize: "12px" }}>{txn.type}</td>
+                      <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{txn.payment_gateway}</td>
+                      <td style={{ padding: "10px 12px" }}><span className={`tg ${txn.status === "succeeded" ? "blue" : ""}`} style={{ fontSize: "10px" }}>{txn.status}</span></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           ) : (
-            <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--muted)" }}>
-              <div style={{ fontSize: "32px", marginBottom: "12px" }}>💳</div>
-              <p style={{ fontSize: "15px", margin: 0, fontWeight: 600, color: "var(--ink)" }}>No transactions recorded yet</p>
+            <div style={{ textAlign: "center", padding: "32px 20px", color: "var(--muted)" }}>
+              <div style={{ fontSize: "24px", marginBottom: "10px" }}>💳</div>
+              <p style={{ fontSize: "14px", margin: 0, fontWeight: 600, color: "var(--ink)" }}>No transactions recorded yet</p>
             </div>
           )}
           {Array.isArray(transactions) && transactions.length > 100 && (

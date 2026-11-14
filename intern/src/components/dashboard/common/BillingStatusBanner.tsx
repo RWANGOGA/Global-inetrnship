@@ -57,8 +57,8 @@ export function BillingStatusBanner({
               display: "flex",
               alignItems: "center",
               gap: "8px",
-              fontFamily: "var(--serif)",
-              fontSize: "15px",
+              fontFamily: "var(--sans)",
+              fontSize: "13px",
               fontWeight: 600,
               color: "var(--ink)",
             }}
