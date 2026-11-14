@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useApp } from "../../../context/AppContext";
 import { Icon } from "../../icons/Icons";
 import PaymentModal from "../../common/PaymentModal";
-import { payInvoiceApi, fetchInvoices, fetchTransactions, fetchGateways, createSubscriptionApi, cancelSubscriptionApi } from "../../../lib/api";
+import { payInvoiceApi, fetchInvoices, fetchTransactions, fetchGateways, fetchSubscription, createSubscriptionApi, cancelSubscriptionApi } from "../../../lib/api";
 import type { InvoiceResponse, TransactionResponse, GatewayOption } from "../../../lib/api";
 
 interface EmployerBillingProps {
@@ -301,7 +301,7 @@ export function EmployerBilling() {
           onClose={() => setPaymentModal({ open: false, invoice: null })}
           amount={paymentModal.invoice.amount_cents || 0}
           invoiceId={paymentModal.invoice.id}
-          description={paymentModal.invoice.content || "Invoice payment"}
+          description={paymentModal.invoice.description || "Invoice payment"}
           currency="USD"
           onPaymentSuccess={handlePaymentSuccess}
           onPaymentCancel={() => setPaymentModal({ open: false, invoice: null })}

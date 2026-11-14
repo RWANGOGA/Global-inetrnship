@@ -117,7 +117,7 @@ export function PaymentModal({
     setUpiId(e.target.value);
   };
 
-  const handleBankChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBankChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setBank(e.target.value);
   };
 

@@ -445,11 +445,12 @@ export function ChatDrawer() {
           </div>
         </div>
 
-        {(selectedGroup || selectedDirectChat) && (
+        {selectedGroup || selectedDirectChat ? (
+          <>
           <div className="chat-messages" style={{
             flex: 1, overflowY: "auto", padding: "12px",
             display: "flex", flexDirection: "column", gap: "8px",
-          }}}}))>
+          }}>
             {messages.length === 0 && (
               <div style={{ textAlign: "center", color: "var(--muted)", fontSize: "12px", paddingTop: "40px" }}>
                 <div style={{ fontSize: "56px", marginBottom: "16px", opacity: 0.3 }}>💬</div>
@@ -535,8 +536,9 @@ export function ChatDrawer() {
               </button>
             </div>
           </div>
-        </aside>
-      </>
-    );
-  }
+          </>
+        ) : null}
+      </div>
+    </>
+  );
 }
