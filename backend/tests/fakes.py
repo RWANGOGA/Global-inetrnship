@@ -244,6 +244,17 @@ class InMemoryUserRepository(UserRepository):
     def get_by_id(self, user_id: str) -> User | None:
         return self._by_id.get(user_id)
 
+    def update(self, user_id: str, **fields) -> User | None:
+        existing = self._by_id.get(user_id)
+        if existing is None:
+            return None
+        updated = dataclasses.replace(existing, **fields)
+        self._by_id[user_id] = updated
+        self._by_email.pop(existing.email, None)
+        if "email" in fields:
+            self._by_email[fields["email"]] = updated
+        return updated
+
 
 class InMemorySubscriptionRepository(SubscriptionRepository):
     def __init__(self) -> None:
@@ -272,3 +283,14 @@ class InMemoryUserRepository(UserRepository):
 
     def get_by_id(self, user_id: str) -> User | None:
         return self._by_id.get(user_id)
+
+    def update(self, user_id: str, **fields) -> User | None:
+        existing = self._by_id.get(user_id)
+        if existing is None:
+            return None
+        updated = dataclasses.replace(existing, **fields)
+        self._by_id[user_id] = updated
+        self._by_email.pop(existing.email, None)
+        if "email" in fields:
+            self._by_email[fields["email"]] = updated
+        return updated

@@ -411,6 +411,9 @@ class UserRepository(ABC):
     @abstractmethod
     def get_by_id(self, user_id: str) -> Optional[User]: ...
 
+    @abstractmethod
+    def update(self, user_id: str, **fields) -> Optional[User]: ...
+
 
 class OrganisationRepository(ABC):
     """Organisation persistence."""
