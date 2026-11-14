@@ -27,11 +27,11 @@ function SectionCard({
       <div className="ph">
         {icon && (
           <span className="section-icon">
-            <Icon name={icon} size={12} />
+            <Icon name={icon} size={13} />
           </span>
         )}
-        <span className="lbl">{title}</span>
-        {description && <span className="tg">{description}</span>}
+        <span className="lbl blue">{title}</span>
+        {description && <span className="tg blue">{description}</span>}
       </div>
       <div className="pb">{children}</div>
     </div>
@@ -41,7 +41,7 @@ function SectionCard({
 function FormError({ message }: { message: string }) {
   return (
     <div className="form-alert error">
-      <span className="alert-icon"><Icon name="bell" size={14} /></span>
+      <span className="alert-icon"><Icon name="bell" size={13} /></span>
       <span className="alert-message">{message}</span>
     </div>
   );
@@ -50,7 +50,7 @@ function FormError({ message }: { message: string }) {
 function FormSuccess({ message }: { message: string }) {
   return (
     <div className="form-alert success">
-      <span className="alert-icon"><Icon name="check" size={14} /></span>
+      <span className="alert-icon"><Icon name="check" size={13} /></span>
       <span className="alert-message">{message}</span>
     </div>
   );
@@ -89,7 +89,8 @@ function LoadingSpinner({
           style={{
             marginTop: "12px",
             fontSize: "14px",
-            color: "var(--ink-2)",
+            fontWeight: 600,
+            color: "var(--ink)",
           }}
         >
           {text}
@@ -121,8 +122,8 @@ function EmptyState({
       </div>
       <h3
         style={{
-          fontWeight: 700,
-          fontSize: "18px",
+          fontWeight: 800,
+          fontSize: "20px",
           marginBottom: "8px",
           color: "var(--ink)",
         }}
@@ -131,10 +132,12 @@ function EmptyState({
       </h3>
       <p
         style={{
-          fontSize: "14.5px",
-          lineHeight: 1.6,
-          maxWidth: "320px",
+          fontSize: "15px",
+          lineHeight: 1.7,
+          maxWidth: "360px",
           margin: "0 auto",
+          color: "var(--ink-2)",
+          fontWeight: 500,
         }}
       >
         {description}
@@ -258,8 +261,17 @@ export function EmployerProfile() {
     <>
       <div className="dpane-h">
         <div>
-          <h2>Organization Profile</h2>
-          <p>
+          <h2 style={{ fontWeight: 800, color: "var(--ink)", fontSize: "22px" }}>
+            Organization Profile
+          </h2>
+          <p
+            style={{
+              color: "var(--ink-2)",
+              fontSize: "14px",
+              marginTop: "4px",
+              fontWeight: 500,
+            }}
+          >
             Manage your organization's public profile shown on placement and
             job detail pages.
           </p>
@@ -330,12 +342,14 @@ export function EmployerProfile() {
                 maxLength={4}
                 style={{
                   textAlign: "center",
-                  fontSize: "18px",
-                  letterSpacing: "0.12em",
+                  fontSize: "20px",
+                  letterSpacing: "0.14em",
                   textTransform: "uppercase",
+                  fontWeight: 700,
+                  color: "var(--blue)",
                 }}
               />
-              <span className="lbl">Emoji or short text shown as avatar (max 4 chars)</span>
+              <span className="lbl blue">Emoji or short text shown as avatar (max 4 chars)</span>
             </div>
           </div>
         </SectionCard>
@@ -353,7 +367,7 @@ export function EmployerProfile() {
               onChange={(e) => setForm({ ...form, about: e.target.value })}
               placeholder="Describe your organization, mission, culture, and what makes you a great place to work..."
             />
-            <span className="lbl">Describe your mission, culture, and what makes you a great place to work</span>
+            <span className="lbl blue">Describe your mission, culture, and what makes you a great place to work</span>
           </div>
         </SectionCard>
 
@@ -372,7 +386,7 @@ export function EmployerProfile() {
                 placeholder="billing@company.com"
                 autoComplete="email"
               />
-              <span className="lbl">For invoices and receipts</span>
+              <span className="lbl blue">For invoices and receipts</span>
             </div>
             <div className="field">
               <label>Tax ID / Registration Number</label>
@@ -400,6 +414,7 @@ export function EmployerProfile() {
             className="btn btn-sm btn-ghost"
             onClick={handleReset}
             disabled={saving}
+            style={{ fontWeight: 700 }}
           >
             <span style={{ marginRight: "6px" }}>
               <Icon name="arrow" size={12} />
@@ -410,6 +425,7 @@ export function EmployerProfile() {
             type="submit"
             className="btn btn-sm btn-blue"
             disabled={saving}
+            style={{ fontWeight: 700 }}
           >
             {saving ? (
               <>
@@ -462,7 +478,7 @@ export function EmployerProfile() {
           padding: 12px 16px;
           borderRadius: var(--r-sm);
           fontSize: 12.5px;
-          fontWeight: 500;
+          fontWeight: 700;
           fontFamily: var(--mono);
           letterSpacing: 0.06em;
           textTransform: uppercase;
