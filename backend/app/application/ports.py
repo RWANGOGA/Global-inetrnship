@@ -13,7 +13,8 @@ from app.domain.entities import (
     StudentDocument, StudentProfile, Subscription, User, Invoice, Transaction,
     StudentUsage, JobApplication,
     ChatGroup, GroupParticipant, ChatMessage, DirectChat, UserChatSettings,
-    GroupType, MessageType
+    GroupType, MessageType,
+    Organisation
 )
 
 
@@ -409,6 +410,19 @@ class UserRepository(ABC):
 
     @abstractmethod
     def get_by_id(self, user_id: str) -> Optional[User]: ...
+
+
+class OrganisationRepository(ABC):
+    """Organisation persistence."""
+
+    @abstractmethod
+    def add(self, org: Organisation) -> Organisation: ...
+
+    @abstractmethod
+    def get(self, org_id: str) -> Optional[Organisation]: ...
+
+    @abstractmethod
+    def get_by_owner(self, owner_id: str) -> Optional[Organisation]: ...
 
 
 class AdminActionLogRepository(ABC):

@@ -55,6 +55,7 @@ from app.infrastructure.repositories import (
     SqlAlchemyChatMessageRepository,
     SqlAlchemyDirectChatRepository,
     SqlAlchemyUserChatSettingsRepository,
+    SqlAlchemyOrganisationRepository,
 )
 
 
@@ -226,7 +227,10 @@ def get_learning_service(session: Session = Depends(get_session)) -> LearningSer
 
 
 def get_auth_service(session: Session = Depends(get_session)) -> AuthService:
-    return AuthService(SqlAlchemyUserRepository(session))
+    return AuthService(
+        SqlAlchemyUserRepository(session),
+        SqlAlchemyOrganisationRepository(session),
+    )
 
 
 def get_current_user(
