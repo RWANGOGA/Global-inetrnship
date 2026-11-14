@@ -4,7 +4,9 @@ This is where the abstraction (port) is bound to a concrete adapter. Tests can
 override ``get_session`` to point the same wiring at SQLite; production binds
 it to Postgres — no use case changes.
 """
-from fastapi import Depends, HTTPException
+from collections import defaultdict
+from time import time
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -54,6 +56,35 @@ from app.infrastructure.repositories import (
     SqlAlchemyDirectChatRepository,
     SqlAlchemyUserChatSettingsRepository,
 )
+
+
+# ---- Rate limiting -----------------------------------------------------------
+
+class RateLimiter:
+    """Simple in-memory rate limiter (per IP)."""
+    def __init__(self, requests_per_minute: int = 60):
+        self.requests_per_minute = requests_per_minute
+        self.requests: defaultdict[str, list[float]] = defaultdict(list)
+
+    def check(self, ip: str) -> bool:
+        now = time()
+        window_start = now - 60
+        # Clean old entries
+        self.requests[ip] = [t for t in self.requests[ip] if t > window_start]
+        if len(self.requests[ip]) >= self.requests_per_minute:
+            return False
+        self.requests[ip].append(now)
+        return True
+
+
+rate_limiter = RateLimiter(requests_per_minute=60)
+
+
+async def rate_limit(request: Request) -> None:
+    """FastAPI dependency to enforce rate limiting."""
+    ip = request.client.host if request.client else "unknown"
+    if not rate_limiter.check(ip):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded")
 
 
 def get_placement_service(session: Session = Depends(get_session)) -> PlacementService:
