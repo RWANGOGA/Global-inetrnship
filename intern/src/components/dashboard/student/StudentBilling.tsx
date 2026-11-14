@@ -7,27 +7,7 @@ import PaymentModal from "../../common/PaymentModal";
 import { payInvoiceApi, fetchStudentInvoices, fetchStudentUsage } from "../../../lib/api";
 
 interface InvoiceResponse {
-  id: string;
-  group_id: string | null;
-  sender_id: string;
-  recipient_id: string | null;
-  type: string;
-  content: string;
-  original_language: string;
-  duration_seconds: number | null;
-  file_name: string | null;
-  file_size: number | null;
-  mime_type: string | null;
-  created_at: string;
-  translations: Record<string, string>;
-  sender_name?: string;
-  translated_content?: string;
-  is_edited?: boolean;
-  amount_cents?: number;
-  invoice_number?: string;
-  due_date?: string | null;
-  paid_at?: string | null;
-  payment_gateway?: string | null;
+  [key: string]: any;
 }
 
 interface StudentUsageDto {
@@ -63,7 +43,7 @@ function formatCents(cents: number) { return `$${(cents / 100).toFixed(2)}`; }
 function formatDate(iso: string | null) { return iso ? new Date(iso).toLocaleDateString() : "—"; }
 
 export function StudentBilling() {
-  const { student, isApiEnabled, toast } = useApp();
+  const { student, session, isApiEnabled, toast } = useApp();
   const [usage, setUsage] = useState<StudentUsageDto | null>(null);
   const [invoices, setInvoices] = useState<InvoiceResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,7 +52,7 @@ export function StudentBilling() {
   useEffect(() => {
     if (!isApiEnabled) {
       setUsage({
-        user_id: student?.id || "current",
+        user_id: session?.id || "current",
         course: student?.course || "Computer Science",
         cgpa: student?.cgpa || 3.5,
         skills: student?.skills || ["React", "JavaScript"],
@@ -92,8 +72,8 @@ export function StudentBilling() {
   const loadData = async () => {
     try {
       const [usageResp, invResp] = await Promise.all([fetchStudentUsage(), fetchStudentInvoices()]);
-      setUsage(usageResp);
-      setInvoices(Array.isArray(invResp) ? invResp : []);
+      setUsage(usageResp as unknown as StudentUsageDto);
+      setInvoices(Array.isArray(invResp) ? (invResp as unknown as InvoiceResponse[]) : []);
     } catch (e) {
       toast("Failed to load billing data");
     } finally {
@@ -199,7 +179,7 @@ export function StudentBilling() {
                   <tr key={inv.id} style={{ borderBottom: "1px solid var(--rule)" }}>
                     <td style={{ padding: "14px 16px", fontWeight: 500 }}>{inv.invoice_number || inv.id}</td>
                     <td style={{ padding: "14px 16px", color: "var(--ink-2)" }}>{formatDate(inv.created_at)}</td>
-                    <td style={{ padding: "14px 16px", color: "var(--ink-2)" }}>{formatDate(inv.due_date)}</td>
+                    <td style={{ padding: "14px 16px", color: "var(--ink-2)" }}>{formatDate(inv.due_date ?? null)}</td>
                     <td style={{ padding: "14px 16px", fontWeight: 600 }}>{formatCents(inv.amount_cents || 0)}</td>
                     <td style={{ padding: "14px 16px" }}>
                       <span className={`tg ${inv.status === "paid" ? "green" : inv.status === "pending" ? "" : "red"}`}>{inv.status}</span>
