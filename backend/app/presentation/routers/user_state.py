@@ -558,25 +558,25 @@ def update_profile_alias(
                 # Create new profile with the update data
                 profile = service.save(
                     user_id=current_user.id,
-                    course=update_data.course or "",
-                    year=update_data.year or "",
-                    cgpa=update_data.cgpa or 0.0,
-                    university=update_data.university or "",
-                    skills=update_data.skills or [],
-                    talent_search_opt_in=update_data.talent_search_opt_in,
-                    skills_confidence=update_data.skills_confidence or {},
-                    skills_source=update_data.skills_source or {},
+                    course=update_data.course if update_data.course is not None else "",
+                    year=update_data.year if update_data.year is not None else "",
+                    cgpa=update_data.cgpa if update_data.cgpa is not None else 0.0,
+                    university=update_data.university if update_data.university is not None else "",
+                    skills=update_data.skills if update_data.skills is not None else [],
+                    talent_search_opt_in=update_data.talent_search_opt_in if update_data.talent_search_opt_in is not None else False,
+                    skills_confidence=update_data.skills_confidence if update_data.skills_confidence is not None else {},
+                    skills_source=update_data.skills_source if update_data.skills_source is not None else {},
                 )
             else:
-                # Update existing profile with non-empty values
-                course = update_data.course if update_data.course else profile.course
-                year = update_data.year if update_data.year else profile.year
-                cgpa = update_data.cgpa if update_data.cgpa != 0.0 else profile.cgpa
-                university = update_data.university if update_data.university else profile.university
-                skills = update_data.skills if update_data.skills else profile.skills
-                talent_search_opt_in = update_data.talent_search_opt_in if update_data.talent_search_opt_in else profile.talent_search_opt_in
-                skills_confidence = update_data.skills_confidence if update_data.skills_confidence else profile.skills_confidence
-                skills_source = update_data.skills_source if update_data.skills_source else profile.skills_source
+                # Update existing profile with provided values (including empty lists/False)
+                course = update_data.course if update_data.course is not None else profile.course
+                year = update_data.year if update_data.year is not None else profile.year
+                cgpa = update_data.cgpa if update_data.cgpa is not None else profile.cgpa
+                university = update_data.university if update_data.university is not None else profile.university
+                skills = update_data.skills if update_data.skills is not None else profile.skills
+                talent_search_opt_in = update_data.talent_search_opt_in if update_data.talent_search_opt_in is not None else profile.talent_search_opt_in
+                skills_confidence = update_data.skills_confidence if update_data.skills_confidence is not None else profile.skills_confidence
+                skills_source = update_data.skills_source if update_data.skills_source is not None else profile.skills_source
                 
                 profile = service.save(
                     user_id=current_user.id,
