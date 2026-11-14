@@ -57,7 +57,7 @@ class AuthService:
                 sector=org_sector.strip() if org_sector.strip() else "",
                 loc=org_loc.strip() if org_loc.strip() else "",
                 about=org_about.strip() if org_about.strip() else "",
-                owner_id=user.id,
+                seal=org_name.strip()[:2].upper(),
                 created_at=date.today().isoformat(),
             )
             org = self._organisations.add(org)
