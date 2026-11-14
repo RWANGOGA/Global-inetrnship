@@ -81,6 +81,7 @@ from app.infrastructure.orm import (
     ChatMessageORM,
     DirectChatORM,
     UserChatSettingsORM,
+    StudentUsageORM,
 )
 
 
