@@ -1634,8 +1634,9 @@ class SqlAlchemyOrganisationRepository(OrganisationRepository):
             type=row.type,
             sector=row.sector,
             loc=row.loc,
-            about=row.about,
+            seal=row.seal,
             owner_id=row.owner_id,
+            about=row.about,
             created_at=row.created_at,
         )
 
@@ -1646,6 +1647,7 @@ class SqlAlchemyOrganisationRepository(OrganisationRepository):
             type=org.type,
             sector=org.sector,
             loc=org.loc,
+            seal=org.seal,
             about=org.about,
             owner_id=org.owner_id,
             created_at=org.created_at,
