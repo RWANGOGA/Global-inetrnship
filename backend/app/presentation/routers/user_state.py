@@ -130,29 +130,7 @@ def list_saved(
         raise HTTPException(status_code=403, detail="Only students have a shortlist")
     return SavedListResponse(saved_ids=service.list(current_user.id))
 
-@router.post("/applications", response_model=ApplicationRead, include_in_schema=False, status_code=201)
 @router.post("/apply/{placement_id}", response_model=ApplicationRead)
-def apply_to_placement_legacy(
-    payload: ApplyRequest,
-    current_user: User = Depends(get_current_user),
-    service: ApplicationService = Depends(get_application_service),
-) -> ApplicationRead:
-    """Legacy endpoint for applying with placement_id in body."""
-    if current_user.role != "student":
-        raise HTTPException(status_code=403, detail="Only students can apply")
-    if payload.user_id and payload.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Cannot apply on behalf of another user")
-    if not payload.placement_id:
-        raise HTTPException(status_code=422, detail="placement_id is required")
-    app = service.apply(
-        user_id=current_user.id,
-        placement_id=payload.placement_id,
-        statement=payload.statement,
-    )
-    return ApplicationRead.model_validate(app, from_attributes=True)
-
-
-@router.post("/applications", response_model=ApplicationRead, include_in_schema=False, status_code=201)
 def apply_to_placement_legacy(
     payload: ApplyRequest,
     current_user: User = Depends(get_current_user),
@@ -175,6 +153,10 @@ def apply_to_placement_legacy(
         raise HTTPException(status_code=404, detail="Placement not found")
     except PlacementNotOpen:
         raise HTTPException(status_code=409, detail="Placement is not open for applications")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to submit application")
     return ApplicationRead.model_validate(app, from_attributes=True)
 
 
@@ -281,18 +263,32 @@ def update_application_pack(
 def get_skill_suggestions(
     course: str = Query(""),
     current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
 ) -> SkillSuggestionListResponse:
     if current_user.role != "student":
         raise HTTPException(status_code=403, detail="Only students can request skill suggestions")
-    from app.domain.matching import SKILLS, extract_skills
-    # Extract skills from the course name
-    course_skills = extract_skills(course)
-    # Return all skills not in user's profile
-    user_skills = set(current_user.skills if hasattr(current_user, 'skills') else [])
-    suggestions = [s for s in SKILLS if s.name not in user_skills]
-    # Sort by relevance (course skills first)
-    suggestions.sort(key=lambda s: 0 if s.name in course_skills else 1)
-    return SkillSuggestionListResponse(items=[SkillSuggestionRead.model_validate(s) for s in suggestions[:10]])
+    
+    from app.application.services import PlacementService
+    from app.infrastructure.repositories import SqlAlchemyPlacementRepository
+    from app.domain.matching import SkillSuggestion
+    
+    placement_repo = SqlAlchemyPlacementRepository(session)
+    placement_service = PlacementService(placement_repo)
+    placements = placement_repo.list()
+    
+    user_skills = set(current_user.skills if hasattr(current_user, 'skills') and current_user.skills else [])
+    suggestions = suggest_skills_for_course(placements, course, user_skills)
+    
+    items = [
+        SkillSuggestionRead(
+            name=s.name,
+            category=s.category,
+            demand=s.demand,
+            placement_ids=s.placement_ids,
+        )
+        for s in suggestions[:10]
+    ]
+    return SkillSuggestionListResponse(total=len(items), items=items)
 
 # ---- Resume -----------------------------------------------------------------
 
