@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useApp } from "../../context/AppContext";
+import { useApp } from "../../../context/AppContext";
 import { Icon } from "../../icons/Icons";
 import PaymentModal from "../../common/PaymentModal";
-import { payInvoiceApi, fetchStudentInvoices, fetchStudentUsage } from "../../lib/api";
+import { payInvoiceApi, fetchStudentInvoices, fetchStudentUsage } from "../../../lib/api";
 
 interface InvoiceResponse {
   id: string;
