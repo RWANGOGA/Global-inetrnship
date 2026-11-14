@@ -48,6 +48,7 @@ interface DirectChat {
   user2_id: string;
   other_user?: { id: string; name: string; role: string };
   last_message?: ChatMessage;
+  unread_count?: number;
 }
 
 interface UserChatSettings {
