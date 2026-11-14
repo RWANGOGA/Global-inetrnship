@@ -19,15 +19,6 @@ import {
   type GatewayOption,
 } from "../../../lib/api";
 
-const MOCK_GATEWAYS: GatewayOption[] = [
-  { id: "stripe", name: "Stripe (Cards)", currencies: ["USD", "EUR", "GBP", "UGX", "KES"] },
-  { id: "paypal", name: "PayPal", currencies: ["USD", "EUR", "GBP"] },
-  { id: "flutterwave", name: "Flutterwave (Africa)", currencies: ["USD", "UGX", "KES", "NGN", "GHS", "ZAR"] },
-  { id: "mpesa", name: "M-Pesa (Mobile Money)", currencies: ["KES", "USD"] },
-  { id: "bank_transfer", name: "Bank Transfer", currencies: ["USD", "UGX", "EUR", "KES"] },
-  { id: "crypto", name: "Crypto (USDC/USDT)", currencies: ["USDC", "USDT", "USD"] },
-];
-
 const PLAN_PRICES: Record<string, { monthly: number; annual: number; limit: number }> = {
   Free: { monthly: 0, annual: 0, limit: 3 },
   Pro: { monthly: 3000, annual: 30000, limit: -1 },
@@ -44,6 +35,8 @@ function getLimit(plan: string) {
   return PLAN_PRICES[plan]?.limit ?? 3;
 }
 
+type PayStep = "plan" | "payment-method" | "review" | "confirm" | "receipt";
+
 export function EmployerBilling() {
   const { student, isApiEnabled, toast } = useApp();
   const [invoices, setInvoices] = useState<InvoiceResponse[]>([]);
@@ -52,6 +45,7 @@ export function EmployerBilling() {
   const [subscription, setSubscription] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [paymentModal, setPaymentModal] = useState<{ open: boolean; invoice: InvoiceResponse | null }>({ open: false, invoice: null });
+  const [step, setStep] = useState<PayStep>("plan");
   const [upgrading, setUpgrading] = useState<string | null>(null);
   const [canceling, setCanceling] = useState(false);
   const [resuming, setResuming] = useState(false);
@@ -60,7 +54,7 @@ export function EmployerBilling() {
     if (!isApiEnabled) {
       setInvoices([]);
       setTransactions([]);
-      setGateways(MOCK_GATEWAYS);
+      setGateways([]);
       setSubscription({ plan: "Free", billing_cycle: "monthly", status: "active", since: new Date().toISOString() });
       setLoading(false);
       return;
@@ -88,6 +82,7 @@ export function EmployerBilling() {
     try {
       const created = await createSubscriptionApi(plan, billingCycle, gateway);
       setSubscription(created);
+      setStep("receipt");
       toast(`${plan} plan activated (${billingCycle})`);
       await loadData();
     } catch (e: any) { toast(e?.message || "Upgrade failed"); }
@@ -117,19 +112,24 @@ export function EmployerBilling() {
 
   const handlePayInvoice = (invoice: InvoiceResponse) => {
     setPaymentModal({ open: true, invoice });
+    setStep("payment-method");
   };
 
   const handlePaymentSuccess = async () => {
     setPaymentModal({ open: false, invoice: null });
+    setStep("receipt");
     toast("Payment successful!");
     await loadData();
+  };
+
+  const handleAddPaymentMethod = () => {
+    setPaymentModal({ open: true, invoice: null });
+    setStep("payment-method");
   };
 
   const subPlan = subscription?.plan || "Free";
   const subBilling = subscription?.billing_cycle || "monthly";
   const subStatus = subscription?.status || "active";
-  const subSince = subscription?.since || new Date().toISOString();
-  const planInfo = PLAN_PRICES[subPlan];
   const overdue = invoices.some((inv) => inv.status === "open" && inv.due_date && new Date(inv.due_date) < new Date());
 
   if (loading) {
@@ -149,7 +149,17 @@ export function EmployerBilling() {
       </div>
 
       {/* Billing status banner — visible step in every dashboard */}
-      <BillingStatusBanner plan={subPlan} status={subStatus} activeStep="plan" overdue={overdue} onUpgrade={() => setPaymentModal({ open: true, invoice: null })} />
+      <BillingStatusBanner
+        plan={subPlan}
+        status={subStatus}
+        activeStep={step}
+        onStepClick={setStep}
+        overdue={overdue}
+        onUpgrade={() => {
+          setStep("plan");
+          setPaymentModal({ open: true, invoice: null });
+        }}
+      />
 
       {/* Current plan */}
       <div className="panel" style={{ marginBottom: "20px", overflow: "hidden" }}>
@@ -230,7 +240,7 @@ export function EmployerBilling() {
                 <span style={{ fontSize: "10px", color: "var(--muted)", fontFamily: "var(--mono)", textTransform: "uppercase", letterSpacing: "0.1em" }}>{g.currencies.join(", ")}</span>
               </div>
             )) : (<span className="lbl blue" style={{ fontSize: "11px", fontWeight: 700 }}>None connected</span>)}
-            <button type="button" className="btn btn-sm btn-blue" onClick={() => setPaymentModal({ open: true, invoice: null })} style={{ width: "fit-content", fontWeight: 700, fontSize: "11.5px" }}><Icon name="plus" size={12} /> Add payment method</button>
+            <button type="button" className="btn btn-sm btn-blue" onClick={handleAddPaymentMethod} style={{ width: "fit-content", fontWeight: 700, fontSize: "11.5px" }}><Icon name="plus" size={12} /> Add payment method</button>
           </div>
           <p style={{ fontSize: "12px", color: "var(--ink-2)", marginTop: "14px", fontWeight: 500 }}>Payment methods are managed via the payment gateway's portal. Click "Pay now" on an open invoice to add a method.</p>
         </div>
@@ -315,13 +325,14 @@ export function EmployerBilling() {
         </div>
       </div>
 
-      {paymentModal.open && paymentModal.invoice && (
+      {/* Payment modal — renders whenever open, regardless of invoice */}
+      {paymentModal.open && (
         <PaymentModal
           isOpen={paymentModal.open}
           onClose={() => setPaymentModal({ open: false, invoice: null })}
-          amount={paymentModal.invoice.amount_cents || 0}
-          invoiceId={paymentModal.invoice.id}
-          description={paymentModal.invoice.description || "Invoice payment"}
+          amount={(paymentModal.invoice?.amount_cents ?? 0)}
+          invoiceId={paymentModal.invoice?.id ?? ""}
+          description={paymentModal.invoice?.description ?? "Invoice payment"}
           currency="USD"
           initialStep="method"
           onPaymentSuccess={handlePaymentSuccess}

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useApp } from "../../context/AppContext";
 import { Icon } from "../icons/Icons";
-import { payInvoiceApi } from "../../lib/api";
+import { payInvoiceApi, payStudentInvoiceApi } from "../../lib/api";
 
 export interface PaymentModalProps {
   isOpen: boolean;
@@ -15,6 +15,7 @@ export interface PaymentModalProps {
   onPaymentSuccess?: (txnId: string) => void;
   onPaymentCancel?: () => void;
   initialStep?: "method" | "details" | "confirm";
+  isStudent?: boolean;
 }
 
 type PayStep = "method" | "details" | "confirm" | "success" | "error";
@@ -46,6 +47,7 @@ export function PaymentModal({
   onPaymentSuccess,
   onPaymentCancel,
   initialStep = "method",
+  isStudent = false,
 }: PaymentModalProps) {
   const [step, setStep] = useState<PayStep>(initialStep);
   const [method, setMethod] = useState<string>("card");
@@ -95,7 +97,7 @@ export function PaymentModal({
     setProcessing(true);
     setError(null);
     try {
-      const response = await payInvoiceApi(invoiceId, `${method}_${Date.now()}`);
+      const response = await (isStudent ? payStudentInvoiceApi : payInvoiceApi)(invoiceId, `${method}_${Date.now()}`);
       if (response.status === "succeeded" || response.status === "completed") {
         setStep("success");
         onPaymentSuccess?.(response.id);

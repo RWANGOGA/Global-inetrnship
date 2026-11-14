@@ -12,6 +12,7 @@ type BillingStep =
 
 interface BillingStepperProps {
   activeStep: BillingStep;
+  onStepClick?: (step: BillingStep) => void;
   size?: "sm" | "md";
 }
 
@@ -41,10 +42,10 @@ const STEP_ORDER: BillingStep[] = [
 
 export function BillingStepper({
   activeStep,
+  onStepClick,
   size = "md",
 }: BillingStepperProps) {
   const isCompact = size === "sm";
-  const radius = isCompact ? "var(--r-sm)" : "var(--r-md)";
   const dotSize = isCompact ? 24 : 32;
   const labelSize = isCompact ? "10px" : "11px";
   const numberSize = isCompact ? "10px" : "11px";
@@ -65,9 +66,9 @@ export function BillingStepper({
       {STEP_ORDER.map((step, idx) => {
         const isActive = idx === stepIndex;
         const isCompleted = idx < stepIndex;
-        const isLast = idx === STEP_ORDER.length - 1;
         const num = STEP_NUMBERS[step];
         const label = STEP_LABELS[step];
+        const canClick = onStepClick && !isCompleted && !isActive;
 
         return (
           <div
@@ -124,7 +125,9 @@ export function BillingStepper({
                 letterSpacing: "0.1em",
                 textTransform: "uppercase",
                 zIndex: 2,
+                cursor: canClick ? "pointer" : "default",
               }}
+              onClick={canClick ? () => onStepClick(step) : undefined}
             >
               {num}
               {isCompleted && (
@@ -156,7 +159,9 @@ export function BillingStepper({
                 minWidth: 0,
                 overflow: "hidden",
                 textOverflow: "ellipsis",
+                cursor: canClick ? "pointer" : "default",
               }}
+              onClick={canClick ? () => onStepClick(step) : undefined}
             >
               {label}
             </span>

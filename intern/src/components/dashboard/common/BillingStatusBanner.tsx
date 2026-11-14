@@ -8,6 +8,7 @@ interface BillingStatusBannerProps {
   plan: string;
   status: string;
   activeStep?: "plan" | "payment-method" | "review" | "confirm" | "receipt";
+  onStepClick?: (step: "plan" | "payment-method" | "review" | "confirm" | "receipt") => void;
   overdue?: boolean;
   onUpgrade?: () => void;
 }
@@ -16,6 +17,7 @@ export function BillingStatusBanner({
   plan,
   status,
   activeStep = "plan",
+  onStepClick,
   overdue = false,
   onUpgrade,
 }: BillingStatusBannerProps) {
@@ -103,7 +105,7 @@ export function BillingStatusBanner({
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-        <BillingStepper activeStep={activeStep} size="sm" />
+        <BillingStepper activeStep={activeStep} size="sm" onStepClick={onStepClick} />
         {needsAction && onUpgrade && (
           <button
             type="button"
