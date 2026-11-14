@@ -189,6 +189,15 @@ async function getJson<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
+async function getJsonOrNull<T>(path: string): Promise<T | null> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: { Accept: "application/json", ...authHeader() },
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) await readError(res, path);
+  return (await res.json()) as T;
+}
+
 async function postJson<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
@@ -823,7 +832,7 @@ export interface ResumeDto {
 }
 
 export async function fetchResume(): Promise<ResumeDto | null> {
-  return getJson<ResumeDto | null>("/resume");
+  return getJsonOrNull<ResumeDto>("/resume");
 }
 
 export async function uploadResume(file: File): Promise<ResumeDto> {

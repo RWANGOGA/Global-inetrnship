@@ -1400,14 +1400,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     let cancelled = false;
     setDashboardDataStatus("loading");
-    Promise.all([
-      fetchApplications(),
-      fetchStudentProfile(),
-      fetchResume(),
-      fetchStudentDocuments(),
-      fetchApplicationPack(),
-    ])
-      .then(async ([apps, profile, currentResume, documents, apiPack]) => {
+
+    (async () => {
+      try {
+        const results = await Promise.allSettled([
+          fetchApplications(),
+          fetchStudentProfile(),
+          fetchResume(),
+          fetchStudentDocuments(),
+          fetchApplicationPack(),
+        ]);
+        if (cancelled) return;
+
+        const apps = results[0].status === "fulfilled" ? results[0].value : [];
+        const profile = results[1].status === "fulfilled" ? results[1].value : null;
+        const currentResume = results[2].status === "fulfilled" ? results[2].value : null;
+        const documents = results[3].status === "fulfilled" ? results[3].value : [];
+        const apiPack = results[4].status === "fulfilled" ? results[4].value : { statement: "", targets: [] };
+
+        if (results[1].status === "rejected") {
+          console.error("Failed to fetch student profile:", results[1].reason);
+          toast("Failed to load profile data");
+        }
+        if (results[3].status === "rejected") {
+          console.error("Failed to fetch documents:", results[3].reason);
+        }
+        if (results[4].status === "rejected") {
+          console.error("Failed to fetch application pack:", results[4].reason);
+        }
+
+        if (!profile) {
+          setDashboardDataStatus("error");
+          return;
+        }
+
         const nextStudent: Student = {
           name: session.name,
           course: profile.course,
@@ -1446,10 +1472,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         });
         setRecommendations(matches);
         setDashboardDataStatus("ready");
-      })
-      .catch(() => {
+      } catch (err) {
+        console.error("Dashboard load failed:", err);
         if (!cancelled) setDashboardDataStatus("error");
-      });
+      }
+    })();
+
     return () => {
       cancelled = true;
     };
@@ -1517,8 +1545,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       skills: student.skills,
       skills_confidence: student.skillsConfidence,
       skills_source: student.skillsSource,
-    }).catch(() => {
-      setDashboardDataStatus("error");
+    }).catch((err) => {
+      console.error("Failed to save profile:", err);
+      toast("Failed to save profile changes");
     });
   }, [
     dashboardDataStatus,
