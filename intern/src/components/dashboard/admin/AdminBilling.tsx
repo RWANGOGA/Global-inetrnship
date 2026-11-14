@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useApp } from "../../../context/AppContext";
 import type { InvoiceResponse, TransactionResponse } from "../../../lib/api";
-import { fetchInvoices, fetchTransactions } from "../../../lib/api";
+import { fetchAdminInvoices, fetchAdminRevenue } from "../../../lib/api";
 import { Icon } from "../../icons/Icons";
 import { BillingStatusBanner } from "../common/BillingStatusBanner";
 
@@ -30,10 +30,6 @@ const MOCK_REVENUE = {
     { gateway: "stripe", count: 2, revenue_cents: 6000, revenue_usd: 60.00 },
     { gateway: "paypal", count: 1, revenue_cents: 30000, revenue_usd: 300.00 },
     { gateway: "flutterwave", count: 1, revenue_cents: 500, revenue_usd: 5.00 },
-  ],
-  by_plan: [
-    { plan: "Pro", subscriptions: 4 },
-    { plan: "Enterprise", subscriptions: 1 },
   ],
 };
 
@@ -66,7 +62,6 @@ export function AdminBilling() {
     pending_cents: number;
     collected_cents: number;
     by_gateway: Array<{ gateway: string; count: number; revenue_cents: number; revenue_usd: number }>;
-    by_plan: Array<{ plan: string; subscriptions: number }>;
   } | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -83,9 +78,22 @@ export function AdminBilling() {
 
   const loadData = async () => {
     try {
-      const [inv, txn] = await Promise.all([fetchInvoices(), fetchTransactions()]);
+      const [inv, rev] = await Promise.all([fetchAdminInvoices(), fetchAdminRevenue()]);
       setInvoices(Array.isArray(inv) ? inv : []);
-      setTransactions(Array.isArray(txn) ? txn : []);
+      setTransactions([]);
+      const byGateway = rev.by_gateway ? Object.entries(rev.by_gateway).map(([gateway, revenue_cents]) => ({
+        gateway,
+        count: 1,
+        revenue_cents,
+        revenue_usd: revenue_cents / 100,
+      })) : [];
+      setRevenue({
+        total_revenue_cents: rev.total_revenue_cents,
+        total_revenue_usd: rev.total_revenue_cents / 100,
+        pending_cents: rev.pending_cents,
+        collected_cents: rev.collected_cents,
+        by_gateway: byGateway,
+      });
     } catch (e) {
       toast("Failed to load billing data");
       setInvoices([]);
@@ -137,22 +145,6 @@ export function AdminBilling() {
                 <div style={{ fontWeight: 700, fontSize: "13px", marginBottom: "6px", color: "var(--ink)", fontFamily: "var(--sans)" }}>{g.gateway}</div>
                 <div style={{ fontSize: "18px", fontWeight: 700, color: "var(--ink)", fontFamily: "var(--sans)" }}>{formatCents(g.revenue_cents)}</div>
                 <div style={{ fontSize: "11px", color: "var(--muted)", marginTop: "4px", fontFamily: "var(--mono)" }}>{g.count} transactions</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Revenue by plan */}
-      {revenue && revenue.by_plan && revenue.by_plan.length > 0 && (
-        <div className="panel" style={{ marginBottom: "20px", overflow: "hidden" }}>
-          <div className="ph"><span className="lbl blue">Subscriptions by plan</span></div>
-          <div className="pb" style={{ padding: "16px 20px 20px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
-            {revenue.by_plan.map((p) => (
-              <div key={p.plan} style={{ padding: "16px", border: "1px solid var(--rule)", borderRadius: "var(--r-lg)", background: "var(--paper-2)" }}>
-                <div style={{ fontWeight: 700, fontSize: "13px", marginBottom: "6px", color: "var(--ink)", fontFamily: "var(--sans)" }}>{p.plan}</div>
-                <div style={{ fontSize: "20px", fontWeight: 700, color: "var(--ink)", fontFamily: "var(--sans)" }}>{p.subscriptions}</div>
-                <div style={{ fontSize: "11px", color: "var(--muted)", marginTop: "4px", fontFamily: "var(--mono)" }}>active subscriptions</div>
               </div>
             ))}
           </div>

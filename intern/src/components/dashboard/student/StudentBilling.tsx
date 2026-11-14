@@ -32,12 +32,15 @@ function UsageRow({ label, value, sub, color, tint }: { label: string; value: nu
   );
 }
 
+type PayStep = "plan" | "payment-method" | "review" | "confirm" | "receipt";
+
 export function StudentBilling() {
   const { student, session, isApiEnabled, toast } = useApp();
   const [usage, setUsage] = useState<{ application_count: number; overage_apps: number; overage_cents: number; free_limit: number } | null>(null);
   const [invoices, setInvoices] = useState<StudentInvoiceResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [paymentModal, setPaymentModal] = useState<{ open: boolean; invoice: StudentInvoiceResponse | null }>({ open: false, invoice: null });
+  const [step, setStep] = useState<PayStep>("plan");
 
   useEffect(() => {
     if (!isApiEnabled) {
@@ -60,12 +63,19 @@ export function StudentBilling() {
 
   const handlePayInvoice = (invoice: StudentInvoiceResponse) => {
     setPaymentModal({ open: true, invoice });
+    setStep("payment-method");
   };
 
   const handlePaymentSuccess = async () => {
     setPaymentModal({ open: false, invoice: null });
+    setStep("receipt");
     toast("Payment successful!");
     await loadData();
+  };
+
+  const handleAddPaymentMethod = () => {
+    setPaymentModal({ open: true, invoice: null });
+    setStep("payment-method");
   };
 
   const used = usage?.application_count ?? 0;
@@ -91,7 +101,14 @@ export function StudentBilling() {
       </div>
 
       {/* Billing status banner — visible step in every dashboard */}
-      <BillingStatusBanner plan="Free" status={over > 0 ? "open" : "active"} activeStep="plan" overdue={overdue} />
+      <BillingStatusBanner
+        plan="Free"
+        status={over > 0 ? "open" : "active"}
+        activeStep={step}
+        onStepClick={setStep}
+        overdue={overdue}
+        onUpgrade={handleAddPaymentMethod}
+      />
 
       {/* Application counter — usage meter */}
       <div className="panel" style={{ marginBottom: "20px", overflow: "hidden" }}>
@@ -100,7 +117,7 @@ export function StudentBilling() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "14px", marginBottom: "14px" }}>
             <UsageRow label="Used" value={used} sub={`of ${limit} free applications`} color={used >= limit ? "var(--red)" : "var(--blue)"} tint={used >= limit ? "var(--red-tint)" : "var(--blue-tint)"} />
             <UsageRow label="Limit" value={limit} sub="Free tier resets monthly" color="var(--green)" tint="var(--green-tint)" />
-            <UsageRow label="Overage" value={over} sub={`${formatCents(STUDENT_OVERAGE_CENTS)} per app`} color={over > 0 ? "var(--red)" : "var(--fg)"} tint="var(--paper)" />
+            <UsageRow label="Overage" value={over} sub={`${formatCents(STUDENT_OVERAGE_CENTS)} per app`} color={over > 0 ? "var(--red)" : "var(--ink-2)"} tint="var(--paper)" />
           </div>
 
           <div style={{ height: "6px", background: "var(--rule-2)", borderRadius: "var(--r-pill)", overflow: "hidden", marginBottom: "10px" }}>
@@ -110,12 +127,12 @@ export function StudentBilling() {
           <p style={{ margin: "0", fontSize: "12px", color: "var(--muted)", textAlign: "center", fontFamily: "var(--sans)" }}>{used < limit ? `${limit - used} free applications remaining this month.` : `Free limit exceeded. Overage: ${over} application${over !== 1 ? "s" : ""} at ${formatCents(STUDENT_OVERAGE_CENTS)} each.`}</p>
 
           {over > 0 && (
-            <div style={{ marginTop: "14px", padding: "14px", background: "var(--amber-tint)", border: "1px solid var(--amber)", borderRadius: "var(--r-md)" }}>
+            <div style={{ marginTop: "14px", padding: "14px", background: "var(--blue-tint)", border: "1px solid var(--blue)", borderRadius: "var(--r-md)" }}>
               <div style={{ display: "flex", alignItems: "start", gap: "8px" }}>
-                <span style={{ color: "#92400e", fontSize: "16px" }}>⚠</span>
+                <span style={{ color: "var(--blue)", fontSize: "16px" }}>⚠</span>
                 <div>
-                  <strong style={{ color: "#92400e", fontSize: "13px" }}>Free limit exceeded</strong>
-                  <p style={{ margin: "4px 0 0", fontSize: "12px", color: "#92400e", lineHeight: 1.6 }}>You have {over} overage application${over !== 1 ? "s" : ""}. Pay the invoice below to continue applying.</p>
+                  <strong style={{ color: "var(--blue)", fontSize: "13px" }}>Free limit exceeded</strong>
+                  <p style={{ margin: "4px 0 0", fontSize: "12px", color: "var(--ink-2)", lineHeight: 1.6 }}>You have {over} overage application{over !== 1 ? "s" : ""}. Pay the invoice below to continue applying.</p>
                 </div>
               </div>
             </div>
@@ -153,7 +170,7 @@ export function StudentBilling() {
                       <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontWeight: 500, fontSize: "12px" }}>{formatDate(inv.created_at)}</td>
                       <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontWeight: 500, fontSize: "12px" }}>{formatDate(inv.due_date)}</td>
                       <td style={{ padding: "10px 12px", fontWeight: 700, color: "var(--ink)", fontSize: "12px" }}>{formatCents(inv.amount_cents)}</td>
-                      <td style={{ padding: "10px 12px" }}><span className={`tg ${inv.status === "paid" ? "green" : inv.status === "pending" ? "blue" : "red"}`} style={{ fontWeight: 700, fontSize: "10px" }}>{inv.status}</span></td>
+                      <td style={{ padding: "10px 12px" }}><span className={`tg ${inv.status === "paid" ? "green" : inv.status === "open" ? "blue" : "red"}`} style={{ fontWeight: 700, fontSize: "10px" }}>{inv.status}</span></td>
                       <td style={{ padding: "10px 12px" }}>{inv.status === "open" ? (<button className="btn btn-sm btn-blue" onClick={() => handlePayInvoice(inv)} style={{ padding: "5px 12px", fontWeight: 700, fontSize: "11.5px" }}>Pay now</button>) : (<span className="lbl blue" style={{ fontSize: "10px", fontWeight: 700 }}>Paid</span>)}</td>
                     </tr>
                   ))}
@@ -178,7 +195,7 @@ export function StudentBilling() {
         </div>
       </div>
 
-      {/* Payment modal */}
+      {/* Payment modal — renders whenever open */}
       {paymentModal.open && (
         <PaymentModal
           isOpen={paymentModal.open}
@@ -186,7 +203,7 @@ export function StudentBilling() {
           amount={(paymentModal.invoice?.amount_cents ?? 0)}
           invoiceId={paymentModal.invoice?.id ?? ""}
           description={paymentModal.invoice?.description ?? "Application overage"}
-          currency="USD"
+          isStudent
           initialStep="method"
           onPaymentSuccess={handlePaymentSuccess}
           onPaymentCancel={() => setPaymentModal({ open: false, invoice: null })}
