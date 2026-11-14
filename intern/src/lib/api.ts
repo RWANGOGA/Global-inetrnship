@@ -50,10 +50,12 @@ function authHeader(): Record<string, string> {
 // backend's "Incorrect email or password" on 401 instead of a generic failure).
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
-    super(message);
+  detail: string | ApiErrorDetail;
+  constructor(status: number, detail: string | ApiErrorDetail) {
+    super(typeof detail === "string" ? detail : JSON.stringify(detail));
     this.name = "ApiError";
     this.status = status;
+    this.detail = detail;
   }
 }
 
@@ -169,12 +171,27 @@ function mapPlacement(p: ApiPlacement): Placement {
 
 // ---- Requests --------------------------------------------------------------
 
+export interface ApiErrorDetail {
+  error?: string;
+  message?: string;
+  current?: number;
+  limit?: number;
+  unpaid_invoice?: string;
+  reason?: string;
+  [key: string]: unknown;
+}
+
 async function readError(res: Response, path: string): Promise<never> {
   // Prefer the backend's structured { detail } message; fall back to status.
-  let detail = `API ${res.status} on ${path}`;
+  let detail: string | ApiErrorDetail = `API ${res.status} on ${path}`;
   try {
     const body = await res.json();
-    if (body && typeof body.detail === "string") detail = body.detail;
+    if (body && typeof body.detail === "string") {
+      detail = body.detail;
+    } else if (body && body.detail && typeof body.detail === "object") {
+      // Preserve structured error detail (e.g., limit errors with error codes)
+      detail = body.detail as ApiErrorDetail;
+    }
   } catch {
     /* non-JSON error body — keep the status-derived message */
   }
@@ -1192,10 +1209,83 @@ export async function fetchGateways(): Promise<GatewayOption[]> {
   return getJson<GatewayOption[]>("/billing/gateways");
 }
 
+export async function fetchStudentUsage(): Promise<StudentUsageDto> {
+  return getJson<StudentUsageDto>("/billing/student/usage");
+}
+
+export async function fetchStudentInvoices(): Promise<StudentInvoiceResponse[]> {
+  return getJson<StudentInvoiceResponse[]>("/billing/student/invoices");
+}
+
+export async function payStudentInvoiceApi(
+  invoice_id: string,
+  payment_method_id: string
+): Promise<TransactionResponse> {
+  return postJson<TransactionResponse>(`/billing/student/invoices/${invoice_id}/pay`, {
+    payment_method_id,
+  });
+}
+
+export async function fetchAdminRevenue(): Promise<AdminRevenueResponse> {
+  return getJson<AdminRevenueResponse>("/billing/admin/revenue");
+}
+
+export async function fetchAdminInvoices(params?: {
+  status?: string;
+  org_id?: string;
+}): Promise<InvoiceResponse[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.status) searchParams.append("status", params.status);
+  if (params?.org_id) searchParams.append("org_id", params.org_id);
+  return getJson<InvoiceResponse[]>(`/billing/admin/invoices?${searchParams.toString()}`);
+}
+
+export async function fetchAdminRevenueStats(): Promise<AdminRevenueStatsResponse> {
+  return getJson<AdminRevenueStatsResponse>("/billing/admin/stats");
+}
+
 export interface GatewayOption {
   id: string;
   name: string;
   currencies: string[];
+}
+
+export interface StudentUsageDto {
+  current: number;
+  limit: number;
+  period_start: string;
+  period_end: string;
+  overage_cents: number;
+  unpaid_invoice_id: string | null;
+}
+
+export interface StudentInvoiceResponse {
+  id: string;
+  amount_cents: number;
+  currency: string;
+  status: string;
+  invoice_number: string;
+  description: string | null;
+  due_date: string | null;
+  paid_at: string | null;
+  payment_gateway: string | null;
+  created_at: string;
+}
+
+export interface AdminRevenueResponse {
+  total_revenue_cents: number;
+  pending_cents: number;
+  collected_cents: number;
+  by_gateway: Record<string, number>;
+  by_month: Record<string, number>;
+}
+
+export interface AdminRevenueStatsResponse {
+  total_students: number;
+  active_subscriptions: number;
+  total_revenue_cents: number;
+  overage_revenue_cents: number;
+  collection_rate: number;
 }
 
 export interface InvoiceResponse {
