@@ -47,6 +47,7 @@ from app.presentation.deps import (
     get_resume_service,
     get_student_document_service,
     get_learning_service,
+    require_roles,
 )
 from app.presentation.schemas import (
     ActivatePlanRequest,
@@ -107,11 +108,9 @@ def _subscription_read(sub) -> SubscriptionRead:
 def toggle_saved(
     placement_id: Optional[str] = None,
     payload: Optional[ToggleSavedRequest] = None,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles("student")),
     service: SavedService = Depends(get_saved_service),
 ) -> ToggleSavedResponse:
-    if current_user.role != "student":
-        raise HTTPException(status_code=403, detail="Only students can save placements")
     
     # Support both path parameter and request body
     pid = placement_id or (payload.placement_id if payload else None)
@@ -123,22 +122,18 @@ def toggle_saved(
 
 @router.get("/saved", response_model=SavedListResponse)
 def list_saved(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles("student")),
     service: SavedService = Depends(get_saved_service),
 ) -> SavedListResponse:
-    if current_user.role != "student":
-        raise HTTPException(status_code=403, detail="Only students have a shortlist")
     return SavedListResponse(saved_ids=service.list(current_user.id))
 
 @router.post("/apply/{placement_id}", response_model=ApplicationRead)
 def apply_to_placement_legacy(
     payload: ApplyRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles("student")),
     service: ApplicationService = Depends(get_application_service),
 ) -> ApplicationRead:
     """Legacy endpoint for applying with placement_id in body."""
-    if current_user.role != "student":
-        raise HTTPException(status_code=403, detail="Only students can apply")
     if payload.user_id and payload.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Cannot apply on behalf of another user")
     if not payload.placement_id:
@@ -164,11 +159,9 @@ def apply_to_placement_legacy(
 def apply_to_placement(
     placement_id: str,
     payload: ApplyRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles("student")),
     service: ApplicationService = Depends(get_application_service),
 ) -> ApplicationRead:
-    if current_user.role != "student":
-        raise HTTPException(status_code=403, detail="Only students can apply")
     if payload.user_id and payload.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Cannot apply on behalf of another user")
     try:
@@ -185,11 +178,9 @@ def apply_to_placement(
 
 @router.get("/applications", response_model=ApplicationsResponse)
 def list_my_applications(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles("student")),
     service: ApplicationService = Depends(get_application_service),
 ) -> ApplicationsResponse:
-    if current_user.role != "student":
-        raise HTTPException(status_code=403, detail="Only students have applications")
     apps = service.list_for_user(current_user.id)
     return ApplicationsResponse(
         total=len(apps),
@@ -198,11 +189,9 @@ def list_my_applications(
 
 @router.get("/saved", response_model=dict[str, list[str]])
 def list_saved_placements(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles("student", "jobseeker")),
     service: ApplicationService = Depends(get_application_service),
 ) -> dict[str, list[str]]:
-    if current_user.role not in ("student", "jobseeker"):
-        raise HTTPException(status_code=403, detail="Only students and jobseekers have saved placements")
     apps = service.list_for_user(current_user.id)
     return {"saved_ids": [a.placement_id for a in apps]}
 
@@ -210,11 +199,9 @@ def list_saved_placements(
 @router.post("/applications/{application_id}/withdraw", response_model=ApplicationRead)
 def withdraw_application(
     application_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles("student")),
     service: ApplicationService = Depends(get_application_service),
 ) -> ApplicationRead:
-    if current_user.role != "student":
-        raise HTTPException(status_code=403, detail="Only students can withdraw applications")
     app = service.withdraw(user_id=current_user.id, application_id=application_id)
     if app is None:
         raise HTTPException(status_code=404, detail="Application not found or already processed")
@@ -226,10 +213,8 @@ def withdraw_application(
 @router.get("/application-pack", response_model=ApplicationPackRead)
 def get_application_pack(
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles("student")),
 ) -> ApplicationPackRead:
-    if current_user.role != "student":
-        raise HTTPException(status_code=403, detail="Only students have application packs")
     pack = session.get(ApplicationPackORM, current_user.id)
     if pack is None:
         pack = ApplicationPackORM(user_id=current_user.id, statement="", targets=[])
@@ -243,10 +228,8 @@ def get_application_pack(
 def update_application_pack(
     payload: ApplicationPackUpdate,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles("student")),
 ) -> ApplicationPackRead:
-    if current_user.role != "student":
-        raise HTTPException(status_code=403, detail="Only students have application packs")
     pack = session.get(ApplicationPackORM, current_user.id)
     if pack is None:
         pack = ApplicationPackORM(user_id=current_user.id)
