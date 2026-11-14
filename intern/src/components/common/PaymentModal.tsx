@@ -258,16 +258,16 @@ export function PaymentModal({
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
                       <div>
                         <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--fg)", marginBottom: "6px" }}>Card Number</label>
-                        <input type="text" value={cardNumber} onChange={handleCardChange} placeholder="1234 5678 9012 3456" maxLength="19" style={{ width: "100%", padding: "12px 14px", border: "1px solid var(--rule)", borderRadius: "var(--r-md)", background: "var(--bg)", color: "var(--fg)", fontSize: "14px", outline: "none", fontFamily: "monospace" }} />
+                        <input type="text" value={cardNumber} onChange={handleCardChange} placeholder="1234 5678 9012 3456" maxLength={19} style={{ width: "100%", padding: "12px 14px", border: "1px solid var(--rule)", borderRadius: "var(--r-md)", background: "var(--bg)", color: "var(--fg)", fontSize: "14px", outline: "none", fontFamily: "monospace" }} />
                       </div>
                       <div>
                         <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--fg)", marginBottom: "6px" }}>Expiry Date</label>
-                        <input type="text" value={cardExpiry} onChange={handleExpiryChange} placeholder="MM/YY" maxLength="5" style={{ width: "100%", padding: "12px 14px", border: "1px solid var(--rule)", borderRadius: "var(--r-md)", background: "var(--bg)", color: "var(--fg)", fontSize: "14px", outline: "none", fontFamily: "monospace" }} />
+                        <input type="text" value={cardExpiry} onChange={handleExpiryChange} placeholder="MM/YY" maxLength={5} style={{ width: "100%", padding: "12px 14px", border: "1px solid var(--rule)", borderRadius: "var(--r-md)", background: "var(--bg)", color: "var(--fg)", fontSize: "14px", outline: "none", fontFamily: "monospace" }} />
                       </div>
                     </div>
                     <div style={{ marginBottom: "16px" }}>
                       <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--fg)", marginBottom: "6px" }}>CVV</label>
-                      <input type="text" value={cardCvv} onChange={handleCvvChange} placeholder="123" maxLength="3" style={{ width: "100%", padding: "12px 14px", border: "1px solid var(--rule)", borderRadius: "var(--r-md)", background: "var(--bg)", color: "var(--fg)", fontSize: "14px", outline: "none", fontFamily: "monospace" }} />
+                      <input type="text" value={cardCvv} onChange={handleCvvChange} placeholder="123" maxLength={3} style={{ width: "100%", padding: "12px 14px", border: "1px solid var(--rule)", borderRadius: "var(--r-md)", background: "var(--bg)", color: "var(--fg)", fontSize: "14px", outline: "none", fontFamily: "monospace" }} />
                     </div>
                     <div style={{ marginBottom: "16px" }}>
                       <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--fg)", marginBottom: "6px" }}>Cardholder Name</label>
