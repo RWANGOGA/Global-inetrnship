@@ -982,6 +982,16 @@ class SqlAlchemyUserRepository(UserRepository):
         row = self._session.query(UserORM).filter_by(id=user_id).first()
         return self._to_domain(row) if row is not None else None
 
+    def update(self, user_id: str, **fields) -> Optional[User]:
+        row = self._session.query(UserORM).filter_by(id=user_id).first()
+        if not row:
+            return None
+        for k, v in fields.items():
+            if hasattr(row, k):
+                setattr(row, k, v)
+        self._session.commit()
+        return self.get_by_id(user_id)
+
 
 class SqlAlchemyAdminActionLogRepository(AdminActionLogRepository):
     def __init__(self, session: Session) -> None:
