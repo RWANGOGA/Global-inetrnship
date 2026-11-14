@@ -50,15 +50,9 @@ def register(
 def login(
     payload: LoginRequest = Body(...), service: AuthService = Depends(get_auth_service)
 ) -> AuthResponse:
-    import logging
-    logging.basicConfig(level=logging.DEBUG)
-    logger = logging.getLogger(__name__)
-    logger.debug(f"Login attempt: username={payload.username}")
     try:
         user = service.login(email=payload.username, password=payload.password)
-        logger.debug(f"Login success: {user.email}")
     except InvalidCredentials:
-        logger.debug("Invalid credentials")
         raise HTTPException(status_code=401, detail="Incorrect email or password")
     return _auth_response(user)
 
