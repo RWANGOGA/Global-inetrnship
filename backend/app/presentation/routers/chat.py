@@ -128,8 +128,17 @@ async def websocket_endpoint(
     
     # Verify group membership if group_id provided
     if group_id:
-        # TODO: Verify user is member of group
-        pass
+        from app.infrastructure.db import SessionLocal
+        from app.infrastructure.repositories import SqlAlchemyGroupParticipantRepository
+        session = SessionLocal()
+        try:
+            participant_repo = SqlAlchemyGroupParticipantRepository(session)
+            participant = participant_repo.get(group_id, user_id)
+            if not participant:
+                await websocket.close(code=4003, reason="Not a member of this group")
+                return
+        finally:
+            session.close()
     
     await manager.connect(websocket, user_id, group_id)
     
@@ -501,6 +510,36 @@ def send_message(
         waveform_data=payload.waveform_data,
         reply_to_id=payload.reply_to_id,
     )
+    
+    # Broadcast to WebSocket connections
+    import asyncio
+    asyncio.run(manager.broadcast_to_group(
+        {
+            "type": "message",
+            "message": {
+                "id": message.id,
+                "group_id": message.group_id,
+                "sender_id": message.sender_id,
+                "recipient_id": message.recipient_id,
+                "type": message.type,
+                "content": message.content,
+                "original_language": message.original_language,
+                "duration_seconds": message.duration_seconds,
+                "waveform_data": message.waveform_data,
+                "file_name": message.file_name,
+                "file_size": message.file_size,
+                "mime_type": message.mime_type,
+                "created_at": message.created_at,
+                "updated_at": message.updated_at,
+                "deleted_at": message.deleted_at,
+                "is_edited": message.is_edited,
+                "reply_to_id": message.reply_to_id,
+                "translations": message.translations,
+            }
+        },
+        group_id,
+    ))
+    
     return {"message": message}
 
 
