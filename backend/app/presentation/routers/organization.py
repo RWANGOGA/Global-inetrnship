@@ -166,6 +166,23 @@ def create_organization_internship(
     return InternshipPostingRead.model_validate(placement)
 
 
+@router.delete("/internships/{internship_id}", response_model=dict)
+def delete_organization_internship(
+    internship_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    org_id = _require_employer(current_user)
+    placement = session.get(PlacementORM, internship_id)
+    if not placement:
+        raise HTTPException(status_code=404, detail="Internship not found")
+    if placement.org_id != org_id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this internship")
+    session.delete(placement)
+    session.commit()
+    return {"deleted": True, "id": internship_id}
+
+
 @router.get("/jobs", response_model=JobPostingListResponse)
 def list_organization_jobs(
     session: Session = Depends(get_session),

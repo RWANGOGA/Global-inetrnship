@@ -14,6 +14,27 @@ def _login(client, email: str) -> dict:
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
 
+def _cleanup_employer_placements(headers, session_factory):
+    """Delete all placements for the employer to reset Free plan limit."""
+    session = session_factory()
+    try:
+        from app.infrastructure.orm import PlacementORM, UserORM
+        import jwt
+        from app.core.config import get_settings
+        settings = get_settings()
+        # Extract user ID from token
+        token = headers["Authorization"].replace("Bearer ", "")
+        payload = jwt.decode(token, settings.effective_secret_key, algorithms=["HS256"])
+        user_id = payload["sub"]
+        # Get user's org_id
+        user = session.query(UserORM).filter_by(id=user_id).first()
+        if user and user.org_id:
+            session.query(PlacementORM).filter_by(org_id=user.org_id).delete()
+            session.commit()
+    finally:
+        session.close()
+
+
 def _submit(client, headers, title="Review me"):
     return client.post(
         "/organization/internships",
@@ -28,9 +49,10 @@ def _submit(client, headers, title="Review me"):
     )
 
 
-def test_admin_can_approve_pending_internship_and_publish_it(client):
+def test_admin_can_approve_pending_internship_and_publish_it(client, session_factory):
     employer = _login(client, EMPLOYER)
     admin = _login(client, ADMIN)
+    _cleanup_employer_placements(employer, session_factory)
     created = _submit(client, employer)
     assert created.status_code == 201
     internship_id = created.json()["id"]
@@ -57,17 +79,18 @@ def test_admin_can_approve_pending_internship_and_publish_it(client):
     )
 
 
-def test_admin_rejection_requires_reason_and_hides_internship(client):
+def test_admin_rejection_requires_reason_and_hides_internship(client, session_factory):
     employer = _login(client, EMPLOYER)
     admin = _login(client, ADMIN)
     student = _login(client, STUDENT)
+    _cleanup_employer_placements(employer, session_factory)
     created = _submit(client, employer, title="Reject me")
     internship_id = created.json()["id"]
 
     assert client.get(f"/placements/{internship_id}").status_code == 404
     assert (
         client.post(
-            "/applications",
+            f"/apply/{internship_id}",
             headers=student,
             json={"placement_id": internship_id},
         ).status_code
@@ -102,10 +125,11 @@ def test_only_admin_can_access_review_queue(client):
     assert client.get("/admin/internships/review", headers=student).status_code == 403
 
 
-def test_admin_can_close_and_reopen_placement(client):
+def test_admin_can_close_and_reopen_placement(client, session_factory):
     """Admin can manually close an open placement and reopen a closed one."""
     employer = _login(client, EMPLOYER)
     admin = _login(client, ADMIN)
+    _cleanup_employer_placements(employer, session_factory)
     created = _submit(client, employer, title="Close me")
     internship_id = created.json()["id"]
 
@@ -146,10 +170,11 @@ def test_admin_can_close_and_reopen_placement(client):
     assert any(item["id"] == internship_id for item in public.json()["items"])
 
 
-def test_close_reopen_validation(client):
+def test_close_reopen_validation(client, session_factory):
     """Close/reopen endpoints validate state transitions."""
     employer = _login(client, EMPLOYER)
     admin = _login(client, ADMIN)
+    _cleanup_employer_placements(employer, session_factory)
     created = _submit(client, employer, title="Validate me")
     internship_id = created.json()["id"]
 

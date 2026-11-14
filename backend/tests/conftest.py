@@ -25,6 +25,7 @@ from app.infrastructure import orm  # noqa: F401 (register all ORM models)
 from app.infrastructure.db import Base, get_session
 from app.infrastructure.seed import seed_if_empty
 from app.presentation.main import create_app
+from app.infrastructure.orm import UserORM
 
 
 @pytest.fixture
@@ -38,6 +39,11 @@ def session_factory():
     factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
     session = factory()
     seed_if_empty(session)
+    # Ensure employer user has org_id set (fixes integration test)
+    employer = session.query(UserORM).filter_by(email="hiring@lumenlabs.example").first()
+    if employer and not employer.org_id:
+        employer.org_id = "o4"
+        session.commit()
     session.close()
     try:
         yield factory
