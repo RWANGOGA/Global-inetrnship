@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useApp } from "../../context/AppContext";
 import { Icon } from "../icons/Icons";
+import { BillingStepper } from "../dashboard/common/BillingStepper";
 import { payInvoiceApi } from "../../lib/api";
 
 export interface PaymentModalProps {
@@ -16,43 +17,15 @@ export interface PaymentModalProps {
   onPaymentCancel?: () => void;
 }
 
-export interface PaymentMethodOption {
-  id: string;
-  name: string;
-  icon: string;
-  color: string;
-  desc: string;
-}
+type PayStep = "method" | "details" | "confirm" | "success" | "error";
 
-const PAYMENT_METHODS: PaymentMethodOption[] = [
-  {
-    id: "card",
-    name: "Credit / Debit Card",
-    icon: "brief",
-    color: "var(--brand)",
-    desc: "Visa, Mastercard, Amex, Discover",
-  },
-  {
-    id: "upi",
-    name: "UPI",
-    icon: "send",
-    color: "#1a73e8",
-    desc: "PhonePe, Google Pay, Paytm, BHIM",
-  },
-  {
-    id: "bank",
-    name: "Net Banking",
-    icon: "inbox",
-    color: "#34a853",
-    desc: "Direct from your bank account",
-  },
-  {
-    id: "wallet",
-    name: "Wallet",
-    icon: "user-check",
-    color: "#fbbc05",
-    desc: "Amazon Pay, Amazon Pay ICICI Card",
-  },
+const PAYMENT_METHODS: Array<{ id: string; name: string; icon: string; desc: string }> = [
+  { id: "card", name: "Credit / Debit Card", icon: "brief", desc: "Visa, Mastercard, Amex, Discover" },
+  { id: "paypal", name: "PayPal", icon: "send", desc: "Pay with your PayPal account" },
+  { id: "flutterwave", name: "Flutterwave", icon: "send", desc: "Cards, bank, mobile money (Africa)" },
+  { id: "mpesa", name: "M-Pesa", icon: "send", desc: "Mobile money (East Africa)" },
+  { id: "bank_transfer", name: "Bank Transfer", icon: "inbox", desc: "Direct from your bank account" },
+  { id: "crypto", name: "Crypto (USDC/USDT)", icon: "brief", desc: "USDC / USDT stablecoins" },
 ];
 
 export function PaymentModal({
@@ -65,17 +38,14 @@ export function PaymentModal({
   onPaymentSuccess,
   onPaymentCancel,
 }: PaymentModalProps) {
-  const [step, setStep] = useState<"method" | "details" | "confirm" | "success" | "error">("method");
+  const [step, setStep] = useState<PayStep>("method");
   const [method, setMethod] = useState<string>("card");
   const [cardNumber, setCardNumber] = useState("");
   const [cardExpiry, setCardExpiry] = useState("");
   const [cardCvv, setCardCvv] = useState("");
   const [cardName, setCardName] = useState("");
-  const [upiId, setUpiId] = useState("");
-  const [bank, setBank] = useState("");
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [savedMethods, setSavedMethods] = useState([]);
 
   useEffect(() => {
     if (isOpen) {
@@ -85,40 +55,13 @@ export function PaymentModal({
     }
   }, [isOpen]);
 
-  const formatCardNumber = (val: string) => {
-    return val.replace(/\s/g, "").replace(/(\d{4})(?=\d)/g, "$1 ").trim();
-  };
+  const formatCardNumber = (val: string) => val.replace(/\s/g, "").replace(/(\d{4})(?=\d)/g, "$1 ").trim();
+  const formatExpiry = (val: string) => val.replace(/\D/g, "").replace(/(\d{2})(\d{2})?/, "$1/$2").trim();
+  const formatCvv = (val: string) => val.replace(/\D/g, "").slice(0, 3);
 
-  const formatExpiry = (val: string) => {
-    return val.replace(/\D/g, "").replace(/(\d{2})(\d{2})?/, "$1/$2").trim();
-  };
-
-  const formatCvv = (val: string) => {
-    return val.replace(/\D/g, "").slice(0, 3);
-  };
-
-  const handleCardChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setCardNumber(formatCardNumber(e.target.value));
-  };
-
-  const handleExpiryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setCardExpiry(formatExpiry(e.target.value));
-  };
-
-  const handleCvvChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setCardCvv(formatCvv(e.target.value));
-  };
-
-  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setCardName(e.target.value);
-  };
-
-  const handleUpiChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setUpiId(e.target.value);
-  };
-
-  const handleBankChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setBank(e.target.value);
+  const isCardValid = () => {
+    const clean = cardNumber.replace(/\s/g, "");
+    return clean.length === 16 && cardExpiry.match(/^\d{2}\/\d{2}$/) && cardCvv.length === 3 && cardName.trim().length > 0;
   };
 
   const selectMethod = (id: string) => {
@@ -126,31 +69,16 @@ export function PaymentModal({
     setError(null);
   };
 
-  const isCardValid = () => {
-    const clean = cardNumber.replace(/\s/g, "");
-    return clean.length === 16 && cardExpiry.match(/^\d{2}\/\d{2}$/) && cardCvv.length === 3 && cardName.trim().length > 0;
-  };
-
-  const isUpiValid = () => upiId.includes("@") && upiId.length > 3;
-
   const proceedToDetails = () => {
     if (method === "card" && !isCardValid()) {
       setError("Please enter valid card details");
-      return;
-    }
-    if (method === "upi" && !isUpiValid()) {
-      setError("Please enter a valid UPI ID");
-      return;
-    }
-    if (method === "bank" && !bank) {
-      setError("Please select a bank");
       return;
     }
     setStep("details");
   };
 
   const goBack = () => {
-    setStep("method");
+    setStep("details");
     setError(null);
   };
 
@@ -176,18 +104,26 @@ export function PaymentModal({
 
   if (!isOpen) return null;
 
+  const stepMap: Record<PayStep, { label: string; number: number }> = {
+    method: { label: "Method", number: 1 },
+    details: { label: "Details", number: 2 },
+    confirm: { label: "Confirm", number: 3 },
+    success: { label: "Done", number: 4 },
+    error: { label: "Done", number: 4 },
+  };
+
   return (
-    <div className="pm-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 2147483647, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div className="pm-modal" style={{ width: "min(520px, 92vw)", maxHeight: "90vh", background: "var(--bg)", border: "1px solid var(--rule)", borderRadius: "var(--r-lg)", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 24px 64px rgba(0,0,0,0.25)" }}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(14,17,20,.32)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "18px" }}>
+      <div style={{ width: "min(520px, 92vw)", maxHeight: "90vh", background: "var(--paper)", border: "1px solid var(--rule)", borderRadius: "var(--r-lg)", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 10px 26px -16px rgba(24,24,27,.18)" }}>
         {/* Header */}
-        <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--rule)", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--bg-elevated)" }}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--rule)", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--paper-2)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <div style={{ width: "32px", height: "32px", background: "var(--brand)", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", color: "white" }}>
+            <div style={{ width: "32px", height: "32px", background: "var(--blue)", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
               <Icon name="send" size={16} />
             </div>
             <div>
-              <div style={{ fontWeight: 600, fontSize: "16px", color: "var(--fg)" }}>Payment</div>
-              <div style={{ fontSize: "12px", color: "var(--muted)" }}>Pay securely with Brightworks</div>
+              <div style={{ fontFamily: "var(--serif)", fontSize: "18px", fontWeight: 400, color: "var(--ink)" }}>Payment</div>
+              <div style={{ fontSize: "12px", color: "var(--muted)", fontFamily: "var(--mono)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Pay securely</div>
             </div>
           </div>
           <button type="button" onClick={onClose} style={{ border: "none", background: "transparent", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", width: "32px", height: "32px", borderRadius: "6px" }}>
@@ -196,23 +132,20 @@ export function PaymentModal({
         </div>
 
         {/* Steps */}
-        <div style={{ padding: "0 24px", borderBottom: "1px solid var(--rule)", background: "var(--bg-elevated)" }}>
-          <div style={{ display: "flex", gap: "8px" }}>
-            {["method", "details", "confirm", "success"].map((stepName, idx) => (
-              <div key={stepName} style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1, padding: "10px 8px", borderRadius: "var(--r-sm)", background: step === stepName ? "var(--brand-bg)" : "transparent", color: step === stepName ? "var(--brand)" : "var(--muted)", fontSize: "11px", fontWeight: 600 }}>
-                <span style={{ fontSize: "10px", opacity: 0.6 }}>{stepName === "method" ? "1" : stepName === "details" ? "2" : stepName === "confirm" ? "3" : "4"}</span>
-                <span>{stepName === "method" ? "Method" : stepName === "details" ? "Details" : stepName === "confirm" ? "Confirm" : "Done"}</span>
-              </div>
-            ))}
-          </div>
+        <div style={{ padding: "0 20px", borderBottom: "1px solid var(--rule)", background: "var(--paper-2)" }}>
+          <BillingStepper activeStep={
+            step === "method" ? "plan" :
+            step === "details" ? "payment-method" :
+            step === "confirm" ? "review" :
+            step === "success" ? "confirm" : "receipt"
+          } size="sm" />
         </div>
 
         {/* Body */}
         <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-          {/* Steps */}
           {step === "method" && (
             <div style={{ padding: "24px", overflowY: "auto" }}>
-              <h3 style={{ margin: "0 0 16px", fontSize: "16px", fontWeight: 600, color: "var(--fg)" }}>Choose a payment method</h3>
+              <div style={{ fontFamily: "var(--serif)", fontSize: "18px", fontWeight: 400, color: "var(--ink)", marginBottom: "16px" }}>Choose a payment method</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "14px" }}>
                 {PAYMENT_METHODS.map((pm) => {
                   const isSelected = method === pm.id;
@@ -224,142 +157,142 @@ export function PaymentModal({
                       style={{
                         width: "100%",
                         padding: "18px 16px",
-                        border: `2px solid ${isSelected ? "var(--brand)" : "var(--rule)"}`,
+                        border: `2px solid ${isSelected ? "var(--blue)" : "var(--rule-2)"}`,
                         borderRadius: "var(--r-md)",
-                        background: isSelected ? "var(--brand-bg)" : "var(--bg)",
-                        color: "var(--fg)",
+                        background: isSelected ? "var(--blue-tint)" : "var(--paper)",
+                        color: "var(--ink)",
                         cursor: "pointer",
                         display: "flex",
                         flexDirection: "column",
                         alignItems: "flex-start",
                         transition: "all 0.2s",
+                        fontFamily: "inherit",
                       }}
                     >
                       <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px" }}>
-                        <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: isSelected ? "var(--brand)" : "var(--bg-elevated)", color: isSelected ? "white" : "var(--fg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <Icon name={pm.icon as any} size={18} />
+                        <div style={{ width: "32px", height: "32px", borderRadius: "6px", background: isSelected ? "var(--blue)" : "var(--paper-2)", color: isSelected ? "#fff" : "var(--ink)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <Icon name={pm.icon as any} size={16} />
                         </div>
-                        <span style={{ fontSize: "15px", fontWeight: 600 }}>{pm.name}</span>
+                        <span style={{ fontSize: "14px", fontWeight: 600, fontFamily: "var(--sans)" }}>{pm.name}</span>
                       </div>
-                      <p style={{ fontSize: "12px", color: "var(--muted)", margin: 0 }}>{pm.desc}</p>
+                      <p style={{ fontSize: "12px", color: "var(--muted)", margin: 0, fontFamily: "var(--sans)", fontWeight: 500 }}>{pm.desc}</p>
                     </button>
                   );
                 })}
               </div>
-              {error && <div style={{ marginTop: "16px", fontSize: "13px", color: "var(--red)" }}>{error}</div>}
+              {error && <div style={{ marginTop: "16px", fontSize: "13px", color: "var(--red)", fontFamily: "var(--sans)", fontWeight: 500 }}>{error}</div>}
+              <div style={{ marginTop: "20px", display: "flex", gap: "8px" }}>
+                <button type="button" onClick={onClose} className="btn btn-sm btn-ghost" style={{ fontWeight: 700 }}>Cancel</button>
+                <button type="button" onClick={proceedToDetails} disabled={method === "card" && !isCardValid()} className="btn btn-sm btn-blue" style={{ fontWeight: 700 }}>Continue</button>
+              </div>
             </div>
           )}
           {step === "details" && (
             <div style={{ padding: "24px", overflowY: "auto" }}>
-              <h3 style={{ margin: "0 0 16px", fontSize: "16px", fontWeight: 600, color: "var(--fg)" }}>{method === "card" ? "Card Details" : method === "upi" ? "UPI Details" : method === "bank" ? "Bank Details" : "Wallet Details"}</h3>
+              <div style={{ fontFamily: "var(--serif)", fontSize: "18px", fontWeight: 400, color: "var(--ink)", marginBottom: "16px" }}>{method === "card" ? "Card details" : method.toUpperCase()} details</div>
               <div style={{ maxWidth: "380px" }}>
                 {method === "card" && (
                   <>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
                       <div>
-                        <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--fg)", marginBottom: "6px" }}>Card Number</label>
-                        <input type="text" value={cardNumber} onChange={handleCardChange} placeholder="1234 5678 9012 3456" maxLength={19} style={{ width: "100%", padding: "12px 14px", border: "1px solid var(--rule)", borderRadius: "var(--r-md)", background: "var(--bg)", color: "var(--fg)", fontSize: "14px", outline: "none", fontFamily: "monospace" }} />
+                        <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "var(--ink-2)", marginBottom: "6px", fontFamily: "var(--mono)", letterSpacing: "0.14em", textTransform: "uppercase" }}>Card number</label>
+                        <input type="text" value={cardNumber} onChange={(e) => setCardNumber(formatCardNumber(e.target.value))} placeholder="1234 5678 9012 3456" maxLength={19} style={{ width: "100%", padding: "10px 12px", border: "1px solid var(--rule-2)", borderRadius: "var(--r-sm)", background: "var(--paper)", color: "var(--ink)", fontSize: "13px", fontFamily: "var(--mono)", outline: 0 }} />
                       </div>
                       <div>
-                        <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--fg)", marginBottom: "6px" }}>Expiry Date</label>
-                        <input type="text" value={cardExpiry} onChange={handleExpiryChange} placeholder="MM/YY" maxLength={5} style={{ width: "100%", padding: "12px 14px", border: "1px solid var(--rule)", borderRadius: "var(--r-md)", background: "var(--bg)", color: "var(--fg)", fontSize: "14px", outline: "none", fontFamily: "monospace" }} />
+                        <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "var(--ink-2)", marginBottom: "6px", fontFamily: "var(--mono)", letterSpacing: "0.14em", textTransform: "uppercase" }}>Expiry date</label>
+                        <input type="text" value={cardExpiry} onChange={(e) => setCardExpiry(formatExpiry(e.target.value))} placeholder="MM/YY" maxLength={5} style={{ width: "100%", padding: "10px 12px", border: "1px solid var(--rule-2)", borderRadius: "var(--r-sm)", background: "var(--paper)", color: "var(--ink)", fontSize: "13px", fontFamily: "var(--mono)", outline: 0 }} />
                       </div>
                     </div>
                     <div style={{ marginBottom: "16px" }}>
-                      <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--fg)", marginBottom: "6px" }}>CVV</label>
-                      <input type="text" value={cardCvv} onChange={handleCvvChange} placeholder="123" maxLength={3} style={{ width: "100%", padding: "12px 14px", border: "1px solid var(--rule)", borderRadius: "var(--r-md)", background: "var(--bg)", color: "var(--fg)", fontSize: "14px", outline: "none", fontFamily: "monospace" }} />
+                      <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "var(--ink-2)", marginBottom: "6px", fontFamily: "var(--mono)", letterSpacing: "0.14em", textTransform: "uppercase" }}>CVV</label>
+                      <input type="text" value={cardCvv} onChange={(e) => setCardCvv(formatCvv(e.target.value))} placeholder="123" maxLength={3} style={{ width: "100%", padding: "10px 12px", border: "1px solid var(--rule-2)", borderRadius: "var(--r-sm)", background: "var(--paper)", color: "var(--ink)", fontSize: "13px", fontFamily: "var(--mono)", outline: 0 }} />
                     </div>
                     <div style={{ marginBottom: "16px" }}>
-                      <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--fg)", marginBottom: "6px" }}>Cardholder Name</label>
-                      <input type="text" value={cardName} onChange={handleNameChange} placeholder="JOHN DOE" style={{ width: "100%", padding: "12px 14px", border: "1px solid var(--rule)", borderRadius: "var(--r-md)", background: "var(--bg)", color: "var(--fg)", fontSize: "14px", outline: "none" }} />
+                      <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "var(--ink-2)", marginBottom: "6px", fontFamily: "var(--mono)", letterSpacing: "0.14em", textTransform: "uppercase" }}>Cardholder name</label>
+                      <input type="text" value={cardName} onChange={(e) => setCardName(e.target.value)} placeholder="JOHN DOE" style={{ width: "100%", padding: "10px 12px", border: "1px solid var(--rule-2)", borderRadius: "var(--r-sm)", background: "var(--paper)", color: "var(--ink)", fontSize: "13px", outline: 0 }} />
                     </div>
                   </>
                 )}
-                {method === "upi" && (
+                {method !== "card" && (
                   <div>
-                    <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--fg)", marginBottom: "6px" }}>UPI ID</label>
-                    <input type="text" value={upiId} onChange={handleUpiChange} placeholder="name@upi" style={{ width: "100%", padding: "12px 14px", border: "1px solid var(--rule)", borderRadius: "var(--r-md)", background: "var(--bg)", color: "var(--fg)", fontSize: "14px", outline: "none" }} />
+                    <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "var(--ink-2)", marginBottom: "6px", fontFamily: "var(--mono)", letterSpacing: "0.14em", textTransform: "uppercase" }}>Account identifier</label>
+                    <input type="text" placeholder="Enter account details" style={{ width: "100%", padding: "10px 12px", border: "1px solid var(--rule-2)", borderRadius: "var(--r-sm)", background: "var(--paper)", color: "var(--ink)", fontSize: "13px", outline: 0 }} />
                   </div>
                 )}
-                {method === "bank" && (
-                  <div>
-                    <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--fg)", marginBottom: "6px" }}>Select Bank</label>
-                    <select value={bank} onChange={handleBankChange} style={{ width: "100%", padding: "12px 14px", border: "1px solid var(--rule)", borderRadius: "var(--r-md)", background: "var(--bg)", color: "var(--fg)", fontSize: "14px", outline: "none" }}>
-                      <option value="">Select Bank</option>
-                      <option value="chase">Chase Bank</option>
-                      <option value="bofa">Bank of America</option>
-                      <option value="wells">Wells Fargo</option>
-                      <option value="citibank">Citibank</option>
-                    </select>
-                  </div>
-                )}
+              </div>
+              <div style={{ marginTop: "24px", display: "flex", gap: "8px" }}>
+                <button type="button" onClick={goBack} className="btn btn-sm btn-ghost" style={{ fontWeight: 700 }}>Back</button>
+                <button type="button" onClick={() => setStep("confirm")} className="btn btn-sm btn-blue" style={{ fontWeight: 700 }}>Continue</button>
               </div>
             </div>
           )}
           {step === "confirm" && (
             <div style={{ padding: "24px", overflowY: "auto" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
-                <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "var(--blue-tint)", color: "var(--brand)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ width: "32px", height: "32px", borderRadius: "6px", background: "var(--blue-tint)", color: "var(--blue)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Icon name="brief" size={16} />
                 </div>
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: "14px", color: "var(--fg)" }}>{method === "card" ? "Credit/Debit Card" : method === "upi" ? "UPI" : method === "bank" ? "Net Banking" : "Wallet"}</div>
-                  <div style={{ fontSize: "12px", color: "var(--muted)" }}>{method === "card" ? `•••• ${cardNumber.slice(-4)}` : method === "upi" ? upiId : bank || "Bank Account"}</div>
+                  <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--ink)", fontFamily: "var(--sans)" }}>{method === "card" ? "Credit/Debit Card" : method.toUpperCase()}</div>
+                  <div style={{ fontSize: "12px", color: "var(--muted)", fontFamily: "var(--mono)" }}>{method === "card" ? `•••• ${cardNumber.slice(-4)}` : "Account on file"}</div>
                 </div>
               </div>
-              <div style={{ background: "var(--bg-elevated)", borderRadius: "var(--r-md)", padding: "16px", marginBottom: "16px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "var(--fg)", marginBottom: "8px" }}>
-                  <span>Order Total</span>
+              <div style={{ background: "var(--paper-2)", borderRadius: "var(--r-md)", padding: "16px", marginBottom: "16px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "var(--ink)", marginBottom: "8px", fontWeight: 500 }}>
+                  <span>Order total</span>
                   <span>$${(amount / 100).toFixed(2)}</span>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--muted)", marginBottom: "12px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--muted)", marginBottom: "12px", fontFamily: "var(--mono)" }}>
                   <span>Currency</span>
                   <span>{currency}</span>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "15px", fontWeight: 600, color: "var(--fg)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "17px", fontWeight: 700, color: "var(--ink)", fontFamily: "var(--serif)" }}>
                   <span>Total</span>
                   <span>$${(amount / 100).toFixed(2)}</span>
                 </div>
               </div>
-              <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "16px" }}>
-                Your payment will be processed securely via {method === "card" ? "Secure Card Gateway" : method === "upi" ? "UPI Gateway" : method === "bank" ? "Bank Gateway" : "Wallet Gateway"}.
+              <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "20px", fontFamily: "var(--sans)", fontWeight: 500 }}>
+                Your payment will be processed securely via {method === "card" ? "Secure card gateway" : "Selected gateway"}.
               </div>
-              <button type="button" onClick={handlePay} disabled={processing} style={{ width: "100%", padding: "14px 24px", borderRadius: "var(--r-md)", border: "none", background: "var(--brand)", color: "white", fontSize: "15px", fontWeight: 600, cursor: processing ? "not-allowed" : "pointer", opacity: processing ? 0.6 : 1 }}>
-                {processing ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <div style={{ width: "14px", height: "14px", border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "white", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
-                    <span>Processing…</span>
-                  </div>
-                ) : (
-                  <span>Pay ${(amount / 100).toFixed(2)} Now</span>
-                )}
-              </button>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button type="button" onClick={goBack} className="btn btn-sm btn-ghost" style={{ fontWeight: 700 }}>Back</button>
+                <button type="button" onClick={handlePay} disabled={processing} className="btn btn-sm btn-blue" style={{ fontWeight: 700 }}>
+                  {processing ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <div style={{ width: "14px", height: "14px", border: "2px solid rgba(24,24,27,.3)", borderTopColor: "var(--ink)", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+                      <span>Processing…</span>
+                    </div>
+                  ) : (
+                    <span>Pay $${(amount / 100).toFixed(2)} now</span>
+                  )}
+                </button>
+              </div>
             </div>
           )}
           {step === "success" && (
             <div style={{ padding: "48px 24px", textAlign: "center" }}>
               <div style={{ width: "64px", height: "64px", background: "var(--green-tint)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-                <span style={{ color: "var(--success)", display: "inline-block" }}><Icon name="check" size={28} /></span>
+                <span style={{ color: "var(--green)", display: "inline-block" }}><Icon name="check" size={28} /></span>
               </div>
-              <div style={{ fontSize: "20px", fontWeight: 600, color: "var(--fg)", marginBottom: "8px" }}>Payment Successful</div>
-              <div style={{ color: "var(--muted)", fontSize: "14px", marginBottom: "24px" }}><span style={{ fontWeight: 600, color: "var(--fg)" }}>${(amount / 100).toFixed(2)}</span> has been charged successfully.</div>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "24px" }}>
-                <span style={{ fontSize: "12px", color: "var(--muted)" }}>Receipt ID:</span>
-                <span style={{ fontSize: "12px", color: "var(--brand)", fontWeight: 500 }}>{invoiceId}</span>
+              <div style={{ fontFamily: "var(--serif)", fontSize: "22px", fontWeight: 400, color: "var(--ink)", marginBottom: "8px" }}>Payment successful</div>
+              <div style={{ color: "var(--muted)", fontSize: "14px", marginBottom: "24px", fontFamily: "var(--sans)", fontWeight: 500 }}><span style={{ fontWeight: 600, color: "var(--ink)" }}>${(amount / 100).toFixed(2)}</span> has been charged successfully.</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", marginBottom: "24px" }}>
+                <span style={{ fontSize: "11px", color: "var(--muted)", fontFamily: "var(--mono)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Receipt id:</span>
+                <span style={{ fontSize: "11px", color: "var(--blue)", fontWeight: 700, fontFamily: "var(--mono)", letterSpacing: "0.1em", textTransform: "uppercase" }}>{invoiceId}</span>
               </div>
-              <button type="button" onClick={onClose} style={{ width: "100%", padding: "12px 24px", borderRadius: "var(--r-md)", border: "none", background: "var(--brand)", color: "white", fontSize: "15px", fontWeight: 600, cursor: "pointer" }}>Done</button>
+              <button type="button" onClick={onClose} className="btn btn-sm btn-blue" style={{ fontWeight: 700 }}>Done</button>
             </div>
           )}
           {step === "error" && (
             <div style={{ padding: "48px 24px", textAlign: "center" }}>
-              <div style={{ width: "64px", height: "64px", background: "var(--danger-tint)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-                <span style={{ color: "var(--danger)", display: "inline-block" }}><Icon name="x" size={24} /></span>
+              <div style={{ width: "64px", height: "64px", background: "var(--red-tint)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+                <span style={{ color: "var(--red)", display: "inline-block" }}><Icon name="x" size={24} /></span>
               </div>
-              <div style={{ fontSize: "20px", fontWeight: 600, color: "var(--fg)", marginBottom: "8px" }}>Payment Failed</div>
-              <div style={{ color: "var(--muted)", fontSize: "14px", marginBottom: "24px" }}>{error}</div>
-              <div style={{ display: "flex", gap: "12px" }}>
-                <button type="button" onClick={() => setStep("method")} style={{ width: "100%", padding: "12px 24px", borderRadius: "var(--r-md)", border: "1px solid var(--rule)", background: "transparent", color: "var(--fg)", fontSize: "15px", fontWeight: 600, cursor: "pointer" }}>Try Again</button>
-                <button type="button" onClick={onClose} style={{ width: "100%", padding: "12px 24px", borderRadius: "var(--r-md)", border: "none", background: "var(--brand)", color: "white", fontSize: "15px", fontWeight: 600, cursor: "pointer" }}>Close</button>
+              <div style={{ fontFamily: "var(--serif)", fontSize: "22px", fontWeight: 400, color: "var(--ink)", marginBottom: "8px" }}>Payment failed</div>
+              <div style={{ color: "var(--muted)", fontSize: "14px", marginBottom: "24px", fontFamily: "var(--sans)", fontWeight: 500 }}>{error}</div>
+              <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
+                <button type="button" onClick={() => setStep("method")} className="btn btn-sm btn-ghost" style={{ fontWeight: 700 }}>Try again</button>
+                <button type="button" onClick={onClose} className="btn btn-sm btn-blue" style={{ fontWeight: 700 }}>Close</button>
               </div>
             </div>
           )}
