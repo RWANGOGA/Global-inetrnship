@@ -17,6 +17,7 @@ from app.application.ports import (
     JobApplicationRepository,
     JobRepository,
     LearningResourceRepository,
+    OrganisationRepository,
     PlacementRepository,
     SavedJobsRepository,
     SavedRepository,
@@ -1620,3 +1621,47 @@ class SqlAlchemyUserChatSettingsRepository(UserChatSettingsRepository):
         
         self._session.commit()
         return settings
+
+
+class SqlAlchemyOrganisationRepository(OrganisationRepository):
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def _to_domain(self, row: "OrganisationORM") -> Organisation:
+        return Organisation(
+            id=row.id,
+            name=row.name,
+            type=row.type,
+            sector=row.sector,
+            loc=row.loc,
+            about=row.about,
+            owner_id=row.owner_id,
+            created_at=row.created_at,
+        )
+
+    def add(self, org: Organisation) -> Organisation:
+        row = OrganisationORM(
+            id=org.id,
+            name=org.name,
+            type=org.type,
+            sector=org.sector,
+            loc=org.loc,
+            about=org.about,
+            owner_id=org.owner_id,
+            created_at=org.created_at,
+        )
+        self._session.add(row)
+        self._session.commit()
+        return org
+
+    def get(self, org_id: str) -> Optional[Organisation]:
+        row = self._session.query(OrganisationORM).filter_by(id=org_id).first()
+        if not row:
+            return None
+        return self._to_domain(row)
+
+    def get_by_owner(self, owner_id: str) -> Optional[Organisation]:
+        row = self._session.query(OrganisationORM).filter_by(owner_id=owner_id).first()
+        if not row:
+            return None
+        return self._to_domain(row)

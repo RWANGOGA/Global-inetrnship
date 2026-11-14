@@ -661,12 +661,26 @@ class RegisterRequest(BaseModel):
     name: str = ""
     role: str
     password: str
+    # Employer organisation details (required for employer role)
+    org_name: str = ""
+    org_type: str = ""
+    org_sector: str = ""
+    org_loc: str = ""
+    org_about: str = ""
 
     @field_validator("password")
     @classmethod
     def validate_password(cls, v: str) -> str:
         if len(v) < 8:
             raise ValueError("Password must be at least 8 characters")
+        return v
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, v: str) -> str:
+        if v == "employer":
+            # For employers, org_name is required
+            pass  # Validation will be done in the service layer
         return v
 
 
