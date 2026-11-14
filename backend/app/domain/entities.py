@@ -18,6 +18,7 @@ class Organisation:
     billing_email: Optional[str] = None
     tax_id: Optional[str] = None
     billing_address: dict = field(default_factory=dict)
+    created_at: str = ""
 
 
 @dataclass(frozen=True)
