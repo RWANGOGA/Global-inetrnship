@@ -144,20 +144,8 @@ export function VerificationStatus() {
         }}
       >
         <div style={{ flex: 1, minWidth: "280px" }}>
-          <h1
-            style={{
-              fontWeight: 800,
-              fontSize: "32px",
-              marginBottom: "8px",
-              color: "var(--ink)",
-              letterSpacing: "-0.5px",
-            }}
-          >
-            Verification status
-          </h1>
-          <p style={{ color: "var(--ink-2)", fontSize: "15px", fontWeight: 500 }}>
-            What the placement office has checked and what is still outstanding
-          </p>
+          <h2>Verification status</h2>
+          <p>What the placement office has checked and what is still outstanding</p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
           <div
