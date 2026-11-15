@@ -441,14 +441,47 @@ nav[aria-label="Primary"]{display:flex}
 .cta .wrap{display:flex;justify-content:space-between;align-items:center;gap:30px;flex-wrap:wrap}
 .cta h2{font-family:var(--serif);font-size:clamp(24px,3vw,36px);font-weight:800;letter-spacing:-.02em}
 
-/* footer */
-.foot{background:var(--paper-2);border-top:1px solid var(--rule);padding:46px 0 22px}
-.fgrid{display:grid;grid-template-columns:1.4fr repeat(4,1fr);gap:28px}
-.foot h5{font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted-strong);margin-bottom:12px;font-weight:500}
-.foot nav a{display:block;font-size:12.5px;color:var(--ink-2);margin-bottom:8px}
-.foot nav a:hover{color:var(--blue)}
-.foot p{font-size:12px;color:var(--muted-strong);max-width:250px;line-height:1.7}
-.fbase{display:flex;justify-content:space-between;gap:18px;margin-top:34px;padding-top:14px;border-top:1px solid var(--rule-2);font-size:10.5px;color:var(--muted-strong);flex-wrap:wrap}
+/* footer
+The grid is brand + four audiences. Everything is pinned to one baseline: the
+column headings share a fixed height so the first link of every column starts on
+the same line, and each link is a padded row rather than a text run so the
+rhythm survives descenders and longer labels. */
+.foot{background:var(--paper-2);border-top:1px solid var(--rule);padding:56px 0 20px}
+.fgrid{
+  display:grid;grid-template-columns:minmax(0,1.55fr) repeat(4,minmax(0,1fr));
+  gap:40px 32px;align-items:start;
+}
+.fbrand{display:grid;gap:14px;justify-items:start;max-width:300px}
+.fbrand .logo{margin:0}
+.fbrand p{font-size:12.5px;color:var(--muted-strong);line-height:1.7;max-width:33ch}
+.fmore{
+  display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--ink);
+  padding-bottom:2px;border-bottom:1px solid var(--rule-2);transition:color .14s var(--ease),border-color .14s var(--ease);
+}
+.fmore:hover{color:var(--blue);border-color:var(--blue)}
+.fcol{display:flex;flex-direction:column;min-width:0}
+.foot h5{
+  display:flex;align-items:center;height:18px;margin:0 0 12px;
+  font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--muted-strong);font-weight:500;
+}
+.fcol a{
+  display:block;padding:5px 0;font-size:12.5px;line-height:1.5;color:var(--ink-2);
+  transition:color .14s var(--ease);
+}
+.fcol a:hover{color:var(--blue)}
+.fbase{
+  display:flex;justify-content:space-between;align-items:center;gap:12px 28px;
+  margin-top:40px;padding-top:16px;border-top:1px solid var(--rule-2);
+  font-size:10.5px;line-height:1.6;color:var(--muted-strong);flex-wrap:wrap;
+}
+.fnote{color:var(--faint)}
+.ftop{
+  display:inline-flex;align-items:center;gap:6px;padding:4px 0;
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--muted-strong);transition:color .14s var(--ease);
+}
+.ftop:hover{color:var(--blue)}
 
 /* ---------------- page header (inner pages) ---------------- */
 .phead{border-bottom:1px solid var(--rule);padding:34px 0 26px;background:var(--white)}
@@ -688,6 +721,13 @@ nav[aria-label="Primary"]{display:flex}
   .kpi:nth-child(2){border-right:0}
   .kpi{border-bottom:1px solid var(--rule)}
 }
+@media (max-width:1100px){
+  /* Between 900 and 1100 the brand column steals width the four link columns
+     need, and "Sign in as an employer" starts wrapping mid-label. A full-width
+     brand above four even columns keeps every label on one line. */
+  .fgrid{grid-template-columns:repeat(4,minmax(0,1fr));gap:32px 24px}
+  .fbrand{grid-column:1/-1;max-width:520px}
+}
 @media (max-width:900px){
   :root{--gut:22px}
   .nav{display:none}
@@ -697,7 +737,8 @@ nav[aria-label="Primary"]{display:flex}
   .spec{grid-template-columns:1fr}
   .band-grid{grid-template-columns:1fr;gap:30px}
   .quote{grid-template-columns:1fr;gap:18px}
-  .fgrid{grid-template-columns:1fr 1fr}
+  .fgrid{grid-template-columns:1fr 1fr;gap:32px 24px}
+  .fbrand{grid-column:1/-1;max-width:520px}
   .dhead{flex-direction:column}
   .searchgrid{grid-template-columns:1fr 1fr}
   .searchgrid button{grid-column:1/-1;height:40px}
@@ -714,7 +755,8 @@ nav[aria-label="Primary"]{display:flex}
   .kpis{grid-template-columns:1fr 1fr}
   .kpi:nth-child(2){border-right:0}
   .kpi:nth-child(odd){border-right:1px solid var(--rule)}
-  .fgrid{grid-template-columns:1fr}
+  .fgrid{grid-template-columns:1fr 1fr;gap:28px 20px}
+  .fbase{flex-direction:column;align-items:flex-start;gap:10px}
   .searchgrid{grid-template-columns:1fr}
   .cta .wrap{flex-direction:column;align-items:flex-start}
   .dtable .hide-xs{display:none}
