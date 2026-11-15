@@ -212,7 +212,7 @@ export function PlacementsView() {
             )}
           </div>
 
-          <aside className="side">
+          <aside className="dside">
             <div className="sbox">
               <div className="sh">
                 <span className="lbl">How eligibility works</span>

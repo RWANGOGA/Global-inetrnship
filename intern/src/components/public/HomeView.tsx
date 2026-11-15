@@ -456,7 +456,7 @@ export function HomeView() {
               <button
                 type="button"
                 className="btn"
-                style={{ borderColor: "#4A5D77", color: "#EDEAE0" }}
+                style={{ borderColor: "var(--on-dark-rule)", color: "var(--on-dark)" }}
                 onClick={() => go("universities")}
               >
                 How it works
@@ -464,7 +464,7 @@ export function HomeView() {
               <button
                 type="button"
                 className="btn"
-                style={{ borderColor: "transparent", color: "#9DBBB2" }}
+                style={{ borderColor: "transparent", color: "var(--on-dark-muted)" }}
                 onClick={() => go("signin")}
               >
                 Open a dashboard
@@ -541,7 +541,7 @@ export function HomeView() {
             <button
               type="button"
               className="btn"
-              style={{ borderColor: "#5A6058", color: "#EDEAE0" }}
+              style={{ borderColor: "var(--on-dark-rule)", color: "var(--on-dark)" }}
               onClick={() => go("contact")}
             >
               Talk to the office
