@@ -340,12 +340,14 @@ export const NAV: Record<UserRole, [string, string, string][]> = {
     ["verification", "Verification", "07"],
     ["pack", "Application pack", "08"],
     ["testimonial", "Testimonial", "09"],
-    ["billing", "Billing", "10"],
+    ["messages", "Messages", "10"],
+    ["billing", "Billing", "11"],
   ],
   jobseeker: [
     ["overview", "Overview", "01"],
     ["roles", "Graduate roles", "02"],
     ["apps", "Applications", "03"],
+    ["messages", "Messages", "04"],
   ],
   employer: [
     ["overview", "Overview", "01"],
@@ -357,7 +359,8 @@ export const NAV: Record<UserRole, [string, string, string][]> = {
     ["analytics", "Hiring Analytics", "07"],
     ["profile", "Profile", "08"],
     ["testimonial", "Testimonial", "09"],
-    ["billing", "Billing", "10"],
+    ["messages", "Messages", "10"],
+    ["billing", "Billing", "11"],
   ],
   admin: [
     ["overview", "Overview", "01"],
@@ -373,7 +376,8 @@ export const NAV: Record<UserRole, [string, string, string][]> = {
     ["reports", "Reports", "11"],
     ["analytics", "Hiring Analytics", "12"],
     ["learning", "Learning", "13"],
-    ["billing", "Billing", "14"],
+    ["messages", "Messages", "14"],
+    ["billing", "Billing", "15"],
   ],
   employee: [
     ["overview", "Overview", "01"],
