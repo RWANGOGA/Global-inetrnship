@@ -28,8 +28,9 @@ export function Modal() {
           {modal.body}
         </div>
         <div className="mf">
+          {/* Read-only modals (no confirm action) are dismissed, not cancelled. */}
           <button type="button" className="btn btn-sm" onClick={closeModal}>
-            Cancel
+            {modal.okLabel ? "Cancel" : "Close"}
           </button>
           {modal.okLabel && (
             <button
