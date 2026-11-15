@@ -5,7 +5,7 @@ import { useApp } from "../../../context/AppContext";
 import { Icon } from "../../icons/Icons";
 
 export function StudentTestimonial() {
-  const { toast, uploadDocumentFile, docs } = useApp();
+  const { toast, uploadDocumentFile, docs, placements } = useApp();
   const [supervisor, setSupervisor] = useState("");
   const [role, setRole] = useState("");
   const [project, setProject] = useState("");
@@ -14,6 +14,19 @@ export function StudentTestimonial() {
 
   const testimonialDoc = docs.find((d) => d.name === "testimonial");
   const isUploaded = testimonialDoc && testimonialDoc.status !== "missing";
+  const transcriptDoc = docs.find((d) => d.name === "transcript");
+  const transcriptVerified = transcriptDoc?.status === "verified";
+  const transcriptPending = transcriptDoc?.status === "pending";
+  // "Required by 9 of your 12 eligible placements" and a dated "Transcript
+  // verified" line were static copy; derive both from the live placements and
+  // the student's own documents.
+  const askingPlacements = placements.filter((p) => p.testimonial);
+  const requiredCopy =
+    placements.length === 0
+      ? "No live placements to check against yet"
+      : askingPlacements.length === 0
+      ? `None of your ${placements.length} live placements require one`
+      : `Required by ${askingPlacements.length} of your ${placements.length} live placements`;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,7 +57,7 @@ export function StudentTestimonial() {
       <div className="dpane-h">
         <div>
           <h2>Testimonial</h2>
-          <p>Required by 9 of your 12 eligible placements</p>
+          <p>{requiredCopy}</p>
         </div>
       </div>
       <div
@@ -127,21 +140,44 @@ export function StudentTestimonial() {
                   <span className="box"></span>
                   <div className="t">
                     <b>Not submitted</b>
-                    <span>Needed for Ministry of ICT</span>
+                    <span>
+                      Needed for {askingPlacements.length} live placement
+                      {askingPlacements.length === 1 ? "" : "s"}
+                    </span>
                   </div>
                   <span className="st">Action</span>
                 </div>
               )}
-              <div className="ci done">
-                <span className="box">
-                  <Icon name="check" size={9} />
-                </span>
-                <div className="t">
-                  <b>Transcript verified</b>
-                  <span>12 Feb 2026</span>
+              {transcriptVerified ? (
+                <div className="ci done">
+                  <span className="box">
+                    <Icon name="check" size={9} />
+                  </span>
+                  <div className="t">
+                    <b>Transcript verified</b>
+                    <span>Cleared by the registry</span>
+                  </div>
+                  <span className="st">Met</span>
                 </div>
-                <span className="st">Met</span>
-              </div>
+              ) : transcriptPending ? (
+                <div className="ci todo">
+                  <span className="box"></span>
+                  <div className="t">
+                    <b>Transcript in review</b>
+                    <span>Awaiting verification</span>
+                  </div>
+                  <span className="st">Pending</span>
+                </div>
+              ) : (
+                <div className="ci todo">
+                  <span className="box"></span>
+                  <div className="t">
+                    <b>Transcript not uploaded</b>
+                    <span>Upload it under Documents</span>
+                  </div>
+                  <span className="st">Action</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
