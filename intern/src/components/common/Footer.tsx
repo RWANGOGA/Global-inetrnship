@@ -3,18 +3,25 @@
 import React, { useState } from "react";
 import { useApp } from "../../context/AppContext";
 import { UserRole } from "../../types";
+import { Icon } from "../icons/Icons";
 
 type FooterLink =
   | { label: string; route: string }
   | { label: string; role: UserRole };
 
+// Organisations lead: they are the side of the marketplace that supplies the
+// placements, and the header already opens with that group. Each column is one
+// audience and each label is the same shape — verb, then object — so the three
+// audience lists read across as one sentence instead of three unrelated ones.
+// "The office" is the one exception and stays noun-first, because "Read our
+// privacy policy" is not how anybody looks for it.
 const COLUMNS: { heading: string; links: FooterLink[] }[] = [
   {
-    heading: "Students",
+    heading: "Organisations",
     links: [
-      { label: "Browse placements", route: "placements" },
-      { label: "Student sign in", role: "student" },
-      { label: "Job seeker sign in", role: "jobseeker" },
+      { label: "Post a placement", route: "employers" },
+      { label: "Compare plans", route: "plans" },
+      { label: "Sign in as an employer", role: "employer" },
     ],
   },
   {
@@ -22,22 +29,22 @@ const COLUMNS: { heading: string; links: FooterLink[] }[] = [
     links: [
       { label: "List a placement", route: "universities" },
       { label: "How verification works", route: "about" },
-      { label: "Admin sign in", role: "admin" },
+      { label: "Sign in to the office", role: "admin" },
     ],
   },
   {
-    heading: "Employers",
+    heading: "Students",
     links: [
-      { label: "Post a placement", route: "employers" },
-      { label: "Plans and pricing", route: "plans" },
-      { label: "Employer sign in", role: "employer" },
+      { label: "Find an internship", route: "placements" },
+      { label: "Find a job", route: "jobs" },
+      { label: "Sign in as a student", role: "student" },
     ],
   },
   {
-    heading: "Office",
+    heading: "The office",
     links: [
       { label: "Contact", route: "contact" },
-      { label: "Privacy", route: "privacy" },
+      { label: "Privacy policy", route: "privacy" },
       { label: "Accessibility", route: "accessibility" },
     ],
   },
@@ -64,11 +71,10 @@ export function Footer() {
     <footer className="foot">
       <div className="wrap">
         <div className="fgrid">
-          <div>
+          <div className="fbrand">
             <a
               href="#home"
               className="logo"
-              style={{ marginBottom: "12px" }}
               onClick={(e) => {
                 e.preventDefault();
                 go("home");
@@ -81,13 +87,23 @@ export function Footer() {
               </span>
             </a>
             <p>
-              Placements from companies, government agencies and NGOs — listed
-              by universities, with requirements stated before anyone applies.
+              Placements from companies, government agencies and NGOs — listed by
+              universities, with requirements stated before anyone applies.
             </p>
+            <a
+              className="fmore"
+              href="#about"
+              onClick={(e) => {
+                e.preventDefault();
+                go("about");
+              }}
+            >
+              About BrighterWorks <Icon name="arrow" size={11} />
+            </a>
           </div>
 
           {COLUMNS.map((col) => (
-            <nav key={col.heading} aria-label={col.heading}>
+            <nav key={col.heading} className="fcol" aria-label={col.heading}>
               <h5>{col.heading}</h5>
               {col.links.map((link) => (
                 <a
@@ -109,18 +125,12 @@ export function Footer() {
           <span>
             © {year} BrighterWorks. Kampala · Nairobi · Berlin.
           </span>
-          <span>
+          <span className="fnote">
             Requirements and eligibility are set by each university.
           </span>
-          <a
-            href="#top"
-            onClick={(e) => {
-              e.preventDefault();
-              backToTop();
-            }}
-          >
-            Back to top ↑
-          </a>
+          <button type="button" className="ftop" onClick={backToTop}>
+            Back to top <Icon name="chevron-up" size={12} />
+          </button>
         </div>
       </div>
     </footer>
