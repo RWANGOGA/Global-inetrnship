@@ -5,6 +5,7 @@ import { useApp } from "../../../context/AppContext";
 import { Icon } from "../../icons/Icons";
 import { InvoicePayment } from "../common/checkout/InvoicePayment";
 import { BillingStatusBanner } from "../common/BillingStatusBanner";
+import billingStyles from "../common/Billing.module.css";
 import {
   fetchStudentInvoices,
   fetchStudentUsage,
@@ -72,15 +73,13 @@ export function StudentBilling() {
   }
 
   return (
-    <div className="dpane-h" style={{ maxWidth: "1100px", margin: "0 auto", padding: "24px 16px" }}>
-      <div className="dpane-h">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-          <div>
-            <h2 style={{ fontSize: "16px", fontWeight: 600, color: "var(--ink)", margin: 0, textAlign: "left", fontFamily: "var(--sans)" }}>Billing</h2>
-            <p style={{ color: "var(--muted)", marginTop: "4px", fontSize: "12px" }}>Track your applications and manage overage invoices</p>
-          </div>
-          <button className="btn btn-sm" onClick={loadData} style={{ padding: "6px 14px", fontSize: "11.5px" }}><Icon name="arrow" size={14} /> Refresh</button>
-        </div>
+    <div className={billingStyles.page}>
+      <div className={`dpane-h ${billingStyles.header}`}>
+      <div>
+        <h2 className={billingStyles.title}>Billing</h2>
+        <p className={billingStyles.description}>Track your applications and manage overage invoices</p>
+      </div>
+      <button className="btn btn-sm" onClick={loadData} style={{ padding: "6px 14px", fontSize: "11.5px" }}><Icon name="arrow" size={14} /> Refresh</button>
       </div>
 
       {/* Billing status banner */}

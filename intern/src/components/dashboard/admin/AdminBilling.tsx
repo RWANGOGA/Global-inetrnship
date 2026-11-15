@@ -6,6 +6,7 @@ import type { InvoiceResponse, TransactionResponse } from "../../../lib/api";
 import { fetchAdminInvoices, fetchAdminRevenue, fetchAdminTransactions } from "../../../lib/api";
 import { Icon } from "../../icons/Icons";
 import { BillingStatusBanner } from "../common/BillingStatusBanner";
+import billingStyles from "../common/Billing.module.css";
 
 const MOCK_INVOICES: InvoiceResponse[] = [
   { id: "inv_1", org_id: "org_1", subscription_id: "sub_1", amount_cents: 3000, currency: "USD", status: "paid", invoice_number: "INV-2026-001", description: "Pro Plan - Monthly", line_items: [{ description: "Pro Plan - Monthly", quantity: 1, unit_amount_cents: 3000 }], metadata: {}, due_date: "2026-01-15", paid_at: "2026-01-10", payment_gateway: "stripe", gateway_invoice_id: "inv_stripe_1", gateway_payment_intent_id: "pi_1", created_at: "2026-01-01", updated_at: "2026-01-10" },
@@ -108,14 +109,15 @@ export function AdminBilling() {
   }
 
   return (
-    <div className="dpane-h" style={{ maxWidth: "1100px", margin: "0 auto", padding: "24px 16px" }}>
-      <div className="dpane-h">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-          <div>
-            <h2 style={{ fontSize: "16px", fontWeight: 600, color: "var(--ink)", margin: 0, textAlign: "left", fontFamily: "var(--sans)" }}>Billing</h2>
-            <p style={{ color: "var(--muted)", marginTop: "4px", fontSize: "12px" }}>Revenue overview, invoices, and transaction log</p>
-          </div>
+    <div className={billingStyles.page}>
+      <div className={`dpane-h ${billingStyles.header}`}>
+        <div>
+          <h2 className={billingStyles.title}>Billing</h2>
+          <p className={billingStyles.description}>Revenue overview, invoices, and transaction log</p>
         </div>
+        <button type="button" className="btn btn-sm" onClick={loadData}>
+          <Icon name="arrow" size={12} /> Refresh
+        </button>
       </div>
 
       {/* Billing status banner */}
