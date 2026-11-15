@@ -234,6 +234,31 @@ class SkillSuggestionListResponse(BaseModel):
     items: list[SkillSuggestionRead]
 
 
+class SkillMatchRequest(BaseModel):
+    """A student's own words. ``skills`` lets the client report what it has
+    already added in this session, so a just-accepted skill is not offered back."""
+
+    text: str = Field(min_length=1, max_length=4000)
+    skills: list[str] = []
+
+
+class SkillMatchRead(BaseModel):
+    name: str
+    category: str = ""
+    # 0 means the matcher had no opinion; 1-3 mirror the profile's rating scale.
+    level: int = 0
+    reason: str = ""
+    owned: bool = False
+
+
+class SkillMatchResponse(BaseModel):
+    total: int
+    items: list[SkillMatchRead]
+    # "ai" or "keywords" — the UI has to be able to say which one answered.
+    source: str = "keywords"
+    note: str = ""
+
+
 class ExtractRequest(BaseModel):
     text: str
 

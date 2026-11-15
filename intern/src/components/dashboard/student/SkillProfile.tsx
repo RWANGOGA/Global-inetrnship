@@ -4,16 +4,18 @@ import React, { useState, useEffect } from "react";
 import { useApp } from "../../../context/AppContext";
 import { Icon } from "../../icons/Icons";
 import {
-  extractSkills,
   requiredSkillsFor,
   skillList,
   skillNames,
 } from "../../../lib/skills";
 import {
+  describeApiError,
   fetchRecommendedInternships,
   fetchSkillSuggestions,
   isApiEnabled,
   MatchResponse,
+  matchSkillsFromBio,
+  SkillMatchItemDto,
   SkillSuggestionDto,
 } from "../../../lib/api";
 
@@ -22,6 +24,15 @@ const CONFIDENCE_LEVELS: { value: number; label: string; short: string }[] = [
   { value: 2, label: "Intermediate", short: "Intermediate" },
   { value: 3, label: "Advanced", short: "Advanced" },
 ];
+
+const LEVEL_LABEL: Record<number, string> = {
+  1: "Beginner",
+  2: "Intermediate",
+  3: "Advanced",
+};
+
+/** Where the last set of matches came from, so the panel can say so. */
+type MatchSource = "ai" | "keywords" | "local" | "";
 
 function scoreColor(score: number): string {
   if (score >= 70) return "var(--green)";
@@ -72,8 +83,13 @@ export function SkillProfile() {
     dashboardDataStatus,
   } = useApp();
 
-  const [text, setText] = useState("");
-  const [suggested, setSuggested] = useState<string[]>([]);
+  const [bio, setBio] = useState("");
+  const [intake, setIntake] = useState<SkillMatchItemDto[]>([]);
+  const [intakeSource, setIntakeSource] = useState<MatchSource>("");
+  const [intakeNote, setIntakeNote] = useState("");
+  const [intakeLoading, setIntakeLoading] = useState(false);
+  const [intakeError, setIntakeError] = useState("");
+  const [intakeDismissed, setIntakeDismissed] = useState<string[]>([]);
   const [picked, setPicked] = useState("");
   const [matches, setMatches] = useState<MatchResponse["items"]>([]);
   const [matchesLoading, setMatchesLoading] = useState(false);
@@ -91,21 +107,62 @@ export function SkillProfile() {
   const visibleSuggestions = suggestions.filter(
     (s) => !owned.includes(s.name) && !dismissed.includes(s.name)
   );
+  // A just-accepted skill leaves `intake`, but the profile update is async —
+  // filtering on `owned` keeps the row from lingering for a frame.
+  const visibleMatches = intake.filter(
+    (m) => !owned.includes(m.name) && !intakeDismissed.includes(m.name)
+  );
 
-  const runExtract = () => {
-    const found = extractSkills(text).filter((s) => !owned.includes(s));
-    setSuggested(found);
-    if (found.length === 0) {
-      toast("No new skills recognised — add a project or paste more detail");
+  const runExtract = async () => {
+    const text = bio.trim();
+    if (!text) return;
+    if (!isApiEnabled) {
+      // Demo mode has no server to ask, and the skill tables come from the API,
+      // so there is nothing honest to show here.
+      setIntake([]);
+      setIntakeSource("");
+      setIntakeNote("Skill matching needs the live catalogue. Connect to the API to use it.");
+      return;
+    }
+    setIntakeLoading(true);
+    setIntakeError("");
+    setIntakeNote("");
+    setIntakeDismissed([]);
+    try {
+      const result = await matchSkillsFromBio(text, owned);
+      setIntake(result.items);
+      setIntakeSource(result.source === "ai" ? "ai" : "keywords");
+      setIntakeNote(result.note);
+    } catch (cause) {
+      // No local duplicate of the matcher to fall back on: report the failure
+      // instead of quietly showing a shorter, unexplained list.
+      setIntake([]);
+      setIntakeSource("");
+      setIntakeError(
+        describeApiError(cause, "Could not read that description. Try again.").message
+      );
+    } finally {
+      setIntakeLoading(false);
     }
   };
 
-  const addAllSuggested = () => {
-    suggested.forEach((s) => addSkill(s, "project"));
-    setSuggested([]);
+  const acceptMatch = (item: SkillMatchItemDto) => {
+    addSkill(item.name, "bio");
+    if (item.level) setSkillConfidence(item.name, item.level);
+    setIntake((prev) => prev.filter((m) => m.name !== item.name));
     toast(
-      `${suggested.length} skill${suggested.length === 1 ? "" : "s"} added to your profile`
+      `${item.name} added${item.level ? ` as ${LEVEL_LABEL[item.level]}` : ""}`
     );
+  };
+
+  const addAllMatches = () => {
+    const pending = visibleMatches;
+    pending.forEach((item) => {
+      addSkill(item.name, "bio");
+      if (item.level) setSkillConfidence(item.name, item.level);
+    });
+    setIntake((prev) => prev.filter((m) => !pending.some((p) => p.name === m.name)));
+    toast(`${pending.length} skill${pending.length === 1 ? "" : "s"} added to your profile`);
   };
 
   const manualAdd = () => {
@@ -133,7 +190,7 @@ export function SkillProfile() {
     let cancelled = false;
     setSuggestionsLoading(true);
     setSuggestionsError(false);
-    fetchSkillSuggestions()
+    fetchSkillSuggestions(student.course)
       .then((res) => {
         if (!cancelled) setSuggestions(res.items);
       })
@@ -332,8 +389,8 @@ export function SkillProfile() {
                         marginTop: "4px",
                       }}
                     >
-                      Accept a course suggestion or extract skills from your
-                      project text below.
+                      Accept a course suggestion, or describe your work below and
+                      let the matcher name the skills.
                     </p>
                   </div>
                 ) : (
@@ -596,7 +653,17 @@ export function SkillProfile() {
 
             <div className="panel">
               <div className="ph">
-                <span className="lbl">Build from your experience</span>
+                <span className="lbl">Describe what you have done</span>
+                {intakeSource === "ai" && (
+                  <span className="tg blue" style={{ fontSize: "8.5px" }}>
+                    AI matched
+                  </span>
+                )}
+                {intakeSource === "keywords" && (
+                  <span className="tg" style={{ fontSize: "8.5px" }}>
+                    keyword match
+                  </span>
+                )}
               </div>
               <div className="pb">
                 <p
@@ -607,14 +674,14 @@ export function SkillProfile() {
                     lineHeight: 1.6,
                   }}
                 >
-                  Paste project descriptions, coursework or CV bullets. We read
-                  out the skills we recognise — you confirm what is true.
+                  Describe yourself the way you would to a friend — a course, a
+                  project, a job, what you actually did. We read it for the
+                  skills this platform scores, and you confirm what is true.
                 </p>
                 <textarea
-                  className="field-textarea"
                   style={{
                     width: "100%",
-                    minHeight: "96px",
+                    minHeight: "118px",
                     border: "1px solid var(--rule-2)",
                     borderRadius: "var(--r-sm)",
                     padding: "10px 12px",
@@ -622,56 +689,188 @@ export function SkillProfile() {
                     outline: 0,
                     resize: "vertical",
                     fontFamily: "inherit",
+                    lineHeight: 1.6,
                   }}
-                  placeholder="e.g. Built a React dashboard for a campus club, cleaned survey data in Excel, ran usability tests in Figma…"
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
+                  placeholder="e.g. I am a second-year student. I redesigned our church website in Figma and built the sign-up form with React. Last term I helped the clinic move their paper patient files into a spreadsheet and wrote the SQL for the monthly report."
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  maxLength={4000}
                 />
-                <button
-                  type="button"
-                  className="btn btn-sm btn-blue"
-                  style={{ marginTop: "10px" }}
-                  onClick={runExtract}
-                  disabled={!text.trim()}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    flexWrap: "wrap",
+                    marginTop: "10px",
+                  }}
                 >
-                  <Icon name="user" size={13} /> Extract skills
-                </button>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-blue"
+                    onClick={runExtract}
+                    disabled={!bio.trim() || intakeLoading}
+                  >
+                    <Icon name="search" size={13} />
+                    {intakeLoading ? "Reading…" : "Match skills"}
+                  </button>
+                  {visibleMatches.length > 1 && (
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={addAllMatches}
+                    >
+                      Add all {visibleMatches.length}
+                    </button>
+                  )}
+                  <span
+                    style={{ fontSize: "10.5px", color: "var(--faint)", marginLeft: "auto" }}
+                  >
+                    {bio.length}/4000
+                  </span>
+                </div>
 
-                {suggested.length > 0 && (
+                {intakeError && (
+                  <p
+                    style={{
+                      fontSize: "11.5px",
+                      color: "var(--red)",
+                      marginTop: "10px",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {intakeError}
+                  </p>
+                )}
+
+                {!intakeLoading && intakeNote && (
+                  <p
+                    style={{
+                      fontSize: "11.5px",
+                      color: "var(--muted)",
+                      marginTop: "10px",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {intakeNote}
+                  </p>
+                )}
+
+                {intakeLoading ? (
+                  <p
+                    style={{ fontSize: "12px", color: "var(--muted)", marginTop: "12px" }}
+                  >
+                    Reading your description…
+                  </p>
+                ) : visibleMatches.length > 0 ? (
                   <div
                     style={{
                       marginTop: "14px",
                       borderTop: "1px solid var(--rule)",
                       paddingTop: "12px",
+                      display: "grid",
+                      gap: "8px",
                     }}
                   >
-                    <div className="lbl" style={{ marginBottom: "8px" }}>
-                      Found {suggested.length} — confirm to add
+                    <div className="lbl">
+                      {visibleMatches.length} found — confirm what is true
                     </div>
-                    <div
-                      style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}
-                    >
-                      {suggested.map((s) => (
-                        <button
-                          key={s}
-                          type="button"
-                          className="tg"
-                          onClick={() => addSkill(s, "project")}
-                          title="Add to profile"
-                        >
-                          + {s}
-                        </button>
-                      ))}
-                    </div>
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      style={{ marginTop: "10px" }}
-                      onClick={addAllSuggested}
-                    >
-                      Add all {suggested.length}
-                    </button>
+                    {visibleMatches.map((m) => (
+                      <div
+                        key={m.name}
+                        style={{
+                          display: "flex",
+                          alignItems: "flex-start",
+                          gap: "10px",
+                          border: "1px solid var(--rule)",
+                          borderRadius: "var(--r-sm)",
+                          padding: "9px 11px",
+                          background: "var(--white)",
+                        }}
+                      >
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "6px",
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <b style={{ fontSize: "12.5px" }}>{m.name}</b>
+                            {m.category && (
+                              <span className="tg" style={{ fontSize: "8.5px" }}>
+                                {m.category}
+                              </span>
+                            )}
+                            {m.level ? (
+                              <span
+                                className="tg gold"
+                                style={{ fontSize: "8.5px" }}
+                              >
+                                {LEVEL_LABEL[m.level]}
+                              </span>
+                            ) : null}
+                          </div>
+                          {m.reason && (
+                            <div
+                              style={{
+                                fontSize: "10.5px",
+                                color: "var(--muted)",
+                                marginTop: "3px",
+                                lineHeight: 1.5,
+                              }}
+                            >
+                              {m.reason}
+                            </div>
+                          )}
+                        </div>
+                        <div style={{ display: "flex", gap: "5px" }}>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-blue"
+                            style={{
+                              height: "26px",
+                              padding: "0 9px",
+                              fontSize: "10px",
+                            }}
+                            onClick={() => acceptMatch(m)}
+                          >
+                            Accept
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            style={{
+                              height: "26px",
+                              padding: "0 9px",
+                              fontSize: "10px",
+                            }}
+                            onClick={() =>
+                              setIntakeDismissed((prev) => [...prev, m.name])
+                            }
+                          >
+                            No
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
+                ) : (
+                  intakeSource !== "" &&
+                  !intakeError && (
+                    <p
+                      style={{
+                        fontSize: "12px",
+                        color: "var(--muted)",
+                        marginTop: "12px",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      Nothing new to add from that. Name a tool, a course or a
+                      project and try again.
+                    </p>
+                  )
                 )}
               </div>
             </div>

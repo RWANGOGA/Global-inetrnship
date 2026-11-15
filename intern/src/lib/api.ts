@@ -977,8 +977,39 @@ export interface SkillSuggestionListDto {
   items: SkillSuggestionDto[];
 }
 
-export async function fetchSkillSuggestions(): Promise<SkillSuggestionListDto> {
-  return getJson<SkillSuggestionListDto>("/skills/suggestions");
+/** The course is what makes a suggestion relevant, so it has to travel: without
+ * it the endpoint answers with an empty list and the panel looks permanently
+ * solved. */
+export async function fetchSkillSuggestions(
+  course = ""
+): Promise<SkillSuggestionListDto> {
+  const query = course ? `?course=${encodeURIComponent(course)}` : "";
+  return getJson<SkillSuggestionListDto>(`/skills/suggestions${query}`);
+}
+
+export interface SkillMatchItemDto {
+  name: string;
+  category: string;
+  /** 0 when the matcher had no opinion, 1-3 mirror the profile's rating scale. */
+  level: number;
+  reason: string;
+  owned: boolean;
+}
+
+export interface SkillMatchDto {
+  total: number;
+  items: SkillMatchItemDto[];
+  /** "ai" or "keywords" ΓÇö say which one answered rather than implying both did. */
+  source: string;
+  note: string;
+}
+
+/** Reads a free-text introduction and names the platform skills it evidences. */
+export async function matchSkillsFromBio(
+  text: string,
+  skills: string[] = []
+): Promise<SkillMatchDto> {
+  return postJson<SkillMatchDto>("/skills/match", { text, skills });
 }
 
 export interface RankedPlacementDto {

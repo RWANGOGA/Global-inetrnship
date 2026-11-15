@@ -247,19 +247,26 @@ def get_skill_suggestions(
     course: str = Query(""),
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
+    profile_service: StudentProfileService = Depends(get_student_profile_service),
 ) -> SkillSuggestionListResponse:
     if current_user.role != "student":
         raise HTTPException(status_code=403, detail="Only students can request skill suggestions")
     
-    from app.application.services import PlacementService
     from app.infrastructure.repositories import SqlAlchemyPlacementRepository
-    from app.domain.matching import SkillSuggestion
+    # Importing the function, not the dataclass: this call used to NameError
+    # because only SkillSuggestion was imported, so every request 500'd and the
+    # "suggested from your course" panel never had anything to show.
+    from app.domain.matching import suggest_skills_for_course
     
     placement_repo = SqlAlchemyPlacementRepository(session)
-    placement_service = PlacementService(placement_repo)
     placements = placement_repo.list()
-    
-    user_skills = set(current_user.skills if hasattr(current_user, 'skills') and current_user.skills else [])
+
+    # Skills live on the student profile, not on the User row. Reading them off
+    # current_user always produced an empty set, so the endpoint suggested skills
+    # the student already had and spent its 10 slots on them.
+    profile = profile_service.get(current_user.id)
+    user_skills = set(profile.skills if profile else [])
+
     suggestions = suggest_skills_for_course(placements, course, user_skills)
     
     items = [
