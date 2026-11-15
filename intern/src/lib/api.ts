@@ -1401,12 +1401,14 @@ export async function fetchStudentUsage(): Promise<StudentUsageDto> {
 export async function checkoutStudentPlan(
   billing_email: string,
   idempotency_key: string,
-  terms_accepted: boolean
+  terms_accepted: boolean,
+  payment_gateway: "stripe" | "flutterwave" = "stripe"
 ): Promise<StudentCheckoutResponse> {
   return postJson<StudentCheckoutResponse>("/billing/student/checkout", {
     billing_email,
     idempotency_key,
     terms_accepted,
+    payment_gateway,
   });
 }
 
@@ -1424,11 +1426,13 @@ export async function fetchStudentInvoices(): Promise<StudentInvoiceResponse[]> 
 
 export async function payStudentInvoiceApi(
   invoice_id: string,
-  payment_method_id: string
+  payment_method_id: string,
+  payment_gateway: "stripe" | "flutterwave" = "stripe"
 ): Promise<TransactionResponse> {
   return postJson<TransactionResponse>(`/billing/student/invoices/${invoice_id}/pay`, {
     payment_method_id,
     terms_accepted: true,
+    payment_gateway,
   });
 }
 

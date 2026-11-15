@@ -319,6 +319,7 @@ class BillingService:
     STUDENT_PLUS_APPS = 60
     STUDENT_OVERAGE_CENTS = 50  # $0.50 per application
     STUDENT_PLUS_PRICE_CENTS = 1000
+    STUDENT_PAYMENT_GATEWAYS = frozenset({"stripe", "flutterwave"})
 
     def __init__(
         self,
@@ -849,10 +850,13 @@ class BillingService:
         billing_email: str,
         terms_accepted: bool,
         idempotency_key: str,
+        payment_gateway: str = "stripe",
     ) -> dict:
         """Charge and activate Student Plus through the configured billing gateway."""
         if not terms_accepted:
             raise ValueError("You must accept the billing terms to continue")
+        if payment_gateway not in self.STUDENT_PAYMENT_GATEWAYS:
+            raise ValueError("Unsupported student payment gateway")
         if not billing_email or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", billing_email):
             raise ValueError("A valid billing email is required")
         if not idempotency_key or len(idempotency_key) > 128:
@@ -892,7 +896,7 @@ class BillingService:
             None,
         )
         if invoice is None:
-            gateway_id = "stripe"
+            gateway_id = payment_gateway
             gateway = self._gateways.get(gateway_id)
             customer = gateway.get_or_create_customer(
                 user_id,
@@ -932,7 +936,12 @@ class BillingService:
             )
             self._invoices.save(invoice)
 
-        transaction = self.pay_student_invoice(invoice.id, user_id, idempotency_key=key)
+        transaction = self.pay_student_invoice(
+            invoice.id,
+            user_id,
+            idempotency_key=key,
+            payment_gateway=payment_gateway,
+        )
         return {
             "plan": self.get_student_plan(user_id),
             "invoice": self._invoices.get(invoice.id),
@@ -1048,6 +1057,7 @@ class BillingService:
         invoice_id: str,
         user_id: str,
         idempotency_key: Optional[str] = None,
+        payment_gateway: Optional[str] = None,
     ) -> Transaction:
         """Pay a student invoice through the configured payment gateway."""
         invoice = self._invoices.get(invoice_id)
@@ -1061,7 +1071,17 @@ class BillingService:
         if existing and existing.status == "succeeded":
             return existing
 
-        gateway_id = invoice.payment_gateway or "stripe"
+        gateway_id = payment_gateway or invoice.payment_gateway or "stripe"
+        if gateway_id not in self.STUDENT_PAYMENT_GATEWAYS:
+            raise ValueError("Unsupported student payment gateway")
+        if gateway_id != invoice.payment_gateway:
+            invoice = replace(
+                invoice,
+                payment_gateway=gateway_id,
+                gateway_invoice_id=None,
+                gateway_payment_intent_id=None,
+            )
+            self._invoices.save(invoice)
         gateway = self._gateways.get(gateway_id)
         customer = gateway.get_or_create_customer(user_id)
         gateway_invoice_id = invoice.gateway_invoice_id
@@ -1097,6 +1117,7 @@ class BillingService:
         transaction = replace(
             transaction,
             status="succeeded" if payment.status == "succeeded" else "failed",
+            payment_gateway=gateway_id,
             gateway_transaction_id=payment.id,
             gateway_response=payment.raw_response,
             processed_at=datetime.utcnow(),

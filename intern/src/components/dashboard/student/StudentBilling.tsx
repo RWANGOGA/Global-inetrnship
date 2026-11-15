@@ -61,6 +61,7 @@ export function StudentBilling() {
   const [checkoutStep, setCheckoutStep] = useState(0);
   const [checkoutKey, setCheckoutKey] = useState("");
   const [billingEmail, setBillingEmail] = useState(session?.email ?? "");
+  const [paymentGateway, setPaymentGateway] = useState<"stripe" | "flutterwave">("stripe");
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [checkoutError, setCheckoutError] = useState("");
   const [checkoutBusy, setCheckoutBusy] = useState(false);
@@ -116,6 +117,7 @@ export function StudentBilling() {
     setCheckoutStep(0);
     setCheckoutKey(crypto.randomUUID());
     setCheckoutError("");
+    setPaymentGateway("stripe");
     setTermsAccepted(false);
     setCheckoutOpen(true);
   };
@@ -125,7 +127,12 @@ export function StudentBilling() {
     setCheckoutBusy(true);
     setCheckoutError("");
     try {
-      await checkoutStudentPlan(billingEmail.trim(), checkoutKey, termsAccepted);
+      await checkoutStudentPlan(
+        billingEmail.trim(),
+        checkoutKey,
+        termsAccepted,
+        paymentGateway
+      );
       setCheckoutOpen(false);
       toast("Student Plus is active");
       await loadData();
@@ -281,8 +288,44 @@ export function StudentBilling() {
                   <span>Student Plus · monthly</span><strong>$10.00</strong>
                 </div>
                 <p style={{ margin: "0 0 14px", fontSize: "11px", color: "var(--muted)", lineHeight: 1.6 }}>
-                  Sandbox checkout: this environment uses its configured test payment gateway and does not collect card details. Live student payments require a production payment-provider integration.
+                  Select a payment option. Checkout is in sandbox mode: no real payment details or charges are used.
                 </p>
+                <fieldset style={{ display: "grid", gap: "8px", margin: "0 0 14px", padding: 0, border: 0 }}>
+                  <legend style={{ marginBottom: "8px", color: "var(--ink)", fontSize: "12px", fontWeight: 700 }}>
+                    Payment option
+                  </legend>
+                  {([
+                    ["stripe", "Card", "Card checkout via the Stripe test gateway"],
+                    ["flutterwave", "Flutterwave", "Flutterwave test checkout"],
+                  ] as const).map(([gateway, label, description]) => (
+                    <label
+                      key={gateway}
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: "9px",
+                        padding: "10px 12px",
+                        border: `1px solid ${paymentGateway === gateway ? "var(--blue)" : "var(--rule)"}`,
+                        borderRadius: "var(--r-md)",
+                        background: paymentGateway === gateway ? "var(--blue-tint)" : "var(--paper)",
+                        color: "var(--ink)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="student-payment-gateway"
+                        value={gateway}
+                        checked={paymentGateway === gateway}
+                        onChange={() => setPaymentGateway(gateway)}
+                      />
+                      <span>
+                        <strong style={{ display: "block", fontSize: "12px" }}>{label}</strong>
+                        <small style={{ color: "var(--muted)", fontSize: "10px" }}>{description}</small>
+                      </span>
+                    </label>
+                  ))}
+                </fieldset>
                 <label style={{ display: "flex", alignItems: "flex-start", gap: "8px", fontSize: "12px", lineHeight: 1.5, color: "var(--ink-2)" }}>
                   <input type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} />
                   I authorize the $10 monthly Student Plus charge and agree to the subscription terms.
