@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useApp } from "../../../context/AppContext";
 import { ApiError, fetchAdminQueue, isApiEnabled } from "../../../lib/api";
+import { downloadCsv } from "../../../lib/csv";
 import { AdminQueueItem } from "../../../types";
 
 export function AdminStudents() {
@@ -35,6 +36,23 @@ export function AdminStudents() {
     }
   }
 
+  /**
+   * The queue is already in memory, so the export needs no endpoint. Previously
+   * the button only said "not yet implemented".
+   */
+  function handleExport() {
+    if (queue.length === 0) {
+      toast("Nothing to export yet.");
+      return;
+    }
+    const rows: Array<Array<unknown>> = [
+      ["Student", "Registration", "Course", "Year", "Placement", "Documents", "Status"],
+      ...queue.map((s) => [s.n, s.i, s.c, s.y, s.p, s.d, s.st]),
+    ];
+    downloadCsv(rows, "student_queue.csv");
+    toast(`Exported ${queue.length} student record${queue.length === 1 ? "" : "s"}`);
+  }
+
   return (
     <>
       <div className="dpane-h">
@@ -49,7 +67,7 @@ export function AdminStudents() {
           <button
             type="button"
             className="btn btn-sm"
-            onClick={() => toast("CSV export not yet implemented")}
+            onClick={handleExport}
           >
             Export CSV
           </button>
