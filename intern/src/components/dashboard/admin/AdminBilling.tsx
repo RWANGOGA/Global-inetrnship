@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useApp } from "../../../context/AppContext";
 import type { InvoiceResponse, TransactionResponse } from "../../../lib/api";
-import { fetchAdminInvoices, fetchAdminRevenue } from "../../../lib/api";
+import { fetchAdminInvoices, fetchAdminRevenue, fetchAdminTransactions } from "../../../lib/api";
 import { Icon } from "../../icons/Icons";
 import { BillingStatusBanner } from "../common/BillingStatusBanner";
 
@@ -24,13 +24,13 @@ const MOCK_TRANSACTIONS: TransactionResponse[] = [
 const MOCK_REVENUE = {
   total_revenue_cents: 34500,
   total_revenue_usd: 345.00,
-  pending_cents: 6000,
-  collected_cents: 34500,
+  period: { start: "2026-01-01", end: "2026-02-01" },
   by_gateway: [
     { gateway: "stripe", count: 2, revenue_cents: 6000, revenue_usd: 60.00 },
     { gateway: "paypal", count: 1, revenue_cents: 30000, revenue_usd: 300.00 },
     { gateway: "flutterwave", count: 1, revenue_cents: 500, revenue_usd: 5.00 },
   ],
+  by_plan: [],
 };
 
 function formatCents(cents: number) {
@@ -59,8 +59,6 @@ export function AdminBilling() {
   const [revenue, setRevenue] = useState<{
     total_revenue_cents: number;
     total_revenue_usd: number;
-    pending_cents: number;
-    collected_cents: number;
     by_gateway: Array<{ gateway: string; count: number; revenue_cents: number; revenue_usd: number }>;
   } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -78,21 +76,17 @@ export function AdminBilling() {
 
   const loadData = async () => {
     try {
-      const [inv, rev] = await Promise.all([fetchAdminInvoices(), fetchAdminRevenue()]);
+      const [inv, rev, txns] = await Promise.all([
+        fetchAdminInvoices(),
+        fetchAdminRevenue(),
+        fetchAdminTransactions(),
+      ]);
       setInvoices(Array.isArray(inv) ? inv : []);
-      setTransactions([]);
-      const byGateway = rev.by_gateway ? Object.entries(rev.by_gateway).map(([gateway, revenue_cents]) => ({
-        gateway,
-        count: 1,
-        revenue_cents,
-        revenue_usd: revenue_cents / 100,
-      })) : [];
+      setTransactions(Array.isArray(txns) ? txns : []);
       setRevenue({
         total_revenue_cents: rev.total_revenue_cents,
-        total_revenue_usd: rev.total_revenue_cents / 100,
-        pending_cents: rev.pending_cents,
-        collected_cents: rev.collected_cents,
-        by_gateway: byGateway,
+        total_revenue_usd: rev.total_revenue_usd,
+        by_gateway: rev.by_gateway,
       });
     } catch (e) {
       toast("Failed to load billing data");
@@ -181,7 +175,7 @@ export function AdminBilling() {
                     return (
                       <tr key={inv.id} style={{ borderBottom: "1px solid var(--rule)" }}>
                         <td style={{ padding: "10px 12px", fontWeight: 500, color: "var(--ink)", fontSize: "12px" }}>{inv.invoice_number}</td>
-                        <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{inv.org_id}</td>
+                        <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{inv.user_id ? "Student account" : inv.org_id || "—"}</td>
                         <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{formatDate(inv.due_date)}</td>
                         <td style={{ padding: "10px 12px", color: "var(--red)", fontWeight: 600, fontFamily: "var(--mono)", fontSize: "12px" }}>{daysOverdue}d</td>
                         <td style={{ padding: "10px 12px", fontWeight: 600, color: "var(--ink)", fontSize: "12px" }}>{formatCents(inv.amount_cents)}</td>
@@ -219,7 +213,7 @@ export function AdminBilling() {
                   {invoices.slice(0, 100).map((inv) => (
                     <tr key={inv.id} style={{ borderBottom: "1px solid var(--rule)" }}>
                       <td style={{ padding: "10px 12px", fontWeight: 500, color: "var(--ink)", fontSize: "12px" }}>{inv.invoice_number}</td>
-                      <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{inv.org_id}</td>
+                      <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{inv.user_id ? "Student account" : inv.org_id || "—"}</td>
                       <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{formatDate(inv.created_at)}</td>
                       <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{formatDate(inv.due_date)}</td>
                       <td style={{ padding: "10px 12px", fontWeight: 600, color: "var(--ink)", fontSize: "12px" }}>{formatCents(inv.amount_cents)}</td>
@@ -263,7 +257,7 @@ export function AdminBilling() {
                   {transactions.slice(0, 100).map((txn) => (
                     <tr key={txn.id} style={{ borderBottom: "1px solid var(--rule)" }}>
                       <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{formatDate(txn.processed_at || txn.created_at)}</td>
-                      <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{txn.org_id}</td>
+                      <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{txn.user_id ? "Student account" : txn.org_id || "—"}</td>
                       <td style={{ padding: "10px 12px", fontWeight: 600, color: "var(--ink)", fontSize: "12px" }}>{formatCents(txn.amount_cents)}</td>
                       <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontWeight: 500, fontSize: "12px" }}>{txn.type}</td>
                       <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{txn.payment_gateway}</td>

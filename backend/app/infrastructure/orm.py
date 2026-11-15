@@ -262,7 +262,8 @@ class InvoiceORM(Base):
     __tablename__ = "invoices"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    org_id: Mapped[str] = mapped_column(ForeignKey("organisations.id"), index=True, nullable=False)
+    org_id: Mapped[str | None] = mapped_column(ForeignKey("organisations.id"), index=True, nullable=True)
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), index=True, nullable=True)
     subscription_id: Mapped[str | None] = mapped_column(ForeignKey("subscriptions.org_id"), nullable=True)
     amount_cents: Mapped[int] = mapped_column(Integer, nullable=False)
     currency: Mapped[str] = mapped_column(String(3), default="USD")
@@ -284,7 +285,8 @@ class TransactionORM(Base):
     __tablename__ = "transactions"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    org_id: Mapped[str] = mapped_column(ForeignKey("organisations.id"), index=True, nullable=False)
+    org_id: Mapped[str | None] = mapped_column(ForeignKey("organisations.id"), index=True, nullable=True)
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), index=True, nullable=True)
     invoice_id: Mapped[str | None] = mapped_column(ForeignKey("invoices.id"), nullable=True)
     subscription_id: Mapped[str | None] = mapped_column(ForeignKey("subscriptions.org_id"), nullable=True)
     amount_cents: Mapped[int] = mapped_column(Integer, nullable=False)

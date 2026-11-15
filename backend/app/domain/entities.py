@@ -227,7 +227,7 @@ class Subscription:
 
     @property
     def is_premium(self) -> bool:
-        return self.plan != "Free"
+        return self.plan != "Free" and self.status in ("active", "trialing")
 
 
 # Account roles. Mirrors the four dashboards the product exposes.
@@ -265,7 +265,8 @@ class Invoice:
     """An invoice for billing an organisation."""
 
     id: str
-    org_id: str
+    org_id: Optional[str]
+    user_id: Optional[str] = None
     subscription_id: Optional[str] = None
     amount_cents: int = 0
     currency: str = "USD"
@@ -279,8 +280,8 @@ class Invoice:
     payment_gateway: Optional[str] = None
     gateway_invoice_id: Optional[str] = None
     gateway_payment_intent_id: Optional[str] = None
-    created_at: str = ""
-    updated_at: str = ""
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -288,7 +289,8 @@ class Transaction:
     """A payment transaction (immutable ledger)."""
 
     id: str
-    org_id: str
+    org_id: Optional[str]
+    user_id: Optional[str] = None
     invoice_id: Optional[str] = None
     subscription_id: Optional[str] = None
     amount_cents: int = 0
@@ -301,7 +303,7 @@ class Transaction:
     description: Optional[str] = None
     transaction_metadata: dict = field(default_factory=dict)
     idempotency_key: Optional[str] = None
-    created_at: str = ""
+    created_at: Optional[str] = None
     processed_at: Optional[str] = None
 
 

@@ -16,6 +16,7 @@ interface OrderSummaryProps {
   placing: boolean;
   onPlaceOrder: () => void;
   canPlace: boolean;
+  className?: string;
 }
 
 export function OrderSummary({
@@ -26,6 +27,7 @@ export function OrderSummary({
   placing,
   onPlaceOrder,
   canPlace,
+  className,
 }: OrderSummaryProps) {
   const subtotal = preview?.subtotal_cents ?? 0;
   const tax = preview?.tax_cents ?? 0;
@@ -33,7 +35,7 @@ export function OrderSummary({
 
   return (
     <aside
-      className="panel"
+      className={`panel ${className ?? ""}`}
       style={{
         position: "sticky",
         top: 22,

@@ -126,6 +126,13 @@ def ensure_schema() -> None:
             for name, definition in sub_additions.items()
             if name not in sub_columns
         )
+    for table in ("invoices", "transactions"):
+        if table in inspector.get_table_names():
+            columns = {c["name"]: c for c in inspector.get_columns(table)}
+            if "user_id" not in columns:
+                statements.append(f"ALTER TABLE {table} ADD COLUMN user_id VARCHAR")
+            if engine.dialect.name == "postgresql" and "org_id" in columns and not columns["org_id"]["nullable"]:
+                statements.append(f"ALTER TABLE {table} ALTER COLUMN org_id DROP NOT NULL")
     if "student_documents" in inspector.get_table_names():
         doc_columns = {c["name"] for c in inspector.get_columns("student_documents")}
         if "is_public" not in doc_columns:

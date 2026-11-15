@@ -1154,13 +1154,15 @@ export async function createSubscriptionApi(
   plan: string,
   billing_cycle: "monthly" | "annual",
   payment_gateway: string,
-  payment_method_id?: string
+  payment_method_id?: string,
+  terms_accepted = false
 ): Promise<SubscriptionDto> {
   return postJson<SubscriptionDto>("/billing/subscriptions", {
     plan,
     billing_cycle,
     payment_gateway,
     payment_method_id,
+    terms_accepted,
   });
 }
 
@@ -1211,6 +1213,7 @@ export interface CheckoutRequest {
   payment_method_id?: string;
   idempotency_key?: string;
   billing_details?: Record<string, unknown>;
+  terms_accepted: boolean;
 }
 
 export interface CheckoutResponse {
@@ -1240,6 +1243,7 @@ export async function checkoutApi(
     payment_method_id: payload.payment_method_id,
     idempotency_key: payload.idempotency_key,
     billing_details: payload.billing_details,
+    terms_accepted: payload.terms_accepted,
   });
 }
 
@@ -1303,12 +1307,29 @@ export async function payInvoiceApi(
 ): Promise<TransactionResponse> {
   return postJson<TransactionResponse>(`/billing/invoices/${invoice_id}/pay`, {
     payment_method_id,
+    terms_accepted: true,
   });
 }
 
 export async function fetchGateways(): Promise<GatewayOption[]> {
-  const data = await getJson<{ gateways: GatewayOption[] }>("/billing/gateways");
+  const data = await getJson<{ gateways: GatewayOption[]; sandbox_mode?: boolean }>("/billing/gateways");
   return data.gateways;
+}
+
+export interface EmployerBillingUsage {
+  plan: string;
+  billing_cycle: string;
+  status: string;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  seats: number;
+  current_placements: number;
+  placement_limit: number;
+  remaining_placements: number | null;
+}
+
+export async function fetchEmployerBillingUsage(): Promise<EmployerBillingUsage> {
+  return getJson<EmployerBillingUsage>("/billing/usage");
 }
 
 export async function fetchStudentUsage(): Promise<StudentUsageDto> {
@@ -1325,6 +1346,7 @@ export async function payStudentInvoiceApi(
 ): Promise<TransactionResponse> {
   return postJson<TransactionResponse>(`/billing/student/invoices/${invoice_id}/pay`, {
     payment_method_id,
+    terms_accepted: true,
   });
 }
 
@@ -1374,10 +1396,20 @@ export interface StudentInvoiceResponse {
 
 export interface AdminRevenueResponse {
   total_revenue_cents: number;
-  pending_cents: number;
-  collected_cents: number;
-  by_gateway: Record<string, number>;
-  by_month: Record<string, number>;
+  total_revenue_usd: number;
+  period: { start: string; end: string };
+  by_gateway: Array<{ gateway: string; count: number; revenue_cents: number; revenue_usd: number }>;
+  by_plan: Array<{ plan: string; subscriptions: number }>;
+}
+
+export async function fetchAdminTransactions(params?: {
+  status?: string;
+  org_id?: string;
+}): Promise<TransactionResponse[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.status) searchParams.append("status", params.status);
+  if (params?.org_id) searchParams.append("org_id", params.org_id);
+  return getJson<TransactionResponse[]>(`/billing/admin/transactions?${searchParams.toString()}`);
 }
 
 export interface AdminRevenueStatsResponse {
@@ -1390,7 +1422,8 @@ export interface AdminRevenueStatsResponse {
 
 export interface InvoiceResponse {
   id: string;
-  org_id: string;
+  org_id: string | null;
+  user_id?: string | null;
   subscription_id: string | null;
   amount_cents: number;
   currency: string;
@@ -1410,7 +1443,8 @@ export interface InvoiceResponse {
 
 export interface TransactionResponse {
   id: string;
-  org_id: string;
+  org_id: string | null;
+  user_id?: string | null;
   invoice_id: string | null;
   subscription_id: string | null;
   amount_cents: number;
