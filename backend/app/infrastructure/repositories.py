@@ -35,6 +35,7 @@ from app.application.ports import (
     DirectChatRepository,
     UserChatSettingsRepository,
     TranslationClient,
+    PaymentMethodRepository,
 )
 from app.domain.entities import (
     AdminActionLog,
@@ -83,6 +84,7 @@ from app.infrastructure.orm import (
     DirectChatORM,
     UserChatSettingsORM,
     StudentUsageORM,
+    PaymentMethodORM,
 )
 
 
@@ -768,17 +770,43 @@ class SqlAlchemySubscriptionRepository(SubscriptionRepository):
     def __init__(self, session: Session) -> None:
         self._session = session
 
+    @staticmethod
+    def _to_orm_datetime(value: Optional[str]) -> Optional[datetime]:
+        if value is None or value == "":
+            return None
+        if isinstance(value, datetime):
+            return value
+        return datetime.fromisoformat(value)
+
+    def _to_domain(self, row: SubscriptionORM) -> Subscription:
+        def _iso(value: Optional[datetime]) -> Optional[str]:
+            if value is None:
+                return None
+            if hasattr(value, "isoformat"):
+                return value.isoformat()
+            return str(value)
+
+        return Subscription(
+            org_id=row.org_id,
+            plan=row.plan or "Free",
+            billing=row.billing or "",
+            seats=row.seats or 1,
+            since=row.since or "",
+            status=row.status or "active",
+            current_period_start=_iso(row.current_period_start),
+            current_period_end=_iso(row.current_period_end),
+            cancel_at_period_end=bool(row.cancel_at_period_end),
+            trial_end=_iso(row.trial_end),
+            payment_gateway=row.payment_gateway,
+            gateway_customer_id=row.gateway_customer_id,
+            gateway_subscription_id=row.gateway_subscription_id,
+        )
+
     def get(self, org_id: str) -> Subscription:
         row = self._session.query(SubscriptionORM).filter_by(org_id=org_id).first()
         if row is None:
             return Subscription(org_id=org_id)  # Free default
-        return Subscription(
-            org_id=row.org_id,
-            plan=row.plan,
-            billing=row.billing or "",
-            seats=row.seats or 1,
-            since=row.since or "",
-        )
+        return self._to_domain(row)
 
     def save(self, subscription: Subscription) -> Subscription:
         row = (
@@ -791,8 +819,94 @@ class SqlAlchemySubscriptionRepository(SubscriptionRepository):
         row.billing = subscription.billing
         row.seats = subscription.seats
         row.since = subscription.since
+        row.status = subscription.status
+        row.current_period_start = self._to_orm_datetime(subscription.current_period_start)
+        row.current_period_end = self._to_orm_datetime(subscription.current_period_end)
+        row.cancel_at_period_end = subscription.cancel_at_period_end
+        row.trial_end = self._to_orm_datetime(subscription.trial_end)
+        row.payment_gateway = subscription.payment_gateway
+        row.gateway_customer_id = subscription.gateway_customer_id
+        row.gateway_subscription_id = subscription.gateway_subscription_id
         self._session.commit()
         return subscription
+
+
+class SqlAlchemyPaymentMethodRepository(PaymentMethodRepository):
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def _to_dict(self, row: PaymentMethodORM) -> dict:
+        return {
+            "id": row.id,
+            "org_id": row.org_id,
+            "type": row.type,
+            "details": row.details or {},
+            "is_default": bool(row.is_default),
+            "gateway_payment_method_id": row.gateway_payment_method_id,
+            "created_at": row.created_at.isoformat() if hasattr(row.created_at, "isoformat") else str(row.created_at or ""),
+        }
+
+    def list(self, org_id: str) -> list[dict]:
+        rows = (
+            self._session.query(PaymentMethodORM)
+            .filter_by(org_id=org_id)
+            .order_by(PaymentMethodORM.is_default.desc(), PaymentMethodORM.created_at.desc())
+            .all()
+        )
+        return [self._to_dict(r) for r in rows]
+
+    def get(self, org_id: str, payment_method_id: str) -> Optional[dict]:
+        row = (
+            self._session.query(PaymentMethodORM)
+            .filter_by(id=payment_method_id, org_id=org_id)
+            .first()
+        )
+        return self._to_dict(row) if row else None
+
+    def add(self, org_id: str, type: str, details: dict, gateway_payment_method_id: Optional[str] = None) -> dict:
+        from uuid import uuid4
+        pm_id = f"pm_{uuid4().hex[:12]}"
+        existing = (
+            self._session.query(PaymentMethodORM)
+            .filter_by(org_id=org_id)
+            .first()
+        )
+        row = PaymentMethodORM(
+            id=pm_id,
+            org_id=org_id,
+            type=type,
+            details=details or {},
+            is_default=existing is None,
+            gateway_payment_method_id=gateway_payment_method_id,
+        )
+        self._session.add(row)
+        self._session.commit()
+        return self._to_dict(row)
+
+    def delete(self, org_id: str, payment_method_id: str) -> bool:
+        row = (
+            self._session.query(PaymentMethodORM)
+            .filter_by(id=payment_method_id, org_id=org_id)
+            .first()
+        )
+        if row is None:
+            return False
+        self._session.delete(row)
+        self._session.commit()
+        return True
+
+    def set_default(self, org_id: str, payment_method_id: str) -> bool:
+        row = (
+            self._session.query(PaymentMethodORM)
+            .filter_by(id=payment_method_id, org_id=org_id)
+            .first()
+        )
+        if row is None:
+            return False
+        self._session.query(PaymentMethodORM).filter_by(org_id=org_id).update({PaymentMethodORM.is_default: False})
+        row.is_default = True
+        self._session.commit()
+        return True
 
 
 class SqlAlchemyStudentProfileRepository(StudentProfileRepository):

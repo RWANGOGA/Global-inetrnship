@@ -1182,6 +1182,107 @@ export async function resumeSubscriptionApi(): Promise<SubscriptionDto> {
   return postJson<SubscriptionDto>("/billing/subscriptions/current/resume", {});
 }
 
+// ---- Checkout (Amazon-style one-page flow) ----
+
+export interface CheckoutPreviewRequest {
+  plan?: string;
+  billing_cycle?: "monthly" | "annual";
+  payment_gateway?: string;
+}
+
+export interface CheckoutPreviewResponse {
+  plan: string;
+  billing_cycle: string;
+  payment_gateway: string;
+  currency: string;
+  period: string;
+  line_items: Array<{ description: string; quantity: number; unit_amount_cents: number; amount_cents: number }>;
+  subtotal_cents: number;
+  tax_cents: number;
+  total_cents: number;
+  gateway: string;
+  supported_currencies: string[];
+}
+
+export interface CheckoutRequest {
+  plan: string;
+  billing_cycle: "monthly" | "annual";
+  payment_gateway: string;
+  payment_method_id?: string;
+  idempotency_key?: string;
+  billing_details?: Record<string, unknown>;
+}
+
+export interface CheckoutResponse {
+  subscription: SubscriptionDto | null;
+  invoice: InvoiceResponse | null;
+  transaction: TransactionResponse | null;
+  replayed: boolean;
+}
+
+export async function previewCheckoutApi(
+  payload: CheckoutPreviewRequest
+): Promise<CheckoutPreviewResponse> {
+  return postJson<CheckoutPreviewResponse>("/billing/checkout/preview", {
+    plan: payload.plan ?? "Pro",
+    billing_cycle: payload.billing_cycle ?? "monthly",
+    payment_gateway: payload.payment_gateway ?? "stripe",
+  });
+}
+
+export async function checkoutApi(
+  payload: CheckoutRequest
+): Promise<CheckoutResponse> {
+  return postJson<CheckoutResponse>("/billing/checkout", {
+    plan: payload.plan,
+    billing_cycle: payload.billing_cycle,
+    payment_gateway: payload.payment_gateway,
+    payment_method_id: payload.payment_method_id,
+    idempotency_key: payload.idempotency_key,
+    billing_details: payload.billing_details,
+  });
+}
+
+// ---- Payment methods ----
+
+export interface PaymentMethodRequest {
+  type: string;
+  details?: Record<string, unknown>;
+  gateway_payment_method_id?: string;
+}
+
+export interface PaymentMethodResponse {
+  id: string;
+  org_id: string;
+  type: string;
+  details: Record<string, unknown>;
+  is_default: boolean;
+  gateway_payment_method_id: string | null;
+  created_at: string;
+}
+
+export async function fetchPaymentMethods(): Promise<PaymentMethodResponse[]> {
+  return getJson<PaymentMethodResponse[]>("/billing/payment-methods");
+}
+
+export async function addPaymentMethodApi(
+  payload: PaymentMethodRequest
+): Promise<PaymentMethodResponse> {
+  return postJson<PaymentMethodResponse>("/billing/payment-methods", {
+    type: payload.type,
+    details: payload.details ?? {},
+    gateway_payment_method_id: payload.gateway_payment_method_id,
+  });
+}
+
+export async function deletePaymentMethodApi(paymentMethodId: string): Promise<{ message: string }> {
+  return deleteJson<{ message: string }>(`/billing/payment-methods/${paymentMethodId}`);
+}
+
+export async function setDefaultPaymentMethodApi(paymentMethodId: string): Promise<{ message: string }> {
+  return postJson<{ message: string }>(`/billing/payment-methods/${paymentMethodId}/default`, {});
+}
+
 export async function fetchInvoices(
   status?: string
 ): Promise<InvoiceResponse[]> {
@@ -1206,7 +1307,8 @@ export async function payInvoiceApi(
 }
 
 export async function fetchGateways(): Promise<GatewayOption[]> {
-  return getJson<GatewayOption[]>("/billing/gateways");
+  const data = await getJson<{ gateways: GatewayOption[] }>("/billing/gateways");
+  return data.gateways;
 }
 
 export async function fetchStudentUsage(): Promise<StudentUsageDto> {
@@ -1251,10 +1353,8 @@ export interface GatewayOption {
 }
 
 export interface StudentUsageDto {
-  current: number;
-  limit: number;
-  period_start: string;
-  period_end: string;
+  application_count: number;
+  free_limit: number;
   overage_cents: number;
   unpaid_invoice_id: string | null;
 }

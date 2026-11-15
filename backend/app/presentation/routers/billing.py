@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.application.services import BillingService
 from app.domain.entities import User, Invoice, Transaction, Subscription, StudentUsage
@@ -49,7 +49,7 @@ class InvoiceResponse(BaseModel):
     invoice_number: str
     description: Optional[str]
     line_items: list[dict]
-    metadata: dict
+    metadata: dict = Field(validation_alias="invoice_metadata")
     due_date: Optional[datetime]
     paid_at: Optional[datetime]
     payment_gateway: Optional[str]
@@ -74,7 +74,7 @@ class TransactionResponse(BaseModel):
     gateway_transaction_id: Optional[str]
     gateway_response: dict
     description: Optional[str]
-    metadata: dict
+    metadata: dict = Field(validation_alias="transaction_metadata")
     idempotency_key: Optional[str]
     created_at: Optional[datetime]
     processed_at: Optional[datetime]
@@ -92,6 +92,59 @@ class StudentUsageResponse(BaseModel):
     free_limit: int = 30
     overage_apps: int = 0
     overage_cents: int = 50
+    unpaid_invoice_id: Optional[str] = None
+
+
+class CheckoutPreviewRequest(BaseModel):
+    plan: str = "Pro"
+    billing_cycle: str = "monthly"
+    payment_gateway: str = "stripe"
+
+
+class CheckoutPreviewResponse(BaseModel):
+    plan: str
+    billing_cycle: str
+    payment_gateway: str
+    currency: str
+    period: str
+    line_items: list[dict]
+    subtotal_cents: int
+    tax_cents: int
+    total_cents: int
+    gateway: str
+    supported_currencies: list[str]
+
+
+class CheckoutRequest(BaseModel):
+    plan: str = "Pro"
+    billing_cycle: str = "monthly"
+    payment_gateway: str = "stripe"
+    payment_method_id: Optional[str] = None
+    idempotency_key: Optional[str] = None
+    billing_details: Optional[dict] = None
+
+
+class CheckoutResponse(BaseModel):
+    subscription: Optional[dict] = None
+    invoice: Optional[dict] = None
+    transaction: Optional[dict] = None
+    replayed: bool = False
+
+
+class PaymentMethodRequest(BaseModel):
+    type: str  # card, paypal, flutterwave, mpesa, bank_transfer, crypto
+    details: dict = {}
+    gateway_payment_method_id: Optional[str] = None
+
+
+class PaymentMethodResponse(BaseModel):
+    id: str
+    org_id: str
+    type: str
+    details: dict
+    is_default: bool
+    gateway_payment_method_id: Optional[str] = None
+    created_at: str
 
 
 class RevenueAnalyticsResponse(BaseModel):
@@ -306,6 +359,109 @@ def list_gateways(
     }
 
 
+@router.post("/checkout/preview", response_model=CheckoutPreviewResponse)
+def preview_checkout(
+    payload: CheckoutPreviewRequest,
+    service: BillingService = Depends(get_billing_service),
+    current_user: User = Depends(get_current_user),
+) -> CheckoutPreviewResponse:
+    """Preview the cost of a plan before committing (line items, subtotal, tax, total)."""
+    if current_user.role != "employer" or not current_user.org_id:
+        raise HTTPException(status_code=403, detail="Only employers can preview checkout")
+    breakdown = service.preview_checkout(
+        plan=payload.plan,
+        billing_cycle=payload.billing_cycle,
+        payment_gateway=payload.payment_gateway,
+    )
+    return CheckoutPreviewResponse(**breakdown)
+
+
+@router.post("/checkout", response_model=CheckoutResponse)
+def checkout(
+    payload: CheckoutRequest,
+    service: BillingService = Depends(get_billing_service),
+    current_user: User = Depends(get_current_user),
+) -> CheckoutResponse:
+    """Create a subscription, issue and pay its invoice in one atomic checkout.
+
+    ``idempotency_key`` prevents a double click from charging twice.
+    """
+    if current_user.role != "employer" or not current_user.org_id:
+        raise HTTPException(status_code=403, detail="Only employers can check out")
+    try:
+        result = service.checkout(
+            org_id=current_user.org_id,
+            plan=payload.plan,
+            billing_cycle=payload.billing_cycle,
+            payment_gateway=payload.payment_gateway,
+            payment_method_id=payload.payment_method_id,
+            idempotency_key=payload.idempotency_key,
+            billing_details=payload.billing_details,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return CheckoutResponse(**result)
+
+
+@router.get("/payment-methods", response_model=list[PaymentMethodResponse])
+def list_payment_methods(
+    service: BillingService = Depends(get_billing_service),
+    current_user: User = Depends(get_current_user),
+) -> list[PaymentMethodResponse]:
+    """List the organisation's saved payment methods."""
+    if current_user.role != "employer" or not current_user.org_id:
+        raise HTTPException(status_code=403, detail="Only employers can manage payment methods")
+    return [PaymentMethodResponse(**pm) for pm in service.list_payment_methods(current_user.org_id)]
+
+
+@router.post("/payment-methods", response_model=PaymentMethodResponse)
+def add_payment_method(
+    payload: PaymentMethodRequest,
+    service: BillingService = Depends(get_billing_service),
+    current_user: User = Depends(get_current_user),
+) -> PaymentMethodResponse:
+    """Save a payment method for the organisation."""
+    if current_user.role != "employer" or not current_user.org_id:
+        raise HTTPException(status_code=403, detail="Only employers can manage payment methods")
+    pm = service.add_payment_method(
+        org_id=current_user.org_id,
+        type=payload.type,
+        details=payload.details,
+        gateway_payment_method_id=payload.gateway_payment_method_id,
+    )
+    return PaymentMethodResponse(**pm)
+
+
+@router.delete("/payment-methods/{payment_method_id}")
+def delete_payment_method(
+    payment_method_id: str,
+    service: BillingService = Depends(get_billing_service),
+    current_user: User = Depends(get_current_user),
+):
+    """Remove a saved payment method."""
+    if current_user.role != "employer" or not current_user.org_id:
+        raise HTTPException(status_code=403, detail="Only employers can manage payment methods")
+    ok = service.delete_payment_method(current_user.org_id, payment_method_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Payment method not found")
+    return {"message": "Payment method removed"}
+
+
+@router.post("/payment-methods/{payment_method_id}/default")
+def set_default_payment_method(
+    payment_method_id: str,
+    service: BillingService = Depends(get_billing_service),
+    current_user: User = Depends(get_current_user),
+):
+    """Mark a payment method as the organisation's default."""
+    if current_user.role != "employer" or not current_user.org_id:
+        raise HTTPException(status_code=403, detail="Only employers can manage payment methods")
+    ok = service.set_default_payment_method(current_user.org_id, payment_method_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Payment method not found")
+    return {"message": "Default payment method updated"}
+
+
 # ---- Student Endpoints ----
 
 @router.get("/student/usage", response_model=StudentUsageResponse)
@@ -319,7 +475,14 @@ def get_student_usage(
     
     usage = service.get_student_usage(current_user.id)
     overage = max(0, usage.application_count - service.STUDENT_FREE_APPS)
-    
+
+    # Find any open overage invoice so the UI can show a pay-to-continue gate.
+    unpaid_invoice_id = None
+    for inv in service.list_student_invoices(current_user.id):
+        if inv.status == "open" and inv.invoice_metadata.get("type") == "student_overage":
+            unpaid_invoice_id = inv.id
+            break
+
     return StudentUsageResponse(
         id=usage.id,
         user_id=usage.user_id,
@@ -330,6 +493,7 @@ def get_student_usage(
         free_limit=service.STUDENT_FREE_APPS,
         overage_apps=overage,
         overage_cents=service.STUDENT_OVERAGE_CENTS,
+        unpaid_invoice_id=unpaid_invoice_id,
     )
 
 
@@ -401,6 +565,21 @@ def get_outstanding_invoices(
     return [InvoiceResponse.model_validate(inv, from_attributes=True) for inv in invoices]
 
 
+@router.get("/admin/invoices", response_model=list[InvoiceResponse])
+def list_admin_invoices(
+    status: Optional[str] = Query(None),
+    org_id: Optional[str] = Query(None),
+    service: BillingService = Depends(get_billing_service),
+    current_user: User = Depends(get_current_user),
+) -> list[InvoiceResponse]:
+    """List all invoices (admin). Optionally filter by status or organisation."""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    target_org = org_id or current_user.org_id
+    invoices = service.list_invoices(target_org, status) if target_org else []
+    return [InvoiceResponse.model_validate(inv, from_attributes=True) for inv in invoices]
+
+
 @router.post("/admin/invoices/{invoice_id}/void")
 def void_invoice_admin(
     invoice_id: str,
@@ -431,4 +610,10 @@ def _to_subscription_read(sub: Subscription) -> SubscriptionRead:
         since=since_str,
         org_id=sub.org_id if hasattr(sub, 'org_id') else "",
         is_premium=sub.plan != "Free",
+        status=sub.status,
+        billing_cycle=sub.billing,
+        current_period_start=sub.current_period_start,
+        current_period_end=sub.current_period_end,
+        cancel_at_period_end=sub.cancel_at_period_end,
+        payment_gateway=sub.payment_gateway,
     )

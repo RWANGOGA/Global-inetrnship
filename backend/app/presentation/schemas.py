@@ -645,6 +645,12 @@ class SubscriptionRead(BaseModel):
     seats: int
     since: str
     is_premium: bool
+    status: str = "active"
+    billing_cycle: str = ""
+    current_period_start: Optional[str] = None
+    current_period_end: Optional[str] = None
+    cancel_at_period_end: bool = False
+    payment_gateway: Optional[str] = None
 
 
 class ActivatePlanRequest(BaseModel):

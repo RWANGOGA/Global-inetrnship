@@ -172,11 +172,12 @@ interface IconProps {
   name: IconName;
   size?: number;
   className?: string;
+  style?: React.CSSProperties;
 }
 
-export function Icon({ name, size = 14, className = "ic" }: IconProps) {
+export function Icon({ name, size = 14, className = "ic", style }: IconProps) {
   return (
-    <svg className={className} width={size} height={size} aria-hidden="true">
+    <svg className={className} width={size} height={size} aria-hidden="true" style={style}>
       <use href={`#i-${name}`} />
     </svg>
   );
