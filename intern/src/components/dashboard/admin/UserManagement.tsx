@@ -138,16 +138,6 @@ export function UserManagement() {
     employee: "purple",
   };
 
-  const roleBadge = (role: string) => (
-    <span
-      className="tg"
-      style={{ background: `var(--${roleColors[role] || "muted"})` }}
-    >
-      {role.charAt(0).toUpperCase() + role.slice(1)}
-    </span>
-  );
-
-
   if (view === "detail" && selectedUser && userDetail) {
     return renderDetailView();
   }
@@ -169,43 +159,37 @@ export function UserManagement() {
               {users.filter((u) => u.is_active).length} active
             </p>
           </div>
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            <button
-              type="button"
-              className="btn btn-sm"
-              onClick={() => toast("Create user not yet implemented")}
-            >
-              <Icon name="plus" size={12} /> Add user
-            </button>
-          </div>
+          {/* "Add user" only raised "Create user not yet implemented" and the admin API
+              has no create endpoint, so the dead control is gone. Users self-register;
+              admins act on existing records. */}
         </div>
 
         <div className="panel" style={{ marginBottom: "14px" }}>
-          <div className="pb" style={{ display: "flex", gap: "8px", flexWrap: "wrap", padding: "12px" }}>
-            <div style={{ display: "flex", gap: "8px" }}>
-              <span className="lbl">Search:</span>
+          {/* .field is the grid wrapper for a label + control; putting it on the
+              <input> itself left the whole filter row at browser defaults. */}
+          <div className="pb" style={{ display: "flex", gap: "10px", flexWrap: "wrap", padding: "12px" }}>
+            <div className="field" style={{ minWidth: "240px" }}>
+              <label htmlFor="userSearch">Search</label>
               <input
+                id="userSearch"
                 type="text"
-                className="field"
                 placeholder="Search by name or email..."
                 value={search}
                 onChange={(e) => {
                   setSearch(e.target.value);
                   setPage(1);
                 }}
-                style={{ minWidth: "250px" }}
               />
             </div>
-            <div style={{ display: "flex", gap: "8px" }}>
-              <span className="lbl">Role:</span>
+            <div className="field" style={{ minWidth: "160px" }}>
+              <label htmlFor="userRole">Role</label>
               <select
+                id="userRole"
                 value={roleFilter}
                 onChange={(e) => {
                   setRoleFilter(e.target.value);
                   setPage(1);
                 }}
-                className="field"
-                style={{ minWidth: "160px" }}
               >
                 <option value="">All roles</option>
                 <option value="student">Student</option>
@@ -215,32 +199,30 @@ export function UserManagement() {
                 <option value="jobseeker">Job Seeker</option>
               </select>
             </div>
-            <div style={{ display: "flex", gap: "8px" }}>
-              <span className="lbl">Status:</span>
+            <div className="field" style={{ minWidth: "140px" }}>
+              <label htmlFor="userStatus">Status</label>
               <select
+                id="userStatus"
                 value={statusFilter}
                 onChange={(e) => {
                   setStatusFilter(e.target.value as "all" | "active" | "inactive");
                   setPage(1);
                 }}
-                className="field"
-                style={{ minWidth: "140px" }}
               >
                 <option value="all">All</option>
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
               </select>
             </div>
-            <div style={{ display: "flex", gap: "8px" }}>
-              <span className="lbl">Deleted:</span>
+            <div className="field" style={{ minWidth: "140px" }}>
+              <label htmlFor="userDeleted">Deleted</label>
               <select
+                id="userDeleted"
                 value={deletedFilter}
                 onChange={(e) => {
                   setDeletedFilter(e.target.value as "false" | "true" | "all");
                   setPage(1);
                 }}
-                className="field"
-                style={{ minWidth: "140px" }}
               >
                 <option value="false">Not Deleted</option>
                 <option value="true">Deleted</option>
@@ -259,20 +241,17 @@ export function UserManagement() {
                   <th>Role</th>
                   <th>Email</th>
                   <th>Status</th>
-                  <th className="num">Applications</th>
-                  <th className="num">Documents</th>
-                  <th className="num">Testimonials</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
                 {status === "loading" ? (
                   <tr>
-                    <td colSpan={8}>Loading users...</td>
+                    <td colSpan={5}>Loading users...</td>
                   </tr>
                 ) : users.length === 0 ? (
                   <tr>
-                    <td colSpan={8}>No users found.</td>
+                    <td colSpan={5}>No users found.</td>
                   </tr>
                 ) : (
                   users.map((user) => (
@@ -294,9 +273,6 @@ export function UserManagement() {
                       </td>
                       <td>{user.email}</td>
                       <td>{statusBadge(user.is_active ? "active" : "inactive")}</td>
-                      <td className="num">—</td>
-                      <td className="num">—</td>
-                      <td className="num">—</td>
                       <td className="act">
                         <button
                           type="button"
