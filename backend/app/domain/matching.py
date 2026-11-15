@@ -175,6 +175,49 @@ def suggest_skills_for_course(
     return suggestions
 
 
+def canonical_skill_name(name: str) -> str | None:
+    """Resolve a written skill to the taxonomy's own spelling, or ``None``.
+
+    Accepts the taxonomy name in any casing and also the aliases a model or a
+    course handout tends to produce ("reactjs", "Power BI", "Next.js"), because
+    the names arriving here are often not written the way we spell them. This is
+    the single gate that keeps a suggested skill scoreable: if it does not
+    resolve, it cannot contribute to a match and must not reach a profile.
+
+    When several skills' keywords fit, the longest one wins. "next.js" is both
+    React's alias and a JavaScript file extension, so plain taxonomy order would
+    answer JavaScript — the longer, more specific keyword is the right answer.
+    """
+    cleaned = " ".join((name or "").split())
+    if not cleaned:
+        return None
+    hit = _SKILL_LOOKUP.get(cleaned.lower())
+    if hit:
+        return hit
+
+    hay = " " + cleaned.lower() + " "
+    best_name: str | None = None
+    best_length = 0
+    for skill in SKILLS:
+        for keyword in skill.keywords:
+            needle = keyword.lower()
+            start = hay.find(needle)
+            while start != -1:
+                left_ok = hay[start - 1] not in _WORD_CHARS
+                after_idx = start + len(needle)
+                after = hay[after_idx] if after_idx < len(hay) else None
+                right_ok = (
+                    after is None or after not in _WORD_CHARS or needle.endswith(" ")
+                )
+                if left_ok and right_ok:
+                    if len(needle) > best_length:
+                        best_length = len(needle)
+                        best_name = skill.name
+                    break
+                start = hay.find(needle, start + 1)
+    return best_name
+
+
 def extract_skills(text: str) -> list[str]:
     """Deterministic, whole-word-ish keyword match over the taxonomy.
 

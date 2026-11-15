@@ -95,9 +95,23 @@ class StudentUsageResponse(BaseModel):
     billed_count: int
     last_billed_at: Optional[datetime]
     free_limit: int = 30
+    application_limit: int = 30
+    plan: str = "Free"
+    subscription_status: str = "free"
+    price_cents: int = 0
+    checkout_enabled: bool = False
+    current_period_start: Optional[datetime] = None
+    current_period_end: Optional[datetime] = None
+    cancel_at_period_end: bool = False
     overage_apps: int = 0
     overage_cents: int = 50
     unpaid_invoice_id: Optional[str] = None
+
+
+class StudentCheckoutRequest(BaseModel):
+    billing_email: Optional[str] = None
+    idempotency_key: str = Field(min_length=8, max_length=128)
+    terms_accepted: bool = False
 
 
 class CheckoutPreviewRequest(BaseModel):
@@ -510,7 +524,8 @@ def get_student_usage(
         raise HTTPException(status_code=403, detail="Only students can view their usage")
     
     usage = service.get_student_usage(current_user.id)
-    overage = max(0, usage.application_count - service.STUDENT_FREE_APPS)
+    plan = service.get_student_plan(current_user.id)
+    overage = max(0, usage.application_count - plan["application_limit"])
 
     # Find any open overage invoice so the UI can show a pay-to-continue gate.
     unpaid_invoice_id = None
@@ -527,10 +542,82 @@ def get_student_usage(
         billed_count=usage.billed_count,
         last_billed_at=usage.last_billed_at,
         free_limit=service.STUDENT_FREE_APPS,
+        application_limit=plan["application_limit"],
+        plan=plan["plan"],
+        subscription_status=plan["status"],
+        price_cents=plan["price_cents"],
+        checkout_enabled=get_settings().environment.lower() in ("development", "test"),
+        current_period_start=plan["current_period_start"],
+        current_period_end=plan["current_period_end"],
+        cancel_at_period_end=plan["cancel_at_period_end"],
         overage_apps=overage,
         overage_cents=service.STUDENT_OVERAGE_CENTS,
         unpaid_invoice_id=unpaid_invoice_id,
     )
+
+
+@router.post("/student/checkout")
+def checkout_student_plan(
+    payload: StudentCheckoutRequest,
+    service: BillingService = Depends(get_billing_service),
+    current_user: User = Depends(get_current_user),
+):
+    """Purchase the monthly Student Plus plan."""
+    if current_user.role != "student":
+        raise HTTPException(status_code=403, detail="Only students can purchase Student Plus")
+    if get_settings().environment.lower() not in ("development", "test"):
+        raise HTTPException(
+            status_code=503,
+            detail="Student checkout requires a configured payment-provider integration",
+        )
+    if not payload.terms_accepted:
+        raise HTTPException(status_code=422, detail="Payment authorization is required")
+    try:
+        result = service.checkout_student_plan(
+            user_id=current_user.id,
+            billing_email=payload.billing_email or current_user.email,
+            terms_accepted=payload.terms_accepted,
+            idempotency_key=payload.idempotency_key,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if result["transaction"].status != "succeeded":
+        raise HTTPException(status_code=402, detail="Student Plus payment did not complete")
+    return {
+        "plan": result["plan"],
+        "invoice": InvoiceResponse.model_validate(result["invoice"], from_attributes=True),
+        "transaction": TransactionResponse.model_validate(
+            result["transaction"], from_attributes=True
+        ),
+    }
+
+
+@router.post("/student/subscription/cancel")
+def cancel_student_subscription(
+    service: BillingService = Depends(get_billing_service),
+    current_user: User = Depends(get_current_user),
+):
+    """Schedule Student Plus cancellation for the end of the current billing period."""
+    if current_user.role != "student":
+        raise HTTPException(status_code=403, detail="Only students can manage their subscription")
+    try:
+        return service.cancel_student_subscription(current_user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/student/subscription/resume")
+def resume_student_subscription(
+    service: BillingService = Depends(get_billing_service),
+    current_user: User = Depends(get_current_user),
+):
+    """Resume Student Plus after a scheduled cancellation."""
+    if current_user.role != "student":
+        raise HTTPException(status_code=403, detail="Only students can manage their subscription")
+    try:
+        return service.resume_student_subscription(current_user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.get("/student/invoices", response_model=list[InvoiceResponse])
@@ -538,7 +625,7 @@ def list_student_invoices(
     service: BillingService = Depends(get_billing_service),
     current_user: User = Depends(get_current_user),
 ) -> list[InvoiceResponse]:
-    """List student's overage invoices."""
+    """List a student's subscription and overage invoices."""
     if current_user.role != "student":
         raise HTTPException(status_code=403, detail="Only students can view their invoices")
     
@@ -553,7 +640,7 @@ def pay_student_invoice(
     service: BillingService = Depends(get_billing_service),
     current_user: User = Depends(get_current_user),
 ) -> TransactionResponse:
-    """Pay a student overage invoice."""
+    """Pay a student's open invoice."""
     if current_user.role != "student":
         raise HTTPException(status_code=403, detail="Only students can pay their invoices")
     if get_settings().environment.lower() not in ("development", "test"):

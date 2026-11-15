@@ -5,7 +5,7 @@ import { useApp } from "../../../context/AppContext";
 import { fetchStudentUsage, isApiEnabled } from "../../../lib/api";
 import { Icon } from "../../icons/Icons";
 
-// Fallback only; the live limit comes from GET /billing/student/usage.
+// Fallback only; the live plan limit comes from GET /billing/student/usage.
 const DEMO_FREE_LIMIT = 30;
 
 const APPLICATION_STEPS = ["Submitted", "Documents", "Review", "Decision"];
@@ -36,7 +36,8 @@ export function StudentOverview() {
   // for when the API is switched off.
   const [usage, setUsage] = useState<{
     application_count: number;
-    free_limit: number;
+    application_limit: number;
+    plan: string;
   } | null>(null);
   useEffect(() => {
     if (!isApiEnabled || !session) return;
@@ -46,7 +47,8 @@ export function StudentOverview() {
         if (alive) {
           setUsage({
             application_count: value.application_count,
-            free_limit: value.free_limit,
+            application_limit: value.application_limit,
+            plan: value.plan,
           });
         }
       })
@@ -63,8 +65,8 @@ export function StudentOverview() {
     a.created_at?.startsWith(currentMonth)
   ).length;
   const monthlyApps = usage?.application_count ?? localMonthlyApps;
-  const FREE_LIMIT = usage?.free_limit ?? DEMO_FREE_LIMIT;
-  const overLimit = monthlyApps >= FREE_LIMIT;
+  const applicationLimit = usage?.application_limit ?? DEMO_FREE_LIMIT;
+  const atLimit = monthlyApps >= applicationLimit;
   if (dashboardDataStatus === "loading" || dashboardDataStatus === "idle") {
     return (
       <div className="dpane-h">
@@ -126,25 +128,25 @@ export function StudentOverview() {
             style={{
               padding: "10px 14px",
               minWidth: "220px",
-              borderColor: overLimit ? "var(--red)" : monthlyApps >= FREE_LIMIT * 0.8 ? "var(--amber)" : "var(--green)",
-              background: overLimit ? "var(--red-tint)" : monthlyApps >= FREE_LIMIT * 0.8 ? "var(--amber-tint)" : "var(--green-tint)",
+              borderColor: atLimit ? "var(--red)" : monthlyApps >= applicationLimit * 0.8 ? "var(--amber)" : "var(--green)",
+              background: atLimit ? "var(--red-tint)" : monthlyApps >= applicationLimit * 0.8 ? "var(--amber-tint)" : "var(--green-tint)",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
-              <span style={{ fontWeight: 600, color: overLimit ? "var(--red)" : monthlyApps >= FREE_LIMIT * 0.8 ? "var(--amber)" : "var(--green)" }}>
-                {monthlyApps} / {FREE_LIMIT}
+              <span style={{ fontWeight: 600, color: atLimit ? "var(--red)" : monthlyApps >= applicationLimit * 0.8 ? "var(--amber)" : "var(--green)" }}>
+                {monthlyApps} / {applicationLimit}
               </span>
               <span style={{ color: "var(--muted)", fontSize: "11px" }}>this month</span>
-              {overLimit && (
+              {atLimit && (
                 <span className="tg red" style={{ fontSize: "10px", marginLeft: "auto" }}>
-                  Overage
+                  Limit reached
                 </span>
               )}
             </div>
             <div style={{ fontSize: "10px", color: "var(--muted)", marginTop: "2px" }}>
-              {overLimit
-                ? "Free limit exceeded · overage invoices apply"
-                : `${FREE_LIMIT - monthlyApps} free applications remaining`}
+              {atLimit
+                ? "Your monthly allowance is reached · overage invoices apply after the limit"
+                : `${applicationLimit - monthlyApps} ${usage?.plan === "Student Plus" ? "" : "free "}applications remaining`}
             </div>
           </div>
         </div>

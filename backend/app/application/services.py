@@ -316,7 +316,9 @@ class BillingService:
 
     # Student billing
     STUDENT_FREE_APPS = 30
+    STUDENT_PLUS_APPS = 60
     STUDENT_OVERAGE_CENTS = 50  # $0.50 per application
+    STUDENT_PLUS_PRICE_CENTS = 1000
 
     def __init__(
         self,
@@ -733,24 +735,37 @@ class BillingService:
 
         with self._transaction():
             usage = self._student_usage.get_or_create(user_id, month)
+            plan = self.get_student_plan(user_id)
+            if plan["plan"] == "Free" and plan["status"] == "expired":
+                previously_exempt = max(
+                    0, usage.application_count - self.STUDENT_FREE_APPS
+                )
+                if previously_exempt > usage.billed_count:
+                    usage = replace(usage, billed_count=previously_exempt)
             usage = replace(usage, application_count=usage.application_count + 1)
 
-            overage_count = max(0, usage.application_count - self.STUDENT_FREE_APPS)
+            application_limit = plan["application_limit"]
+            overage_count = max(0, usage.application_count - application_limit)
             if overage_count > usage.billed_count:
-                usage = self._bill_student_overage(user_id, usage)
+                usage = self._bill_student_overage(user_id, usage, application_limit)
 
             self._student_usage.save(usage)
             return usage
 
-    def _bill_student_overage(self, user_id: str, usage: StudentUsage) -> StudentUsage:
-        """Bill student for applications beyond free tier."""
-        overage_count = usage.application_count - self.STUDENT_FREE_APPS
+    def _bill_student_overage(
+        self,
+        user_id: str,
+        usage: StudentUsage,
+        application_limit: int,
+    ) -> StudentUsage:
+        """Bill student for applications beyond their current monthly allowance."""
+        overage_count = max(0, usage.application_count - application_limit)
         newly_billable = overage_count - usage.billed_count
         amount_cents = newly_billable * self.STUDENT_OVERAGE_CENTS
         gateway = self._gateways.get("stripe")
         customer = gateway.get_or_create_customer(user_id)
         line_items = [{
-            "description": f"Applications over free tier ({self.STUDENT_FREE_APPS}/month)",
+            "description": f"Applications over monthly allowance ({application_limit}/month)",
             "quantity": newly_billable,
             "unit_amount_cents": self.STUDENT_OVERAGE_CENTS,
         }]
@@ -791,31 +806,224 @@ class BillingService:
             )
         return usage
 
+    def _student_subscription_row(self, user_id: str):
+        if self._session is None:
+            return None
+        from app.infrastructure.orm import StudentSubscriptionORM
+        return self._session.get(StudentSubscriptionORM, user_id)
+
+    def get_student_plan(self, user_id: str) -> dict:
+        """Return the student's current plan, including its application allowance."""
+        subscription = self._student_subscription_row(user_id)
+        now = datetime.utcnow()
+        active = bool(
+            subscription
+            and subscription.status == "active"
+            and (
+                subscription.current_period_end is None
+                or subscription.current_period_end > now
+            )
+        )
+        return {
+            "plan": "Student Plus" if active else "Free",
+            "status": subscription.status if active else (
+                "expired" if subscription and subscription.status == "active" else "free"
+            ),
+            "billing_cycle": subscription.billing_cycle if active else None,
+            "application_limit": self.STUDENT_PLUS_APPS if active else self.STUDENT_FREE_APPS,
+            "price_cents": self.STUDENT_PLUS_PRICE_CENTS if active else 0,
+            "current_period_start": (
+                subscription.current_period_start.isoformat()
+                if active and subscription.current_period_start else None
+            ),
+            "current_period_end": (
+                subscription.current_period_end.isoformat()
+                if active and subscription.current_period_end else None
+            ),
+            "cancel_at_period_end": bool(active and subscription.cancel_at_period_end),
+        }
+
+    def checkout_student_plan(
+        self,
+        user_id: str,
+        billing_email: str,
+        terms_accepted: bool,
+        idempotency_key: str,
+    ) -> dict:
+        """Charge and activate Student Plus through the configured billing gateway."""
+        if not terms_accepted:
+            raise ValueError("You must accept the billing terms to continue")
+        if not billing_email or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", billing_email):
+            raise ValueError("A valid billing email is required")
+        if not idempotency_key or len(idempotency_key) > 128:
+            raise ValueError("A valid idempotency key is required")
+        if self._session is None:
+            raise ValueError("Student subscription storage is not configured")
+
+        key = f"student-plus-{user_id}-{idempotency_key}"
+        existing = self._transactions.find_by_idempotency_key(key)
+        if existing and existing.status == "succeeded":
+            invoice = self._invoices.get(existing.invoice_id) if existing.invoice_id else None
+            if not invoice:
+                raise ValueError("Student Plus payment invoice could not be found")
+            if (
+                invoice.invoice_metadata.get("type") == "student_subscription"
+                and self._student_subscription_row(user_id) is None
+            ):
+                self._activate_student_subscription(
+                    user_id, invoice, existing, invoice.payment_gateway or "stripe"
+                )
+            return {
+                "plan": self.get_student_plan(user_id),
+                "invoice": invoice,
+                "transaction": existing,
+            }
+
+        if self.get_student_plan(user_id)["plan"] == "Student Plus":
+            raise ValueError("Student Plus is already active")
+
+        invoice = next(
+            (
+                item for item in self.list_student_invoices(user_id)
+                if item.status == "open"
+                and item.invoice_metadata.get("type") == "student_subscription"
+                and item.invoice_metadata.get("checkout_key") == key
+            ),
+            None,
+        )
+        if invoice is None:
+            gateway_id = "stripe"
+            gateway = self._gateways.get(gateway_id)
+            customer = gateway.get_or_create_customer(
+                user_id,
+                email=billing_email,
+                name=billing_email.split("@", 1)[0],
+            )
+            gateway_invoice = gateway.create_invoice(
+                customer.id,
+                [{
+                    "description": "Student Plus monthly subscription",
+                    "quantity": 1,
+                    "unit_amount_cents": self.STUDENT_PLUS_PRICE_CENTS,
+                }],
+                metadata={"type": "student_subscription", "user_id": user_id},
+            )
+            gateway.finalize_invoice(gateway_invoice.id)
+            now = datetime.utcnow()
+            invoice = Invoice(
+                id=f"inv_{uuid4().hex[:12]}",
+                org_id=None,
+                user_id=user_id,
+                amount_cents=self.STUDENT_PLUS_PRICE_CENTS,
+                currency="USD",
+                status="open",
+                invoice_number=f"STU-{now.strftime('%Y%m%d')}-{uuid4().hex[:6].upper()}",
+                description="Student Plus monthly subscription",
+                line_items=[{
+                    "description": "Student Plus monthly subscription",
+                    "quantity": 1,
+                    "unit_amount_cents": self.STUDENT_PLUS_PRICE_CENTS,
+                    "amount_cents": self.STUDENT_PLUS_PRICE_CENTS,
+                }],
+                invoice_metadata={"type": "student_subscription", "checkout_key": key},
+                due_date=now + timedelta(days=7),
+                payment_gateway=gateway_id,
+                gateway_invoice_id=gateway_invoice.id,
+            )
+            self._invoices.save(invoice)
+
+        transaction = self.pay_student_invoice(invoice.id, user_id, idempotency_key=key)
+        return {
+            "plan": self.get_student_plan(user_id),
+            "invoice": self._invoices.get(invoice.id),
+            "transaction": transaction,
+        }
+
+    def cancel_student_subscription(self, user_id: str) -> dict:
+        """Schedule Student Plus cancellation at the end of the paid period."""
+        subscription = self._student_subscription_row(user_id)
+        if not subscription or self.get_student_plan(user_id)["plan"] != "Student Plus":
+            raise ValueError("No active Student Plus subscription")
+        if subscription.gateway_subscription_id:
+            gateway = self._gateways.get(subscription.payment_gateway or "stripe")
+            gateway.cancel_subscription(subscription.gateway_subscription_id, at_period_end=True)
+        subscription.cancel_at_period_end = True
+        self._session.add(subscription)
+        self._session.commit()
+        return self.get_student_plan(user_id)
+
+    def resume_student_subscription(self, user_id: str) -> dict:
+        """Undo a scheduled Student Plus cancellation before the period ends."""
+        subscription = self._student_subscription_row(user_id)
+        if not subscription or self.get_student_plan(user_id)["plan"] != "Student Plus":
+            raise ValueError("No active Student Plus subscription")
+        if subscription.gateway_subscription_id:
+            gateway = self._gateways.get(subscription.payment_gateway or "stripe")
+            gateway.resume_subscription(subscription.gateway_subscription_id)
+        subscription.cancel_at_period_end = False
+        self._session.add(subscription)
+        self._session.commit()
+        return self.get_student_plan(user_id)
+
+    def _activate_student_subscription(
+        self,
+        user_id: str,
+        invoice: Invoice,
+        transaction: Transaction,
+        gateway_id: str,
+    ) -> None:
+        from app.infrastructure.orm import StudentSubscriptionORM
+
+        gateway = self._gateways.get(gateway_id)
+        customer = gateway.get_or_create_customer(user_id)
+        gateway_subscription = gateway.create_subscription(
+            customer.id, "price_student_plus_monthly"
+        )
+        now = datetime.utcnow()
+        subscription = self._student_subscription_row(user_id)
+        if subscription is None:
+            subscription = StudentSubscriptionORM(user_id=user_id)
+        subscription.plan = "Student Plus"
+        subscription.billing_cycle = "monthly"
+        subscription.status = "active"
+        subscription.current_period_start = now
+        subscription.current_period_end = now + timedelta(days=30)
+        subscription.cancel_at_period_end = False
+        subscription.payment_gateway = gateway_id
+        subscription.gateway_customer_id = customer.id
+        subscription.gateway_subscription_id = gateway_subscription.id
+        subscription.checkout_key = invoice.invoice_metadata.get("checkout_key")
+        subscription.invoice_id = invoice.id
+        subscription.transaction_id = transaction.id
+        self._session.add(subscription)
+        self._session.commit()
+        month = datetime.utcnow().strftime("%Y-%m")
+        usage = self._student_usage.get_or_create(user_id, month)
+        self._student_usage.save(replace(usage, billed_count=0))
+
     def check_student_application_limit(self, user_id: str) -> dict:
-        """Check if student can apply. Returns dict with allowed, current, limit, reason, unpaid_invoice."""
+        """Check a student's monthly limit and report any unpaid overage invoice."""
         usage = self.get_student_usage(user_id)
-        free_limit = self.STUDENT_FREE_APPS
-        
-        if usage.application_count < free_limit:
+        limit = self.get_student_plan(user_id)["application_limit"]
+
+        if usage.application_count < limit:
             return {
                 "allowed": True,
                 "current": usage.application_count,
-                "limit": free_limit,
+                "limit": limit,
                 "reason": None
             }
-        
-        # Over free limit - check for unpaid overage invoice
-        invoices = self._invoices.list_for_org(user_id, status="open")
+
+        invoices = self.list_student_invoices(user_id)
         overage_invoices = [inv for inv in invoices if inv.invoice_metadata.get("type") == "student_overage"]
-        
+
         if overage_invoices:
-            # Has unpaid overage invoice - block until paid
             unpaid = overage_invoices[0]
             return {
                 "allowed": False,
                 "current": usage.application_count,
-                "limit": free_limit,
-                "reason": f"Free limit of {free_limit} applications/month exceeded. Pay overage invoice {unpaid.invoice_number} (${unpaid.amount_cents/100:.2f}) to continue applying.",
+                "limit": limit,
+                "reason": f"Monthly limit of {limit} applications exceeded. Pay overage invoice {unpaid.invoice_number} (${unpaid.amount_cents/100:.2f}) to continue applying.",
                 "unpaid_invoice": {
                     "id": unpaid.id,
                     "invoice_number": unpaid.invoice_number,
@@ -823,28 +1031,32 @@ class BillingService:
                     "due_date": unpaid.due_date
                 }
             }
-        
-        # No unpaid invoice - allowed (next application will create new overage invoice)
+
         return {
             "allowed": True,
             "current": usage.application_count,
-            "limit": free_limit,
-            "reason": f"Free limit exceeded. Next application will create overage invoice at ${self.STUDENT_OVERAGE_CENTS/100:.2f}/application."
+            "limit": limit,
+            "reason": f"Monthly limit exceeded. Next application will create an overage invoice at ${self.STUDENT_OVERAGE_CENTS/100:.2f}/application."
         }
 
     def list_student_invoices(self, user_id: str) -> list[Invoice]:
         """Invoices owned by a student."""
         return self._invoices.list_for_user(user_id)
 
-    def pay_student_invoice(self, invoice_id: str, user_id: str) -> Transaction:
-        """Pay a student overage invoice through the configured sandbox gateway."""
+    def pay_student_invoice(
+        self,
+        invoice_id: str,
+        user_id: str,
+        idempotency_key: Optional[str] = None,
+    ) -> Transaction:
+        """Pay a student invoice through the configured payment gateway."""
         invoice = self._invoices.get(invoice_id)
         if not invoice or (invoice.user_id != user_id and invoice.org_id != user_id):
             raise ValueError("Invoice not found")
         if invoice.status != "open":
             raise ValueError("Invoice is not payable")
 
-        key = f"student-invoice-{invoice.id}-pay"
+        key = idempotency_key or f"student-invoice-{invoice.id}-pay"
         existing = self._transactions.find_by_idempotency_key(key)
         if existing and existing.status == "succeeded":
             return existing
@@ -876,7 +1088,11 @@ class BillingService:
             type="payment",
             payment_gateway=gateway_id,
             idempotency_key=key,
-            description=f"Student overage invoice {invoice.invoice_number}",
+            description=(
+                f"Student Plus subscription invoice {invoice.invoice_number}"
+                if invoice.invoice_metadata.get("type") == "student_subscription"
+                else f"Student overage invoice {invoice.invoice_number}"
+            ),
         )
         transaction = replace(
             transaction,
@@ -894,6 +1110,11 @@ class BillingService:
             )
             self._invoices.save(invoice)
         self._transactions.save(transaction)
+        if (
+            payment.status == "succeeded"
+            and invoice.invoice_metadata.get("type") == "student_subscription"
+        ):
+            self._activate_student_subscription(user_id, invoice, transaction, gateway_id)
         return transaction
 
     # ============ PAYMENT METHODS ============
