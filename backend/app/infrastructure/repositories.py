@@ -1297,6 +1297,9 @@ class SqlAlchemyLearningResourceRepository(LearningResourceRepository):
 # =============================================================================
 
 class SqlAlchemyChatGroupRepository(ChatGroupRepository):
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
     def add(self, group: ChatGroup) -> ChatGroup:
         row = ChatGroupORM(
             id=group.id,
@@ -1405,6 +1408,9 @@ class SqlAlchemyChatGroupRepository(ChatGroupRepository):
 
 
 class SqlAlchemyGroupParticipantRepository(GroupParticipantRepository):
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
     def add(self, participant: GroupParticipant) -> GroupParticipant:
         row = GroupParticipantORM(
             id=participant.id,
@@ -1493,6 +1499,9 @@ class SqlAlchemyGroupParticipantRepository(GroupParticipantRepository):
 
 
 class SqlAlchemyChatMessageRepository(ChatMessageRepository):
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
     def _to_entity(self, row: "ChatMessageORM") -> ChatMessage:
         return ChatMessage(
             id=row.id,
@@ -1622,6 +1631,9 @@ class SqlAlchemyChatMessageRepository(ChatMessageRepository):
 
 
 class SqlAlchemyDirectChatRepository(DirectChatRepository):
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
     def get_or_create(self, user1_id: str, user2_id: str) -> DirectChat:
         # Ensure consistent ordering
         if user1_id > user2_id:
@@ -1711,6 +1723,9 @@ class SqlAlchemyDirectChatRepository(DirectChatRepository):
 
 
 class SqlAlchemyUserChatSettingsRepository(UserChatSettingsRepository):
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
     def get(self, user_id: str) -> Optional[UserChatSettings]:
         row = self._session.query(UserChatSettingsORM).filter_by(user_id=user_id).first()
         if not row:
