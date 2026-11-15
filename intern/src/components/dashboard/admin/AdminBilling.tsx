@@ -112,7 +112,7 @@ export function AdminBilling() {
   function showInvoice(inv: InvoiceResponse) {
     const fields: Array<[string, string]> = [
       ["Status", inv.status],
-      ["Billed to", inv.user_id ? "Student account" : inv.org_id || "—"],
+      ["Billed to", inv.user_id ? `Student ${inv.user_id}` : inv.org_id || "—"],
       ["Description", inv.description || "—"],
       ["Issued", formatDate(inv.created_at)],
       ["Due", formatDate(inv.due_date)],
@@ -237,7 +237,12 @@ export function AdminBilling() {
                     return (
                       <tr key={inv.id} style={{ borderBottom: "1px solid var(--rule)" }}>
                         <td style={{ padding: "10px 12px", fontWeight: 500, color: "var(--ink)", fontSize: "12px" }}>{inv.invoice_number}</td>
-                        <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{inv.user_id ? "Student account" : inv.org_id || "—"}</td>
+                        <td
+                          title={inv.user_id || undefined}
+                          style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}
+                        >
+                          {inv.user_id ? `Student · ${inv.user_id.slice(0, 8)}` : inv.org_id || "—"}
+                        </td>
                         <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{formatDate(inv.due_date)}</td>
                         <td style={{ padding: "10px 12px", color: "var(--red)", fontWeight: 600, fontFamily: "var(--mono)", fontSize: "12px" }}>{daysOverdue}d</td>
                         <td style={{ padding: "10px 12px", fontWeight: 600, color: "var(--ink)", fontSize: "12px" }}>{formatCents(inv.amount_cents)}</td>
@@ -321,6 +326,7 @@ export function AdminBilling() {
                     <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Amount</th>
                     <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Type</th>
                     <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Gateway</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Reference</th>
                     <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Status</th>
                   </tr>
                 </thead>
@@ -328,10 +334,21 @@ export function AdminBilling() {
                   {transactions.slice(0, 100).map((txn) => (
                     <tr key={txn.id} style={{ borderBottom: "1px solid var(--rule)" }}>
                       <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{formatDate(txn.processed_at || txn.created_at)}</td>
-                      <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{txn.user_id ? "Student account" : txn.org_id || "—"}</td>
+                      <td
+                        title={txn.user_id || undefined}
+                        style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}
+                      >
+                        {txn.user_id ? `Student · ${txn.user_id.slice(0, 8)}` : txn.org_id || "—"}
+                      </td>
                       <td style={{ padding: "10px 12px", fontWeight: 600, color: "var(--ink)", fontSize: "12px" }}>{formatCents(txn.amount_cents)}</td>
                       <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontWeight: 500, fontSize: "12px" }}>{txn.type}</td>
                       <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{txn.payment_gateway}</td>
+                      <td
+                        title={txn.gateway_transaction_id || undefined}
+                        style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}
+                      >
+                        {txn.gateway_transaction_id?.slice(0, 12) || "—"}
+                      </td>
                       <td style={{ padding: "10px 12px" }}><span className={`tg ${txn.status === "succeeded" ? "blue" : ""}`} style={{ fontSize: "10px" }}>{txn.status}</span></td>
                     </tr>
                   ))}

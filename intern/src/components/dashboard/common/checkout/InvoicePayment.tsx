@@ -13,7 +13,7 @@ import {
 import { PaymentMethodPicker } from "./PaymentMethodPicker";
 
 interface InvoicePaymentProps {
-  invoice: Pick<InvoiceResponse, "id" | "invoice_number" | "amount_cents" | "currency" | "description" | "status" | "due_date">;
+  invoice: Pick<InvoiceResponse, "id" | "invoice_number" | "amount_cents" | "currency" | "description" | "status" | "due_date" | "payment_gateway">;
   audience: "employer" | "student";
   onClose: () => void;
   onPaid: (transaction: TransactionResponse) => void;
@@ -26,6 +26,9 @@ function formatAmount(amountCents: number, currency: string) {
 export function InvoicePayment({ invoice, audience, onClose, onPaid }: InvoicePaymentProps) {
   const [methods, setMethods] = useState<PaymentMethodResponse[]>([]);
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
+  const [studentGateway, setStudentGateway] = useState<"stripe" | "flutterwave">(
+    invoice.payment_gateway === "flutterwave" ? "flutterwave" : "stripe"
+  );
   const [authorized, setAuthorized] = useState(false);
   const [loading, setLoading] = useState(audience === "employer");
   const [paying, setPaying] = useState(false);
@@ -83,7 +86,7 @@ export function InvoicePayment({ invoice, audience, onClose, onPaid }: InvoicePa
     setError(null);
     try {
       const transaction = audience === "student"
-        ? await payStudentInvoiceApi(invoice.id, "sandbox-student-card")
+        ? await payStudentInvoiceApi(invoice.id, "sandbox-student-card", studentGateway)
         : await payInvoiceApi(invoice.id, selectedMethod!);
       if (transaction.status !== "succeeded") {
         setError("Payment was not completed. The invoice remains unpaid.");
@@ -154,8 +157,45 @@ export function InvoicePayment({ invoice, audience, onClose, onPaid }: InvoicePa
           )}
 
           {audience === "student" && (
-            <div style={{ padding: 12, borderRadius: "var(--r-sm)", background: "var(--blue-tint)", fontSize: 12 }}>
-              Student invoice payments are currently available in sandbox mode only; no real charge will be made.
+            <div style={{ display: "grid", gap: 10 }}>
+              <fieldset style={{ display: "grid", gap: 8, margin: 0, padding: 0, border: 0 }}>
+                <legend style={{ marginBottom: 8, fontSize: 12, fontWeight: 700, color: "var(--ink)" }}>
+                  Payment option
+                </legend>
+                {([
+                  ["stripe", "Card", "Stripe test gateway"],
+                  ["flutterwave", "Flutterwave", "Flutterwave test gateway"],
+                ] as const).map(([gateway, label, description]) => (
+                  <label
+                    key={gateway}
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 9,
+                      padding: "10px 12px",
+                      border: `1px solid ${studentGateway === gateway ? "var(--blue)" : "var(--rule)"}`,
+                      borderRadius: "var(--r-md)",
+                      background: studentGateway === gateway ? "var(--blue-tint)" : "#fff",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="student-invoice-payment-gateway"
+                      value={gateway}
+                      checked={studentGateway === gateway}
+                      onChange={() => setStudentGateway(gateway)}
+                    />
+                    <span>
+                      <strong style={{ display: "block", fontSize: 12 }}>{label}</strong>
+                      <small style={{ color: "var(--muted)", fontSize: 10 }}>{description}</small>
+                    </span>
+                  </label>
+                ))}
+              </fieldset>
+              <div style={{ padding: 12, borderRadius: "var(--r-sm)", background: "var(--blue-tint)", fontSize: 12 }}>
+                Sandbox only: no real payment details or charges are used.
+              </div>
             </div>
           )}
           {audience === "employer" && sandboxMode && (

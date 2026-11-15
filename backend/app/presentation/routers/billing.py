@@ -1,6 +1,6 @@
 """Billing API endpoints for company/organisation accounts."""
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from pydantic import BaseModel, ConfigDict, Field
@@ -38,6 +38,7 @@ class InvoiceCreate(BaseModel):
 class PaymentRequest(BaseModel):
     payment_method_id: str
     terms_accepted: bool = False
+    payment_gateway: Optional[Literal["stripe", "flutterwave"]] = None
 
 
 class InvoiceResponse(BaseModel):
@@ -112,6 +113,7 @@ class StudentCheckoutRequest(BaseModel):
     billing_email: Optional[str] = None
     idempotency_key: str = Field(min_length=8, max_length=128)
     terms_accepted: bool = False
+    payment_gateway: Literal["stripe", "flutterwave"] = "stripe"
 
 
 class CheckoutPreviewRequest(BaseModel):
@@ -578,6 +580,7 @@ def checkout_student_plan(
             billing_email=payload.billing_email or current_user.email,
             terms_accepted=payload.terms_accepted,
             idempotency_key=payload.idempotency_key,
+            payment_gateway=payload.payment_gateway,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -661,7 +664,11 @@ def pay_student_invoice(
         raise HTTPException(status_code=409, detail="Invoice is not payable")
     
     try:
-        transaction = service.pay_student_invoice(invoice_id, current_user.id)
+        transaction = service.pay_student_invoice(
+            invoice_id,
+            current_user.id,
+            payment_gateway=payload.payment_gateway,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     return TransactionResponse.model_validate(transaction, from_attributes=True)

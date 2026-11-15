@@ -10,6 +10,8 @@
 
 **Student Billing:** Free up to 30 applications/month → $0.50 per application beyond 30
 
+Student Plus and overage checkout offer Card (Stripe) and Flutterwave in development/test mode. The selected gateway, student ID, invoice, and gateway transaction reference are persisted for administrator review. These are mock checkouts only; production payments remain disabled until live provider integrations and credentials are configured.
+
 ---
 
 ## Database Schema (PostgreSQL)
