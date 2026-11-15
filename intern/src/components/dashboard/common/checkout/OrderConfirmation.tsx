@@ -21,7 +21,7 @@ export function OrderConfirmation({
     <section className="dpane" style={{ maxWidth: 900, margin: "0 auto" }}>
       <div className="dpane-h">
         <div>
-          <h2 style={{ fontSize: "26px", fontWeight: 400, margin: 0, letterSpacing: "-0.02em", fontFamily: "var(--serif)" }}>
+          <h2 style={{ fontSize: "22px", fontWeight: 600, margin: 0, letterSpacing: "-0.02em", fontFamily: "var(--serif)" }}>
             Order placed
           </h2>
           <p style={{ color: "var(--muted)", fontSize: "12px", marginTop: "3px" }}>

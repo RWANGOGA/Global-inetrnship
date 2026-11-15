@@ -35,3 +35,92 @@
     align-items: flex-start;
   }
 }
+
+.employer :global(.panel) {
+  margin-bottom: 12px !important;
+}
+
+.employer :global(.panel .pb) {
+  padding: 12px 14px !important;
+}
+
+.employerPlanGrid {
+  gap: 14px !important;
+}
+
+.employerPlanTitle {
+  margin: 0;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.employerMetricGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.employerMetric {
+  padding: 11px 12px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-md);
+  text-align: center;
+}
+
+.employerMetricLabel {
+  margin-bottom: 4px;
+  color: var(--blue);
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.employerMetricValue {
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.employerUpsell {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--blue);
+  border-radius: var(--r-md);
+  background: var(--blue-tint);
+}
+
+.employerNote {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.employerEmpty {
+  padding: 20px 14px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.employerEmptyIcon {
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 18px;
+}
+
+.employerEmptyTitle {
+  margin: 0;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.employerEmptyDescription {
+  margin: 4px 0 0;
+  color: var(--ink-2);
+  font-size: 11px;
+}

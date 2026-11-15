@@ -3,6 +3,8 @@
 Covers: upgrade, pay, cancel, resume, invoice/transaction listing (no 500),
 student overage block, checkout preview, payment methods, idempotency.
 """
+from datetime import datetime, timedelta
+
 from fastapi.testclient import TestClient
 
 STUDENT = "amina@makerere.ac.ug"
@@ -206,11 +208,132 @@ def test_student_usage_has_unpaid_invoice_id(client: TestClient):
     body = resp.json()
     assert "application_count" in body
     assert "free_limit" in body
+    assert body["plan"] == "Free"
+    assert body["application_limit"] == body["free_limit"] == 30
     assert "unpaid_invoice_id" in body
 
     # Student invoices list does not 500.
     invs = client.get("/billing/student/invoices", headers=h).json()
     assert isinstance(invs, list)
+
+
+def test_student_plus_checkout_is_idempotent_and_updates_allowance(client: TestClient):
+    headers = _login(client, STUDENT)
+    user_id = client.get("/auth/me", headers=headers).json()["id"]
+    payload = {
+        "billing_email": STUDENT,
+        "idempotency_key": f"student-plus-checkout-{user_id}",
+        "terms_accepted": True,
+    }
+
+    missing_consent = client.post(
+        "/billing/student/checkout",
+        json={**payload, "terms_accepted": False},
+        headers=headers,
+    )
+    assert missing_consent.status_code == 422
+
+    checkout = client.post("/billing/student/checkout", json=payload, headers=headers)
+    assert checkout.status_code == 200, checkout.text
+    result = checkout.json()
+    assert result["transaction"]["status"] == "succeeded"
+    assert result["invoice"]["amount_cents"] == 1000
+    assert result["plan"]["plan"] == "Student Plus"
+    assert result["plan"]["application_limit"] == 60
+
+    replay = client.post("/billing/student/checkout", json=payload, headers=headers)
+    assert replay.status_code == 200, replay.text
+    assert replay.json()["invoice"]["id"] == result["invoice"]["id"]
+    assert replay.json()["transaction"]["id"] == result["transaction"]["id"]
+
+    usage = client.get("/billing/student/usage", headers=headers).json()
+    assert usage["plan"] == "Student Plus"
+    assert usage["application_limit"] == 60
+    assert usage["checkout_enabled"] is True
+
+
+def test_student_plus_limit_cancellation_and_resume(client: TestClient, session):
+    from app.presentation.deps import get_billing_service
+
+    headers = _login(client, STUDENT)
+    user_id = client.get("/auth/me", headers=headers).json()["id"]
+    service = get_billing_service(session)
+    checkout = client.post(
+        "/billing/student/checkout",
+        json={
+            "billing_email": STUDENT,
+            "idempotency_key": f"student-plus-limit-{user_id}",
+            "terms_accepted": True,
+        },
+        headers=headers,
+    )
+    assert checkout.status_code == 200, checkout.text
+
+    for _ in range(service.STUDENT_PLUS_APPS):
+        service.record_student_application(user_id)
+    allowed_at_limit = service.check_student_application_limit(user_id)
+    assert allowed_at_limit["allowed"] is True
+    assert allowed_at_limit["limit"] == 60
+
+    service.record_student_application(user_id)
+    blocked_after_overage = service.check_student_application_limit(user_id)
+    assert blocked_after_overage["allowed"] is False
+    assert blocked_after_overage["limit"] == 60
+
+    cancelled = client.post("/billing/student/subscription/cancel", headers=headers)
+    assert cancelled.status_code == 200, cancelled.text
+    assert cancelled.json()["cancel_at_period_end"] is True
+    resumed = client.post("/billing/student/subscription/resume", headers=headers)
+    assert resumed.status_code == 200, resumed.text
+    assert resumed.json()["cancel_at_period_end"] is False
+
+
+def test_student_plus_expiry_does_not_backbill_plus_applications(client: TestClient, session):
+    from app.infrastructure.orm import StudentSubscriptionORM
+    from app.presentation.deps import get_billing_service
+
+    headers = _login(client, STUDENT)
+    user_id = client.get("/auth/me", headers=headers).json()["id"]
+    service = get_billing_service(session)
+    checkout = client.post(
+        "/billing/student/checkout",
+        json={
+            "billing_email": STUDENT,
+            "idempotency_key": f"student-plus-expiry-{user_id}",
+            "terms_accepted": True,
+        },
+        headers=headers,
+    )
+    assert checkout.status_code == 200, checkout.text
+
+    for _ in range(40):
+        service.record_student_application(user_id)
+
+    subscription = session.get(StudentSubscriptionORM, user_id)
+    subscription.current_period_end = datetime.utcnow() - timedelta(seconds=1)
+    session.commit()
+    service.record_student_application(user_id)
+
+    invoices = client.get("/billing/student/invoices", headers=headers).json()
+    overage_invoice = next(
+        invoice for invoice in invoices
+        if invoice["metadata"].get("type") == "student_overage"
+    )
+    assert overage_invoice["amount_cents"] == service.STUDENT_OVERAGE_CENTS
+
+
+def test_employer_cannot_use_student_checkout(client: TestClient):
+    headers = _login(client, EMPLOYER)
+    response = client.post(
+        "/billing/student/checkout",
+        json={
+            "billing_email": "billing@example.com",
+            "idempotency_key": "employer-student-checkout",
+            "terms_accepted": True,
+        },
+        headers=headers,
+    )
+    assert response.status_code == 403
 
 
 def test_student_overage_invoice_is_owned_payable_and_not_double_billed(client: TestClient, session):
