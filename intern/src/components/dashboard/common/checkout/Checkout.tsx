@@ -205,15 +205,19 @@ export function Checkout({
           invoice={confirmed.invoice}
           transaction={confirmed.transaction}
           onBackToBilling={() => {
-            setConfirmed(null);
-            setExpanded("plan");
+            if (onClose) {
+              onClose();
+            } else {
+              setConfirmed(null);
+              setExpanded("plan");
+            }
           }}
         />
       ) : (
         <>
           <div className="dpane-h">
             <div>
-              <h2 style={{ fontSize: "26px", fontWeight: 400, margin: 0, letterSpacing: "-0.02em", fontFamily: "var(--serif)" }}>
+              <h2 style={{ fontSize: "22px", fontWeight: 600, margin: 0, letterSpacing: "-0.02em", fontFamily: "var(--serif)" }}>
                 Subscribe to {plan}
               </h2>
               <p style={{ color: "var(--muted)", fontSize: "12px", marginTop: "3px" }}>
@@ -285,37 +289,58 @@ export function Checkout({
     const isDone = done[key];
     const isExpanded = expanded === key;
     const showBody = isExpanded || (!isDone && expanded == null && key === firstIncomplete());
+    const sectionNumber: Record<Section, string> = {
+      plan: "1",
+      details: "2",
+      payment: "3",
+      review: "4",
+    };
+    const isAvailable = isDone || isExpanded || key === firstIncomplete();
     return (
       <section
         key={key}
         className="panel"
-        style={{ display: "flex", flexDirection: "column", gap: 0 }}
+        id={`checkout-${key}`}
       >
-        <div
-          className="ph"
-          style={{ cursor: "pointer" }}
-          onClick={() => {
+        <div className="ph">
+          <button
+            type="button"
+            className={styles.stepToggle}
+            aria-expanded={showBody}
+            aria-controls={`checkout-${key}-body`}
+            disabled={!isAvailable}
+            onClick={() => {
             if (isDone) {
               handleChange(key);
             } else {
               handleSectionToggle(key);
             }
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "12.5px", fontWeight: 600, color: "var(--ink)" }}>
-            {isDone ? <Icon name="check" size={14} style={{ color: "var(--green)" }} /> : <span style={{ fontSize: "10px" }}>{key.charAt(0).toUpperCase()}</span>}
-            {title}
-            {!isDone && isExpanded && <Icon name="chevron-up" size={12} style={{ marginLeft: "auto", color: "var(--muted)" }} />}
-            {!isDone && !isExpanded && <Icon name="chevron-down" size={12} style={{ marginLeft: "auto", color: "var(--muted)" }} />}
-          </div>
+            }}
+          >
+            <span className={styles.stepTitle}>
+              {isDone ? (
+                <Icon name="check" size={13} className={styles.stepComplete} />
+              ) : (
+                <span className={styles.stepNumber}>{sectionNumber[key]}</span>
+              )}
+              {title}
+            </span>
+            {!isDone && (
+              <Icon
+                name={isExpanded ? "chevron-up" : "chevron-down"}
+                size={12}
+                className={styles.stepChevron}
+              />
+            )}
+          </button>
           {isDone && (
-            <div style={{ fontSize: "11.5px", color: "var(--muted)", marginTop: 4, cursor: "pointer", textDecoration: "underline", display: "inline-flex", alignItems: "center", gap: 6 }} onClick={(e) => { e.stopPropagation(); handleChange(key); }}>
-              <Icon name="chevron-right" size={11} /> Change
-            </div>
+            <button type="button" className={styles.stepChange} onClick={() => handleChange(key)}>
+              Change
+            </button>
           )}
         </div>
         {showBody ? (
-          <div className="pb" style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+          <div id={`checkout-${key}-body`} className="pb" style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
             {body}
           </div>
         ) : null}

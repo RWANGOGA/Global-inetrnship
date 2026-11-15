@@ -90,9 +90,18 @@ class MockGateway(PaymentGateway):
             metadata=customer.metadata,
         )
     
-    def get_or_create_customer(self, org_id: str) -> GatewayCustomer:
+    def get_or_create_customer(
+        self,
+        org_id: str,
+        email: str | None = None,
+        name: str | None = None,
+    ) -> GatewayCustomer:
         if org_id in self._customers:
             customer = self._customers[org_id]
+            if email:
+                customer.email = email
+            if name:
+                customer.name = name
             return GatewayCustomer(
                 id=customer.id,
                 email=customer.email,
@@ -100,7 +109,12 @@ class MockGateway(PaymentGateway):
                 metadata=customer.metadata,
             )
         # Create with defaults
-        return self.create_customer(org_id, f"org_{org_id}@example.com", f"Org {org_id}", {})
+        return self.create_customer(
+            org_id,
+            email or f"org_{org_id}@example.com",
+            name or f"Org {org_id}",
+            {},
+        )
     
     # ---- Subscription Management ----
     
@@ -141,6 +155,20 @@ class MockGateway(PaymentGateway):
             sub.status = "active"  # Will cancel at period end
         else:
             sub.status = "cancelled"
+        return GatewaySubscription(
+            id=sub.id,
+            customer_id=sub.customer_id,
+            status=sub.status,
+            current_period_start=sub.current_period_start,
+            current_period_end=sub.current_period_end,
+            price_id=sub.price_id,
+        )
+
+    def resume_subscription(self, subscription_id: str) -> GatewaySubscription:
+        if subscription_id not in self._subscriptions:
+            raise ValueError(f"Subscription {subscription_id} not found")
+        sub = self._subscriptions[subscription_id]
+        sub.status = "active"
         return GatewaySubscription(
             id=sub.id,
             customer_id=sub.customer_id,

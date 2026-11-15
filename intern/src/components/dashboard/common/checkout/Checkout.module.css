@@ -1,16 +1,80 @@
 .checkout {
-  padding: 20px;
+  padding: 8px 0 24px;
 }
 
 .layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  gap: 22px;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 14px;
   align-items: start;
 }
 
 .summary {
   min-width: 0;
+}
+
+.stepToggle {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.stepToggle:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.stepTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.stepNumber,
+.stepComplete {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--rule-2);
+  border-radius: 50%;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 9px;
+}
+
+.stepComplete {
+  border-color: var(--green);
+  background: var(--green-tint);
+  color: var(--green);
+}
+
+.stepChevron {
+  flex: none;
+  color: var(--muted);
+}
+
+.stepChange {
+  padding: 3px 6px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 10px;
+  text-decoration: underline;
 }
 
 @media (max-width: 860px) {
@@ -25,6 +89,6 @@
 
 @media (max-width: 600px) {
   .checkout {
-    padding: 12px;
+    padding: 4px 0 20px;
   }
 }

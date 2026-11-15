@@ -999,7 +999,7 @@ export interface SkillMatchItemDto {
 export interface SkillMatchDto {
   total: number;
   items: SkillMatchItemDto[];
-  /** "ai" or "keywords" ΓÇö say which one answered rather than implying both did. */
+  /** "ai" or "keywords" — say which one answered rather than implying both did. */
   source: string;
   note: string;
 }
@@ -1398,6 +1398,26 @@ export async function fetchStudentUsage(): Promise<StudentUsageDto> {
   return getJson<StudentUsageDto>("/billing/student/usage");
 }
 
+export async function checkoutStudentPlan(
+  billing_email: string,
+  idempotency_key: string,
+  terms_accepted: boolean
+): Promise<StudentCheckoutResponse> {
+  return postJson<StudentCheckoutResponse>("/billing/student/checkout", {
+    billing_email,
+    idempotency_key,
+    terms_accepted,
+  });
+}
+
+export async function cancelStudentSubscription(): Promise<StudentPlanDto> {
+  return postJson<StudentPlanDto>("/billing/student/subscription/cancel", {});
+}
+
+export async function resumeStudentSubscription(): Promise<StudentPlanDto> {
+  return postJson<StudentPlanDto>("/billing/student/subscription/resume", {});
+}
+
 export async function fetchStudentInvoices(): Promise<StudentInvoiceResponse[]> {
   return getJson<StudentInvoiceResponse[]>("/billing/student/invoices");
 }
@@ -1437,10 +1457,40 @@ export interface GatewayOption {
 }
 
 export interface StudentUsageDto {
+  id: string;
+  month: string;
   application_count: number;
+  billed_count: number;
+  last_billed_at: string | null;
   free_limit: number;
+  application_limit: number;
+  plan: string;
+  subscription_status: string;
+  price_cents: number;
+  checkout_enabled: boolean;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  overage_apps: number;
   overage_cents: number;
   unpaid_invoice_id: string | null;
+}
+
+export interface StudentPlanDto {
+  plan: string;
+  status: string;
+  billing_cycle: string | null;
+  application_limit: number;
+  price_cents: number;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+}
+
+export interface StudentCheckoutResponse {
+  plan: StudentPlanDto;
+  invoice: StudentInvoiceResponse;
+  transaction: TransactionResponse;
 }
 
 export interface StudentInvoiceResponse {

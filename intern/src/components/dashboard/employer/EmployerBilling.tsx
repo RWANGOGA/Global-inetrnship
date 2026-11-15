@@ -46,7 +46,6 @@ export function EmployerBilling() {
   const [placementUsage, setPlacementUsage] = useState<EmployerBillingUsage | null>(null);
   const [loading, setLoading] = useState(true);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [checkoutPlan, setCheckoutPlan] = useState<"Pro" | "Enterprise">("Pro");
   const [checkoutCycle, setCheckoutCycle] = useState<"monthly" | "annual">("monthly");
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceResponse | null>(null);
   const [canceling, setCanceling] = useState(false);
@@ -95,12 +94,7 @@ export function EmployerBilling() {
     } finally { setLoading(false); }
   };
 
-  const handleUpgrade = async (plan: "Pro" | "Enterprise", billingCycle: "monthly" | "annual") => {
-    if (plan === "Enterprise") {
-      toast("Enterprise pricing requires a sales quote and is not available in self-serve checkout.");
-      return;
-    }
-    setCheckoutPlan(plan);
+  const handleUpgrade = (billingCycle: "monthly" | "annual") => {
     setCheckoutCycle(billingCycle);
     setCheckoutOpen(true);
   };
@@ -143,8 +137,21 @@ export function EmployerBilling() {
     return <div className="dpane-h" style={{ padding: "24px", textAlign: "center" }}><p style={{ fontWeight: 600, color: "var(--ink)" }}>Loading billing…</p></div>;
   }
 
+  if (checkoutOpen) {
+    return (
+      <Checkout
+        initialPlan="Pro"
+        initialBillingCycle={checkoutCycle}
+        onClose={() => {
+          setCheckoutOpen(false);
+          void loadData();
+        }}
+      />
+    );
+  }
+
   return (
-    <div className={billingStyles.page}>
+    <div className={`${billingStyles.page} ${billingStyles.employer}`}>
       <div className={`dpane-h ${billingStyles.header}`}>
       <div>
         <h2 className={billingStyles.title}>Billing</h2>
@@ -158,17 +165,24 @@ export function EmployerBilling() {
         plan={subPlan}
         status={subStatus}
         overdue={overdue}
-        onUpgrade={() => setCheckoutOpen(true)}
+        onUpgrade={() => {
+          const openInvoice = invoices.find((invoice) => invoice.status === "open");
+          if (openInvoice) {
+            handlePayInvoice(openInvoice);
+          } else {
+            handleUpgrade("monthly");
+          }
+        }}
       />
 
       {/* Current plan */}
       <div className="panel" style={{ marginBottom: "20px", overflow: "hidden" }}>
         <div className="ph"><span className="lbl blue">Current plan</span></div>
         <div className="pb" style={{ padding: "16px 20px 20px" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))", gap: "20px", alignItems: "start" }}>
+          <div className={billingStyles.employerPlanGrid} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))", alignItems: "start" }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", flexWrap: "wrap" }}>
-                <h3 style={{ margin: "0", fontSize: "18px", fontWeight: 800, color: "var(--ink)", fontFamily: "var(--sans)" }}>{subPlan}</h3>
+                <h3 className={billingStyles.employerPlanTitle}>{subPlan}</h3>
                 <span className={`tg blue`} style={{ fontSize: "10px", padding: "3px 8px", fontWeight: 700 }}>{subStatus}</span>
               </div>
               <p style={{ color: "var(--ink-2)", margin: "0 0 12px", fontSize: "12px", fontWeight: 500 }}>{subPlan === "Free" ? "Free tier — 3 placement limit" : subPlan === "Pro" ? `Pro — ${subBilling} billing · $${subBilling === "monthly" ? "30" : "300"}/${subBilling === "monthly" ? "mo" : "yr"}` : "Enterprise — custom pricing"}</p>
@@ -181,8 +195,8 @@ export function EmployerBilling() {
             <div style={{ display: "flex", flexDirection: "column", gap: "10px", minWidth: 0 }}>
               {subPlan === "Free" ? (
                 <>
-                  <button className="btn btn-sm btn-blue" onClick={() => handleUpgrade("Pro", "monthly")} style={{ width: "100%", fontWeight: 700, fontSize: "11.5px" }}>Upgrade to Pro — $30/mo</button>
-                  <button className="btn btn-sm btn-ghost" onClick={() => handleUpgrade("Pro", "annual")} style={{ width: "100%", fontWeight: 700, fontSize: "11.5px" }}>Upgrade to Pro — $300/yr (save 17%)</button>
+                  <button className="btn btn-sm btn-blue" onClick={() => handleUpgrade("monthly")} style={{ width: "100%", fontWeight: 700, fontSize: "11.5px" }}>Upgrade to Pro — $30/mo</button>
+                  <button className="btn btn-sm btn-ghost" onClick={() => handleUpgrade("annual")} style={{ width: "100%", fontWeight: 700, fontSize: "11.5px" }}>Upgrade to Pro — $300/yr (save 17%)</button>
                 </>
               ) : subPlan === "Pro" ? (
                 <>
@@ -191,7 +205,7 @@ export function EmployerBilling() {
                   ) : (
                     <button className="btn btn-sm btn-ghost" onClick={handleCancel} disabled={subStatus === "cancelled" || canceling} style={{ width: "100%", fontWeight: 700, fontSize: "11.5px" }}>{canceling ? "Cancelling…" : "Cancel at period end"}</button>
                   )}
-                  <button className="btn btn-sm btn-blue" onClick={() => handleUpgrade("Enterprise", "monthly")} style={{ width: "100%", fontWeight: 700, fontSize: "11.5px" }}>Upgrade to Enterprise</button>
+                  <p className={billingStyles.employerNote}>Enterprise plans require a custom quote and aren’t available in self-serve checkout.</p>
                 </>
               ) : (
                 <button className="btn btn-sm btn-ghost" disabled style={{ width: "100%", fontWeight: 700, fontSize: "11.5px" }}>Enterprise plan active</button>
@@ -205,24 +219,24 @@ export function EmployerBilling() {
       <div className="panel" style={{ marginBottom: "20px", overflow: "hidden" }}>
         <div className="ph"><span className="lbl blue">Placement usage</span></div>
         <div className="pb" style={{ padding: "16px 20px 20px" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "14px" }}>
-            <div style={{ padding: "16px", border: "1px solid var(--rule)", borderRadius: "var(--r-md)", textAlign: "center", background: "var(--blue-tint)" }}>
-              <div style={{ fontSize: "10px", color: "var(--blue)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.14em", fontWeight: 800, fontFamily: "var(--mono)" }}>Active placements</div>
-              <div style={{ fontSize: "22px", fontWeight: 800, color: "var(--blue)" }}>{currentPlacements}</div>
+          <div className={billingStyles.employerMetricGrid}>
+            <div className={billingStyles.employerMetric} style={{ background: "var(--blue-tint)" }}>
+              <div className={billingStyles.employerMetricLabel}>Active placements</div>
+              <div className={billingStyles.employerMetricValue} style={{ color: "var(--blue)" }}>{currentPlacements}</div>
             </div>
-            <div style={{ padding: "16px", border: "1px solid var(--rule)", borderRadius: "var(--r-md)", textAlign: "center", background: subPlan === "Free" ? "var(--blue-tint)" : "var(--green-tint)" }}>
-              <div style={{ fontSize: "10px", color: subPlan === "Free" ? "var(--blue)" : "var(--green)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.14em", fontWeight: 800, fontFamily: "var(--mono)" }}>Limit</div>
-              <div style={{ fontSize: "22px", fontWeight: 800, color: subPlan === "Free" ? "var(--blue)" : "var(--green)" }}>{placementLimit === -1 ? "Unlimited" : placementLimit}</div>
+            <div className={billingStyles.employerMetric} style={{ background: subPlan === "Free" ? "var(--blue-tint)" : "var(--green-tint)" }}>
+              <div className={billingStyles.employerMetricLabel} style={{ color: subPlan === "Free" ? "var(--blue)" : "var(--green)" }}>Limit</div>
+              <div className={billingStyles.employerMetricValue} style={{ color: subPlan === "Free" ? "var(--blue)" : "var(--green)" }}>{placementLimit === -1 ? "Unlimited" : placementLimit}</div>
             </div>
-            <div style={{ padding: "16px", border: "1px solid var(--rule)", borderRadius: "var(--r-md)", textAlign: "center" }}>
-              <div style={{ fontSize: "10px", color: "var(--blue)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.14em", fontWeight: 800, fontFamily: "var(--mono)" }}>Remaining</div>
-              <div style={{ fontSize: "22px", fontWeight: 800, color: placementLimit === -1 ? "var(--green)" : "var(--ink)" }}>{remainingPlacements === null ? "∞" : remainingPlacements}</div>
+            <div className={billingStyles.employerMetric}>
+              <div className={billingStyles.employerMetricLabel}>Remaining</div>
+              <div className={billingStyles.employerMetricValue} style={{ color: placementLimit === -1 ? "var(--green)" : "var(--ink)" }}>{remainingPlacements === null ? "∞" : remainingPlacements}</div>
             </div>
           </div>
           {subPlan === "Free" && (
-            <div style={{ marginTop: "14px", padding: "14px", background: "var(--blue-tint)", border: "1px solid var(--blue)", borderRadius: "var(--r-md)" }}>
+            <div className={billingStyles.employerUpsell}>
               <p style={{ margin: "0 0 6px", fontSize: "12px", color: "var(--blue)", fontWeight: 700 }}><strong>Free plan limit: 3 placements</strong></p>
-              <button className="btn btn-sm btn-blue" onClick={() => handleUpgrade("Pro", "monthly")} style={{ marginTop: "6px", fontWeight: 700, fontSize: "11.5px" }}>Upgrade to Pro for unlimited placements</button>
+              <button className="btn btn-sm btn-blue" onClick={() => handleUpgrade("monthly")} style={{ fontWeight: 700, fontSize: "11.5px" }}>Upgrade to Pro for unlimited placements</button>
             </div>
           )}
         </div>
@@ -230,7 +244,7 @@ export function EmployerBilling() {
 
       {/* Payment methods */}
       <div className="panel" style={{ marginBottom: "20px", overflow: "hidden" }}>
-        <div className="ph"><span className="lbl blue">Payment methods</span></div>
+        <div className="ph"><span className="lbl blue">Available payment gateways</span></div>
         <div className="pb" style={{ padding: "16px 20px 20px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
             {Array.isArray(gateways) && gateways.length > 0 ? gateways.map((g) => (
@@ -239,10 +253,9 @@ export function EmployerBilling() {
                 <div style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--ink)", fontFamily: "var(--sans)" }}>{g.name}</div>
                 <span style={{ fontSize: "10px", color: "var(--muted)", fontFamily: "var(--mono)", textTransform: "uppercase", letterSpacing: "0.1em" }}>{g.currencies.join(", ")}</span>
               </div>
-            )) : (<span className="lbl blue" style={{ fontSize: "11px", fontWeight: 700 }}>None connected</span>)}
-            <button type="button" className="btn btn-sm btn-blue" onClick={() => setCheckoutOpen(true)} style={{ width: "fit-content", fontWeight: 700, fontSize: "11.5px" }}><Icon name="plus" size={12} /> Add payment method</button>
+            )) : (<span className="lbl blue" style={{ fontSize: "11px", fontWeight: 700 }}>No payment gateways available</span>)}
           </div>
-          <p style={{ fontSize: "12px", color: "var(--ink-2)", marginTop: "14px", fontWeight: 500 }}>Payment methods are managed via the payment gateway's portal. Click "Pay now" on an open invoice to add a method.</p>
+          <p style={{ fontSize: "11px", color: "var(--muted)", marginTop: "10px" }}>Choose a gateway during checkout. Saved payment methods are managed in the payment step.</p>
         </div>
       </div>
 
@@ -278,10 +291,10 @@ export function EmployerBilling() {
               </table>
             </div>
           ) : (
-            <div style={{ textAlign: "center", padding: "32px 20px", color: "var(--muted)" }}>
-              <div style={{ fontSize: "24px", marginBottom: "10px", color: "var(--blue)", fontWeight: 700 }}>📄</div>
-              <p style={{ fontSize: "14px", margin: 0, fontWeight: 600, color: "var(--ink)" }}>No invoices yet</p>
-              <p style={{ fontSize: "12px", marginTop: "4px", color: "var(--ink-2)", fontWeight: 500 }}>Invoices will appear here after you upgrade to a paid plan.</p>
+            <div className={billingStyles.employerEmpty}>
+              <div className={billingStyles.employerEmptyIcon}>📄</div>
+              <p className={billingStyles.employerEmptyTitle}>No invoices yet</p>
+              <p className={billingStyles.employerEmptyDescription}>Invoices will appear here after you upgrade to a paid plan.</p>
             </div>
           )}
         </div>
@@ -317,25 +330,14 @@ export function EmployerBilling() {
               </table>
             </div>
           ) : (
-            <div style={{ textAlign: "center", padding: "32px 20px", color: "var(--muted)" }}>
-              <div style={{ fontSize: "24px", marginBottom: "10px", color: "var(--blue)", fontWeight: 700 }}>💳</div>
-              <p style={{ fontSize: "14px", margin: 0, fontWeight: 600, color: "var(--ink)" }}>No payments recorded yet</p>
+            <div className={billingStyles.employerEmpty}>
+              <div className={billingStyles.employerEmptyIcon}>💳</div>
+              <p className={billingStyles.employerEmptyTitle}>No payments recorded yet</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Checkout (Amazon-style one-page flow) — replaces the old PaymentModal/stepper */}
-      {checkoutOpen && (
-        <Checkout
-          initialPlan={checkoutPlan}
-          initialBillingCycle={checkoutCycle}
-          onClose={() => {
-            setCheckoutOpen(false);
-            loadData();
-          }}
-        />
-      )}
       {selectedInvoice && (
         <InvoicePayment
           invoice={selectedInvoice}

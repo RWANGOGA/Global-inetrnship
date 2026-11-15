@@ -318,6 +318,24 @@ class StudentUsageORM(Base):
     __table_args__ = (UniqueConstraint('user_id', 'month', name='uq_student_usage_user_month'),)
 
 
+class StudentSubscriptionORM(Base):
+    __tablename__ = "student_subscriptions"
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    plan: Mapped[str] = mapped_column(String, default="Student Plus")
+    billing_cycle: Mapped[str] = mapped_column(String, default="monthly")
+    status: Mapped[str] = mapped_column(String, default="active")
+    current_period_start: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    current_period_end: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    cancel_at_period_end: Mapped[bool] = mapped_column(Boolean, default=False)
+    payment_gateway: Mapped[str | None] = mapped_column(String, nullable=True)
+    gateway_customer_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    gateway_subscription_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    checkout_key: Mapped[str | None] = mapped_column(String, unique=True, nullable=True)
+    invoice_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    transaction_id: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
 class PaymentGatewayORM(Base):
     __tablename__ = "payment_gateways"
 

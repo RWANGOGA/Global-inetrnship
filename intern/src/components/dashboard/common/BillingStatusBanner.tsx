@@ -16,7 +16,7 @@ export function BillingStatusBanner({
   overdue = false,
   onUpgrade,
 }: BillingStatusBannerProps) {
-  const isPaid = status === "paid" || status === "active";
+  const isPaid = plan !== "Free" && (status === "paid" || status === "active");
   const needsAction = overdue || status === "open" || status === "past_due";
 
   return (
@@ -24,20 +24,20 @@ export function BillingStatusBanner({
       style={{
         display: "grid",
         gridTemplateColumns: "1fr auto",
-        gap: "16px",
+        gap: "10px",
         alignItems: "center",
-        padding: "16px 20px",
+        padding: "12px 14px",
         border: `1px solid ${needsAction ? "var(--red)" : "var(--rule)"}`,
-        borderRadius: "var(--r-lg)",
+        borderRadius: "var(--r-md)",
         background: needsAction ? "var(--red-tint)" : "var(--paper-2)",
-        marginBottom: "20px",
+        marginBottom: "14px",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
         <div
           style={{
-            width: "34px",
-            height: "34px",
+            width: "30px",
+            height: "30px",
             borderRadius: "8px",
             background: isPaid ? "var(--green-tint)" : "var(--blue-tint)",
             color: isPaid ? "var(--green)" : "var(--blue)",
@@ -88,7 +88,9 @@ export function BillingStatusBanner({
               color: "var(--muted)",
             }}
           >
-            {status === "active" || status === "paid"
+            {plan === "Free"
+              ? "Free plan · no subscription"
+              : status === "active" || status === "paid"
               ? "Subscription active"
               : status === "open"
                 ? "Invoice awaiting payment"
