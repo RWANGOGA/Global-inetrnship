@@ -4,6 +4,18 @@ import React from "react";
 import { useApp } from "../../../context/AppContext";
 import { Icon } from "../../icons/Icons";
 
+const APPLICATION_STEPS = ["Submitted", "Documents", "Review", "Decision"];
+
+// Furthest stage each backend status has actually reached. Statuses are Title
+// Case and come from the API (APPLICATION_STATUSES on the server).
+const STEP_BY_STATUS: Record<string, number> = {
+  Submitted: 0,
+  "In Review": 2,
+  Accepted: 3,
+  Rejected: 3,
+  Withdrawn: 0,
+};
+
 export function StudentOverview() {
   const {
     dashGo,
@@ -49,6 +61,11 @@ export function StudentOverview() {
     : undefined;
   const currentOrg = currentPlacement ? getOrg(currentPlacement.orgId) : undefined;
   const matches = recommendations?.items || [];
+  // The tracker used to be hardcoded to "two steps green". Drive it off the
+  // application's real status so a rejected or withdrawn application stops
+  // looking like it is still moving forward.
+  const reachedStep = STEP_BY_STATUS[currentApplication?.status ?? ""] ?? 0;
+  const declined = currentApplication?.status === "Rejected";
 
   return (
     <>
@@ -147,20 +164,29 @@ export function StudentOverview() {
                 paddingTop: "14px",
               }}
               >
-                {["Submitted", "Documents", "Review", "Decision"].map(
-                  (s, i) => (
+                {APPLICATION_STEPS.map((s, i) => {
+                  const reached = i <= reachedStep;
+                  const tone = !reached
+                    ? "var(--faint)"
+                    : declined && i === reachedStep
+                    ? "var(--red)"
+                    : "var(--green)";
+                  return (
                   <div
                     key={s}
                     style={{
                       flex: 1,
-                      borderRight: i < 3 ? "1px solid var(--rule)" : 0,
+                      borderRight:
+                        i < APPLICATION_STEPS.length - 1
+                          ? "1px solid var(--rule)"
+                          : 0,
                       paddingRight: "10px",
                     }}
                   >
                     <div
                       className="lbl"
                       style={{
-                        color: i < 2 ? "var(--green)" : "var(--faint)",
+                        color: tone,
                       }}
                     >
                       0{i + 1}
@@ -169,14 +195,14 @@ export function StudentOverview() {
                       style={{
                         fontSize: "11.5px",
                         marginTop: "3px",
-                        color: i < 2 ? "var(--ink)" : "var(--muted)",
+                        color: reached ? "var(--ink)" : "var(--muted)",
                       }}
                     >
                       {s}
                     </div>
                   </div>
-                  )
-                )}
+                  );
+                })}
               </div>
             )}
           </div>
