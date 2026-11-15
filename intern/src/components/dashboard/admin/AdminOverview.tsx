@@ -63,8 +63,15 @@ export function AdminOverview() {
       <div className="dpane-h">
         <div>
           <h2>Placement office</h2>
+          {/* The subtitle used to name one university and one academic term, and
+              invented 42 open placements whenever metrics were unavailable. Both
+              were fiction for anyone outside that institution. */}
           <p>
-            Makerere University · term 2, 2026 · {metrics?.open_placements ?? 42} open placements
+            {status === "ready"
+              ? `${queue.length} awaiting review · ${metrics?.open_placements ?? 0} open placements`
+              : status === "loading"
+                ? "Loading placement activity…"
+                : "Placement activity unavailable"}
           </p>
         </div>
         <div style={{ display: "flex", gap: "8px" }}>

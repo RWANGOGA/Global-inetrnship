@@ -221,21 +221,17 @@ export function OrganizationManagement() {
                   <th>Sector</th>
                   <th>Location</th>
                   <th>Status</th>
-                  <th className="num">Active Placements</th>
-                  <th className="num">Total Hired</th>
-                  <th className="num">Revenue</th>
-                  <th className="num">Compliance</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
                 {status === "loading" ? (
                   <tr>
-                    <td colSpan={10}>Loading organizations...</td>
+                    <td colSpan={6}>Loading organizations...</td>
                   </tr>
                 ) : organizations.length === 0 ? (
                   <tr>
-                    <td colSpan={10}>No organizations found.</td>
+                    <td colSpan={6}>No organizations found.</td>
                   </tr>
                 ) : (
                   organizations.map((org) => (
@@ -250,14 +246,6 @@ export function OrganizationManagement() {
                       <td>{org.sector}</td>
                       <td>{org.loc}</td>
                       <td>{statusBadge(org.is_active)}</td>
-                      <td className="num">{orgDetail?.active_placements ?? 0}</td>
-                      <td className="num">{orgDetail?.total_hired ?? 0}</td>
-                      <td className="num">{formatCurrency(orgDetail?.total_revenue_cents ?? 0)}</td>
-                      <td className="num">
-                        <span className={`tg ${(orgDetail?.compliance_score ?? 100) >= 80 ? "green" : (orgDetail?.compliance_score ?? 100) >= 60 ? "gold" : "red"}`}>
-                          {orgDetail?.compliance_score ?? 100}%
-                        </span>
-                      </td>
                       <td className="act">
                         <button
                           type="button"
@@ -347,9 +335,13 @@ export function OrganizationManagement() {
             <span className="lbl">revenue</span>
           </div>
           <div className="kpi">
-            <span className={`tg ${(d.compliance_score ?? 100) >= 80 ? "green" : (d.compliance_score ?? 100) >= 60 ? "gold" : "red"}`}>
-              {d.compliance_score ?? 100}%
-            </span>
+            {d.compliance_score == null ? (
+              <b>—</b>
+            ) : (
+              <span className={`tg ${d.compliance_score >= 80 ? "green" : d.compliance_score >= 60 ? "gold" : "red"}`}>
+                {d.compliance_score}%
+              </span>
+            )}
             <span className="lbl">compliance score</span>
           </div>
           <div className="kpi">

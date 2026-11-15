@@ -154,18 +154,19 @@ export function ApplicantDetailView({ applicationId, onClose }: { applicationId:
         </div>
       </div>
 
-      {/* Tab Navigation */}
+      {/* Tab Navigation — .tab-btn was never defined, so the buttons fell back
+          to browser defaults inside this rail. */}
       <div style={{ display: "flex", gap: "4px", background: "var(--paper-2)", borderRadius: "var(--r-lg)", padding: "4px", border: "1px solid var(--rule)", marginBottom: "24px" }}>
-        <button type="button" className={`tab-btn ${activeTab === "overview" ? "active" : ""}`} onClick={() => setActiveTab("overview")}>
+        <button type="button" className={`btn btn-sm ${activeTab === "overview" ? "btn-blue" : "btn-ghost"}`} onClick={() => setActiveTab("overview")}>
           <Icon name="user" size={14} /> Overview
         </button>
-        <button type="button" className={`tab-btn ${activeTab === "documents" ? "active" : ""}`} onClick={() => setActiveTab("documents")}>
+        <button type="button" className={`btn btn-sm ${activeTab === "documents" ? "btn-blue" : "btn-ghost"}`} onClick={() => setActiveTab("documents")}>
           <Icon name="doc" size={14} /> Documents ({d.documents.length})
         </button>
-        <button type="button" className={`tab-btn ${activeTab === "match" ? "active" : ""}`} onClick={() => setActiveTab("match")}>
+        <button type="button" className={`btn btn-sm ${activeTab === "match" ? "btn-blue" : "btn-ghost"}`} onClick={() => setActiveTab("match")}>
           <Icon name="check" size={14} /> Skills Match
         </button>
-        <button type="button" className={`tab-btn ${activeTab === "references" ? "active" : ""}`} onClick={() => setActiveTab("references")}>
+        <button type="button" className={`btn btn-sm ${activeTab === "references" ? "btn-blue" : "btn-ghost"}`} onClick={() => setActiveTab("references")}>
           <Icon name="user" size={14} /> References
         </button>
       </div>
@@ -176,7 +177,7 @@ export function ApplicantDetailView({ applicationId, onClose }: { applicationId:
           <div style={{ display: "grid", gap: "24px" }}>
             {/* Opportunity Info */}
             <div style={{ background: "var(--paper-2)", borderRadius: "var(--r-lg)", padding: "20px" }}>
-              <SectionHeader title="Applied Opportunity" icon="brief" subtitle={`${oppType.charAt(0).toUpperCase() + oppType.slice(1)} • ${oppTitle}`} />
+              <SectionHeader title="Applied Opportunity" icon="brief" subtitle={`${(oppType || "opportunity").charAt(0).toUpperCase() + (oppType || "opportunity").slice(1)} • ${oppTitle}`} />
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
                 <div><span className="lbl">Application ID</span><br /><b>{d.application_id}</b></div>
                 <div><span className="lbl">Applied</span><br /><b>{new Date(d.created_at).toLocaleDateString()}</b></div>

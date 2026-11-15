@@ -70,6 +70,16 @@ export function AdminAnalytics() {
 
   const d = analytics!;
 
+  // 0/0 is NaN and toFixed renders it as "NaN%"; show a dash instead. The
+  // label helper also guards a missing type and dashes every underscore.
+  const share = (count: number) =>
+    d.total_applications > 0
+      ? `${((count / d.total_applications) * 100).toFixed(1)}%`
+      : "—";
+  const typeLabel = (value?: string) =>
+    value ? value.charAt(0).toUpperCase() + value.slice(1).replace(/_/g, " ") : "—";
+  const acceptedCount = d.overall_stages.find((s) => s.stage === "Accepted")?.count || 0;
+
   const handlePeriodStartChange = (e: ChangeEvent<HTMLInputElement>) => setPeriodStart(e.target.value);
   const handlePeriodEndChange = (e: ChangeEvent<HTMLInputElement>) => setPeriodEnd(e.target.value);
   const handleOrgTypeChange = (e: ChangeEvent<HTMLSelectElement>) => setOrgType(e.target.value);
@@ -108,7 +118,7 @@ export function AdminAnalytics() {
 
     React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px", marginBottom: "24px" } },
       React.createElement(MetricCard, { title: "Total Applications", value: d.total_applications.toLocaleString(), subtitle: `${d.total_postings} postings`, icon: "doc" }),
-      React.createElement(MetricCard, { title: "Overall Conversion", value: `${((d.overall_stages.find(s => s.stage === "Accepted")?.count || 0) / d.total_applications * 100).toFixed(1)}%`, subtitle: "Application to Hire", icon: "arrow" }),
+      React.createElement(MetricCard, { title: "Overall Conversion", value: share(acceptedCount), subtitle: "Application to Hire", icon: "arrow" }),
       React.createElement(MetricCard, { title: "Active Organizations", value: d.total_organizations, subtitle: `${d.total_postings} total postings`, icon: "brief" }),
       React.createElement(MetricCard, { title: "Avg Time to Hire", value: d.avg_time_to_hire_days ? `${d.avg_time_to_hire_days} days` : "—", subtitle: "Application to Accepted", icon: "clock" })
     ),
@@ -122,13 +132,13 @@ export function AdminAnalytics() {
       React.createElement(DataTable, {
         title: "Applications by Status",
         columns: ["Status", "Count", "% of Total"],
-        rows: Object.entries(d.applications_by_status).map(([status, count]) => [status, count.toLocaleString(), `${((count / d.total_applications) * 100).toFixed(1)}%`]),
+        rows: Object.entries(d.applications_by_status).map(([status, count]) => [status, count.toLocaleString(), share(count)]),
         emptyMessage: "No applications in period"
       }),
       React.createElement(DataTable, {
         title: "Applications by Type",
         columns: ["Type", "Count", "% of Total"],
-        rows: Object.entries(d.applications_by_type).map(([type, count]) => [type.charAt(0).toUpperCase() + type.slice(1).replace("_", " "), count.toLocaleString(), `${((count / d.total_applications) * 100).toFixed(1)}%`]),
+        rows: Object.entries(d.applications_by_type).map(([type, count]) => [typeLabel(type), count.toLocaleString(), share(count)]),
         emptyMessage: "No applications by type"
       })
     ),
@@ -143,7 +153,7 @@ export function AdminAnalytics() {
       React.createElement(DataTable, {
         title: "Conversion by Opportunity Type",
         columns: ["Opportunity Type", "Conversion Rate"],
-        rows: Object.entries(d.conversion_by_opportunity_type).map(([type, rate]) => [type.charAt(0).toUpperCase() + type.slice(1).replace("_", " "), `${rate.toFixed(1)}%`]),
+        rows: Object.entries(d.conversion_by_opportunity_type).map(([type, rate]) => [typeLabel(type), `${rate.toFixed(1)}%`]),
         emptyMessage: "No opportunity type data"
       })
     ),

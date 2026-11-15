@@ -74,6 +74,16 @@ export function EmployerAnalytics() {
 
   const d = analytics;
 
+  // 0/0 is NaN and toFixed renders it as "NaN%"; show a dash instead. The
+  // label helper also guards a missing type and dashes every underscore.
+  const share = (count: number) =>
+    d.total_applications > 0
+      ? `${((count / d.total_applications) * 100).toFixed(1)}%`
+      : "—";
+  const typeLabel = (value?: string) =>
+    value ? value.charAt(0).toUpperCase() + value.slice(1).replace(/_/g, " ") : "—";
+  const acceptedCount = d.stages.find((s) => s.stage === "Accepted")?.count || 0;
+
   return (
     <div className="employer-analytics">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "16px", marginBottom: "24px" }}>
@@ -100,7 +110,7 @@ export function EmployerAnalytics() {
       {/* Key Metrics Row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px", marginBottom: "24px" }}>
         <MetricCard title="Total Applications" value={d.total_applications.toLocaleString()} subtitle={`${d.total_postings} active postings`} icon="doc" />
-        <MetricCard title="Overall Conversion" value={`${((d.stages.find(s => s.stage === "Accepted")?.count || 0) / d.total_applications * 100).toFixed(1)}%`} subtitle="Application to Hire" icon="arrow" />
+        <MetricCard title="Overall Conversion" value={share(acceptedCount)} subtitle="Application to Hire" icon="arrow" />
         <MetricCard title="Open Postings" value={d.total_postings} subtitle="Accepting applications" icon="brief" />
         <MetricCard title="Avg Time to Hire" value={d.avg_time_to_hire_days ? `${d.avg_time_to_hire_days} days` : "—"} subtitle="Application to Accepted" icon="clock" />
       </div>
@@ -116,13 +126,13 @@ export function EmployerAnalytics() {
         <DataTable
           title="Applications by Status"
           columns={["Status", "Count", "% of Total"]}
-          rows={Object.entries(d.applications_by_status).map(([status, count]) => [status, count.toLocaleString(), `${((count / d.total_applications) * 100).toFixed(1)}%`])}
+          rows={Object.entries(d.applications_by_status).map(([status, count]) => [status, count.toLocaleString(), share(count)])}
           emptyMessage="No applications in period"
         />
         <DataTable
           title="Applications by Opportunity Type"
           columns={["Type", "Count", "% of Total"]}
-          rows={Object.entries(d.applications_by_type).map(([type, count]) => [type.charAt(0).toUpperCase() + type.slice(1).replace("_", " "), count.toLocaleString(), `${((count / d.total_applications) * 100).toFixed(1)}%`])}
+          rows={Object.entries(d.applications_by_type).map(([type, count]) => [typeLabel(type), count.toLocaleString(), share(count)])}
           emptyMessage="No applications by type"
         />
       </div>
@@ -134,7 +144,7 @@ export function EmployerAnalytics() {
           columns={["Posting", "Type", "Applications", "Accepted", "Conversion Rate"]}
           rows={d.conversion_by_posting.map(c => [
             c.placement_title,
-            c.opportunity_type.charAt(0).toUpperCase() + c.opportunity_type.slice(1).replace("_", " "),
+            typeLabel(c.opportunity_type),
             c.total_applications.toString(),
             c.accepted.toString(),
             `${c.conversion_rate.toFixed(1)}%`
@@ -154,7 +164,7 @@ export function EmployerAnalytics() {
         <DataTable
           title="Application Status Breakdown"
           columns={["Status", "Count", "% of Total"]}
-          rows={Object.entries(d.applications_by_status).map(([status, count]) => [status, count.toLocaleString(), `${((count / d.total_applications) * 100).toFixed(1)}%`])}
+          rows={Object.entries(d.applications_by_status).map(([status, count]) => [status, count.toLocaleString(), share(count)])}
           emptyMessage="No status data"
         />
       </div>
