@@ -158,47 +158,47 @@ export function OrganizationManagement() {
 
         {showFilters && (
           <div className="panel" style={{ marginBottom: "14px" }}>
-            <div className="pb" style={{ display: "flex", gap: "8px", flexWrap: "wrap", padding: "12px" }}>
-              <div style={{ display: "flex", gap: "8px" }}>
-                <span className="lbl">Search:</span>
+            {/* .field-input only sets a mobile height, so these controls had no
+                border, padding or height on desktop and fell back to browser
+                defaults. .field is the real label + control wrapper. */}
+            <div className="pb" style={{ display: "flex", gap: "10px", flexWrap: "wrap", padding: "12px" }}>
+              <div className="field" style={{ minWidth: "240px" }}>
+                <label htmlFor="orgSearch">Search</label>
                 <input
+                  id="orgSearch"
                   type="text"
-                  className="field-input"
                   placeholder="Search by name..."
                   value={search}
                   onChange={(e) => {
                     setSearch(e.target.value);
                     setPage(1);
                   }}
-                  style={{ minWidth: "250px" }}
                 />
               </div>
-              <div style={{ display: "flex", gap: "8px" }}>
-                <span className="lbl">Status:</span>
+              <div className="field" style={{ minWidth: "140px" }}>
+                <label htmlFor="orgStatus">Status</label>
                 <select
+                  id="orgStatus"
                   value={statusFilter}
                   onChange={(e) => {
                     setStatusFilter(e.target.value as "all" | "active" | "inactive");
                     setPage(1);
                   }}
-                  className="field-input"
-                  style={{ minWidth: "140px" }}
                 >
                   <option value="all">All</option>
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
                 </select>
               </div>
-              <div style={{ display: "flex", gap: "8px" }}>
-                <span className="lbl">Type:</span>
+              <div className="field" style={{ minWidth: "160px" }}>
+                <label htmlFor="orgType">Type</label>
                 <select
+                  id="orgType"
                   value={orgTypeFilter}
                   onChange={(e) => {
                     setOrgTypeFilter(e.target.value);
                     setPage(1);
                   }}
-                  className="field-input"
-                  style={{ minWidth: "160px" }}
                 >
                   <option value="">All types</option>
                   <option value="Company">Company</option>
