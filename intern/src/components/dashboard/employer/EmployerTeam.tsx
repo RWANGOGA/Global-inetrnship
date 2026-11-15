@@ -2,14 +2,38 @@
 
 import React, { useEffect, useState } from "react";
 import { useApp } from "../../../context/AppContext";
-import { fetchOrganizationMembers, inviteOrganizationMember, updateOrganizationMemberRole, removeOrganizationMember, OrganizationMember, InviteMemberRequest, UpdateMemberRoleRequest } from "../../../lib/api";
-import { Icon, IconName } from "../../icons/Icons";
+import {
+  describeApiError,
+  fetchOrganizationMembers,
+  inviteOrganizationMember,
+  updateOrganizationMemberRole,
+  removeOrganizationMember,
+  OrganizationMember,
+  InviteMemberRequest,
+} from "../../../lib/api";
+import { Icon } from "../../icons/Icons";
+
+const ROLES: Array<InviteMemberRequest["role"]> = ["owner", "admin", "recruiter", "member"];
+
+/** Status colours for a membership record; anything unrecognised falls back to red. */
+function statusTone(status: string) {
+  const value = status.toLowerCase();
+  if (value === "active") return "green";
+  if (value === "invited" || value === "pending") return "gold";
+  return "red";
+}
 
 export function EmployerTeam() {
-  const { session, toast } = useApp();
+  const { session, toast, openModal } = useApp();
   const [members, setMembers] = useState<OrganizationMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<InviteMemberRequest["role"]>("recruiter");
+  const [inviteError, setInviteError] = useState("");
+  const [inviting, setInviting] = useState(false);
+  const [busyMemberId, setBusyMemberId] = useState<string | null>(null);
 
   async function loadMembers() {
     setLoading(true);
@@ -17,8 +41,8 @@ export function EmployerTeam() {
       const data = await fetchOrganizationMembers();
       setMembers(data.items);
       setError("");
-    } catch (err: any) {
-      setError(err.message || "Failed to load team members");
+    } catch (cause) {
+      setError(describeApiError(cause, "Failed to load team members").message);
     } finally {
       setLoading(false);
     }
@@ -29,6 +53,75 @@ export function EmployerTeam() {
       loadMembers();
     }
   }, [session]);
+
+  async function handleInvite(event: React.FormEvent) {
+    event.preventDefault();
+    const email = inviteEmail.trim();
+    if (!email) {
+      setInviteError("Enter the email address to invite.");
+      return;
+    }
+    setInviting(true);
+    setInviteError("");
+    try {
+      const result = await inviteOrganizationMember({ email, role: inviteRole });
+      toast(result.message || `Invitation sent to ${email}`);
+      setShowInvite(false);
+      setInviteEmail("");
+      setInviteRole("recruiter");
+      await loadMembers();
+    } catch (cause) {
+      // Keep the form open so the address does not have to be retyped.
+      setInviteError(describeApiError(cause, "Could not send the invitation.").message);
+    } finally {
+      setInviting(false);
+    }
+  }
+
+  async function handleRoleChange(member: OrganizationMember, role: string) {
+    if (role === member.role) return;
+    setBusyMemberId(member.id);
+    try {
+      const result = await updateOrganizationMemberRole(member.id, {
+        role: role as InviteMemberRequest["role"],
+      });
+      setMembers((current) => current.map((item) => (item.id === member.id ? result.member : item)));
+      toast(result.message || "Role updated");
+    } catch (cause) {
+      toast(describeApiError(cause, "Could not change the role.").message);
+    } finally {
+      setBusyMemberId(null);
+    }
+  }
+
+  function confirmRemove(member: OrganizationMember) {
+    const label = member.user_name || member.user_email;
+    openModal(
+      "Remove team member",
+      <p style={{ fontSize: "13px" }}>
+        {label} will lose access to this organization's postings and applicants. They can be
+        invited again later.
+      </p>,
+      "Remove",
+      () => {
+        void handleRemove(member);
+      }
+    );
+  }
+
+  async function handleRemove(member: OrganizationMember) {
+    const label = member.user_name || member.user_email;
+    setBusyMemberId(member.id);
+    try {
+      const result = await removeOrganizationMember(member.id);
+      setMembers((current) => current.filter((item) => item.id !== member.id));
+      toast(result.message || `${label} removed from the organization`);
+    } catch (cause) {
+      toast(describeApiError(cause, "Could not remove this member.").message);
+    } finally {
+      setBusyMemberId(null);
+    }
+  }
 
   if (!session || session.role !== "employer") {
     return (
@@ -42,15 +135,67 @@ export function EmployerTeam() {
 
   return (
     <div className="employer-team">
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px", paddingBottom: "16px", borderBottom: "2px solid var(--rule)" }}>
+      <div className="dpane-h">
         <div>
-          <h2 style={{ fontWeight: 800, fontSize: "24px", margin: "0 0 4px", color: "var(--ink)" }}>Team Members</h2>
-          <p style={{ color: "var(--ink-2)", margin: 0 }}>Manage organization members and their roles</p>
+          <h2>Team members</h2>
+          <p>
+            {members.length} member{members.length === 1 ? "" : "s"} · roles and invitations
+          </p>
         </div>
-        <button type="button" className="btn btn-blue" onClick={() => toast("Invite modal coming soon")}>
-          <Icon name="plus" size={14} /> Invite Member
+        <button
+          type="button"
+          className={`btn btn-sm ${showInvite ? "" : "btn-blue"}`}
+          onClick={() => {
+            setShowInvite((current) => !current);
+            setInviteError("");
+          }}
+        >
+          <Icon name={showInvite ? "x" : "plus"} size={13} />
+          {showInvite ? "Cancel" : "Invite member"}
         </button>
       </div>
+
+      {/* Invite used to only raise "Invite modal coming soon". An inline panel
+          keeps the typed address on failure, which a modal confirm cannot. */}
+      {showInvite && (
+        <div className="panel" style={{ marginBottom: "18px" }}>
+          <form className="pb" onSubmit={handleInvite} style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "flex-end", padding: "16px" }}>
+            <div className="field" style={{ flex: "1 1 260px" }}>
+              <label htmlFor="inviteEmail">Work email</label>
+              <input
+                id="inviteEmail"
+                type="email"
+                required
+                value={inviteEmail}
+                placeholder="name@organisation.com"
+                onChange={(event) => setInviteEmail(event.target.value)}
+              />
+            </div>
+            <div className="field" style={{ flex: "0 0 170px" }}>
+              <label htmlFor="inviteRole">Role</label>
+              <select
+                id="inviteRole"
+                value={inviteRole}
+                onChange={(event) => setInviteRole(event.target.value as InviteMemberRequest["role"])}
+              >
+                {ROLES.map((role) => (
+                  <option key={role} value={role}>
+                    {role.charAt(0).toUpperCase() + role.slice(1)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button type="submit" className="btn btn-sm btn-blue" disabled={inviting}>
+              {inviting ? "Sending…" : "Send invite"}
+            </button>
+            {inviteError && (
+              <p style={{ flexBasis: "100%", color: "var(--red)", fontSize: "12px" }} role="alert">
+                {inviteError}
+              </p>
+            )}
+          </form>
+        </div>
+      )}
 
       <div style={{ background: "var(--white)", border: "1px solid var(--rule)", borderRadius: "var(--r-xl)", overflow: "hidden" }}>
         {loading ? (
@@ -99,16 +244,37 @@ export function EmployerTeam() {
                       </div>
                     </td>
                     <td style={{ padding: "16px" }}>
-                      <span className="tg blue">{member.role}</span>
+                      <select
+                        value={member.role}
+                        disabled={busyMemberId === member.id}
+                        aria-label={`Role for ${member.user_name || member.user_email}`}
+                        onChange={(event) => handleRoleChange(member, event.target.value)}
+                        style={{ height: "30px", fontSize: "12px", padding: "0 6px", border: "1px solid var(--rule)", borderRadius: "var(--r-sm)", background: "var(--white)" }}
+                      >
+                        {ROLES.map((role) => (
+                          <option key={role} value={role}>
+                            {role.charAt(0).toUpperCase() + role.slice(1)}
+                          </option>
+                        ))}
+                      </select>
                     </td>
                     <td style={{ padding: "16px" }}>
-                      <span className="tg green">{member.status}</span>
+                      <span className={`tg ${statusTone(member.status)}`}>{member.status}</span>
                     </td>
                     <td style={{ padding: "16px", color: "var(--ink-2)", fontSize: "13px" }}>
                       {member.invited_at ? new Date(member.invited_at).toLocaleDateString() : "—"}
                     </td>
                     <td style={{ padding: "16px", textAlign: "right" }}>
-                      <span className="tg">Active</span>
+                      {/* Used to render a hardcoded "Active" badge here, which repeated
+                          the status column and offered no action at all. */}
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        disabled={busyMemberId === member.id}
+                        onClick={() => confirmRemove(member)}
+                      >
+                        Remove
+                      </button>
                     </td>
                   </tr>
                 ))}
