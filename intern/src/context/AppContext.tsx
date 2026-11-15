@@ -1158,6 +1158,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         <ApplicationForm
           placementId={id}
           onClose={() => closeModal()}
+          onResolveLimit={() => {
+            closeModal();
+            dashGo("billing");
+          }}
           onSubmit={async (input) => {
             if (!isApiEnabled) {
               toast(`Application sent to ${orgName}`);
@@ -1168,19 +1172,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
               go("signin");
               return;
             }
-            await applyToPlacement(id, input)
-              .then(() => {
-                toast(`Application sent to ${orgName}`);
-                closeModal();
-              })
-              .catch(() => toast("Couldn't submit right now — please try again"));
+            // The form closes itself once this resolves, and surfaces the
+            // thrown error in place when it does not.
+            const application = await applyToPlacement(id, input);
+            setApplications((current) => [
+              application,
+              ...current.filter((item) => item.id !== application.id),
+            ]);
+            toast(`Application sent to ${orgName}`);
           }}
         />,
         null,
         null
       );
     },
-    [getPlacement, getOrg, openModal, closeModal, toast, session, go, isApiEnabled]
+    [
+      getPlacement,
+      getOrg,
+      openModal,
+      closeModal,
+      toast,
+      session,
+      go,
+      dashGo,
+      isApiEnabled,
+    ]
   );
 
   const reviewStudent = useCallback(

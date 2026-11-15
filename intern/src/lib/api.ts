@@ -181,6 +181,37 @@ export interface ApiErrorDetail {
   [key: string]: unknown;
 }
 
+export interface ApiFailure {
+  message: string;
+  code: string | null;
+}
+
+// The backend reports failures two ways: a plain `{ detail: "..." }`, or a
+// structured `{ detail: { error, message, ... } }` for gates such as the
+// student application quota. Collapse both into something a form can render,
+// keeping the machine-readable code so callers can offer a next step.
+export function describeApiError(
+  error: unknown,
+  fallback = "Something went wrong. Please try again."
+): ApiFailure {
+  if (error instanceof ApiError) {
+    const detail = error.detail;
+    if (typeof detail === "string" && detail) {
+      return { message: detail, code: null };
+    }
+    if (detail && typeof detail === "object") {
+      return {
+        message: detail.message || detail.reason || error.message,
+        code: detail.error || null,
+      };
+    }
+  }
+  return {
+    message: error instanceof Error && error.message ? error.message : fallback,
+    code: null,
+  };
+}
+
 async function readError(res: Response, path: string): Promise<never> {
   // Prefer the backend's structured { detail } message; fall back to status.
   let detail: string | ApiErrorDetail = `API ${res.status} on ${path}`;
