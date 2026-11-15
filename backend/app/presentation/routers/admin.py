@@ -1,8 +1,13 @@
 """Platform administrator internship review workflow."""
 from datetime import date, datetime
+from io import BytesIO
+from urllib.parse import quote
 from uuid import uuid4
+from zipfile import BadZipFile, ZipFile
+from xml.etree import ElementTree
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -328,6 +333,61 @@ def list_all_documents(
     _require_admin(current_user)
     documents = service.list_all(status=status if status != "all" else None)
     return [StudentDocumentRead.model_validate(d, from_attributes=True) for d in documents]
+
+
+@router.get("/documents/{document_id}/file")
+def get_document_file(
+    document_id: str,
+    download: bool = Query(False),
+    service: StudentDocumentService = Depends(get_student_document_service),
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    """Preview or download a document; only administrators may access file bytes."""
+    _require_admin(current_user)
+    document = service.get_by_id(document_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    content = document.content
+    content_type = document.content_type or "application/octet-stream"
+    docx_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    if not download and content_type == docx_type:
+        try:
+            with ZipFile(BytesIO(content)) as archive:
+                document_xml = archive.getinfo("word/document.xml")
+                if document_xml.file_size > 5 * 1024 * 1024:
+                    raise HTTPException(status_code=413, detail="Word document is too large to preview")
+                root = ElementTree.fromstring(archive.read(document_xml))
+        except (BadZipFile, KeyError, ElementTree.ParseError) as exc:
+            raise HTTPException(status_code=422, detail="Word document preview is unavailable") from exc
+
+        word_namespace = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+        paragraphs = []
+        for paragraph in root.iter(f"{word_namespace}p"):
+            pieces = []
+            for element in paragraph.iter():
+                if element.tag == f"{word_namespace}t":
+                    pieces.append(element.text or "")
+                elif element.tag == f"{word_namespace}tab":
+                    pieces.append("\t")
+                elif element.tag == f"{word_namespace}br":
+                    pieces.append("\n")
+            paragraphs.append("".join(pieces))
+        content = "\n".join(paragraphs).encode("utf-8")
+        content_type = "text/plain; charset=utf-8"
+
+    disposition = "attachment" if download else "inline"
+    filename = quote(document.filename, safe="")
+    return Response(
+        content=content,
+        media_type=content_type,
+        headers={
+            "Content-Disposition": f"{disposition}; filename*=UTF-8''{filename}",
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+        },
+    )
 
 
 @router.patch("/documents/{document_id}/verify", response_model=StudentDocumentVerifyResponse)

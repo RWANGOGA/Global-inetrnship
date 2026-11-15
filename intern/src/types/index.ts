@@ -136,6 +136,10 @@ export interface DocItem {
   status: "verified" | "pending" | "missing" | string;
   file: string;
   size: string;
+  id?: string;
+  uploadedAt?: string;
+  contentType?: string;
+  rejectionReason?: string;
 }
 
 export interface StudentDocument {

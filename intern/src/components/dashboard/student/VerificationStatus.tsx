@@ -3,6 +3,7 @@
 import React from "react";
 import { useApp } from "../../../context/AppContext";
 import { Icon } from "../../icons/Icons";
+import styles from "./VerificationStatus.module.css";
 
 const REQUIRED_DOCUMENTS = [
   { type: "transcript", label: "Transcript", icon: "TR" },
@@ -29,59 +30,29 @@ function statusClass(status: string): string {
 }
 
 function statusLabel(status: string): string {
-  if (!status || status === "missing") return "Not uploaded";
-  return status.charAt(0).toUpperCase() + status.slice(1);
-}
-
-function Stat({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number;
-  tone: "green" | "gold" | "red";
-}) {
-  const color =
-    tone === "green"
-      ? "var(--green)"
-      : tone === "gold"
-      ? "var(--gold)"
-      : "var(--red)";
-  const background =
-    tone === "green"
-      ? "var(--green-tint)"
-      : tone === "gold"
-      ? "var(--gold-tint)"
-      : "var(--red-tint)";
-  return (
-    <div
-      style={{
-        border: `1px solid ${color}`,
-        background,
-        borderRadius: "var(--r-lg)",
-        padding: "16px 18px",
-      }}
-    >
-      <div
-        style={{
-          fontSize: "26px",
-          fontWeight: 800,
-          color,
-          lineHeight: 1.1,
-        }}
-      >
-        {value}
-      </div>
-      <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--ink-2)" }}>
-        {label}
-      </div>
-    </div>
-  );
+  switch (status) {
+    case "verified":
+      return "Verified";
+    case "pending":
+      return "Pending review";
+    case "rejected":
+      return "Changes needed";
+    case "uploaded":
+      return "Uploaded";
+    default:
+      return "Not uploaded";
+  }
 }
 
 export function VerificationStatus() {
-  const { docs, resume, dashGo, dashboardDataStatus } = useApp();
+  const {
+    docs,
+    documentsStatus,
+    dashGo,
+    refreshStudentDocuments,
+    resume,
+    toast,
+  } = useApp();
 
   const rows = [
     {
@@ -90,341 +61,169 @@ export function VerificationStatus() {
       icon: "CV",
       status: resume ? "uploaded" : "missing",
       file: resume?.filename || "",
-      size: resume ? `${Math.ceil(resume.size_bytes / 1024)} KB` : "",
       detail: resume
-        ? `Uploaded ${new Date(resume.uploaded_at).toLocaleDateString()}`
-        : "Upload a CV before applying",
-      reason: "",
+        ? `Uploaded ${new Date(resume.uploaded_at).toLocaleDateString()} · ready for applications`
+        : "Upload a CV to include it with applications.",
+      rejectionReason: "",
     },
     ...REQUIRED_DOCUMENTS.map(({ type, label, icon }) => {
-      const doc = docs.find((d) => d.name === type);
+      const doc = docs.find((item) => item.name === type);
       return {
         key: type,
         label,
         icon,
         status: doc?.status || "missing",
         file: doc?.file || "",
-        size: doc?.size || "",
         detail: doc
-          ? "Reviewed by the placement office"
-          : "Required for a complete application",
-        reason: "",
+          ? doc.status === "verified"
+            ? `Verified${doc.uploadedAt ? ` · uploaded ${new Date(doc.uploadedAt).toLocaleDateString()}` : ""}`
+            : doc.status === "pending"
+              ? "Waiting for placement office review."
+              : "Replace the file to request another review."
+          : "Upload this document to complete your application profile.",
+        rejectionReason: doc?.rejectionReason || "",
       };
     }),
   ];
-  const documentRows = rows.filter((r) => r.key !== "resume");
 
-  // Rejected reasons live on the uploaded document in the API; DocItem keeps
-  // the display-safe shape, so surface the status here and send the student to
-  // Documents for the full reason and replacement flow.
-  const verified = documentRows.filter((r) => r.status === "verified").length;
-  const pending = documentRows.filter((r) => r.status === "pending").length;
+  const documentRows = rows.filter((row) => row.key !== "resume");
+  const verified = documentRows.filter((row) => row.status === "verified").length;
+  const pending = documentRows.filter((row) => row.status === "pending").length;
   const attention = documentRows.filter(
-    (r) => r.status === "rejected" || r.status === "missing"
+    (row) => row.status === "rejected" || row.status === "missing"
   ).length;
-  const progress =
-    documentRows.length > 0
-      ? Math.round((verified / documentRows.length) * 100)
-      : 0;
+  const progress = Math.round((verified / documentRows.length) * 100);
 
-  const loading = dashboardDataStatus === "loading";
-  const error = dashboardDataStatus === "error";
+  const refresh = async () => {
+    try {
+      await refreshStudentDocuments();
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "Could not reload your documents.");
+    }
+  };
 
   return (
-    <>
-      <div
-        className="dpane-h"
-        style={{
-          flexWrap: "wrap",
-          gap: "20px",
-          alignItems: "center",
-          marginBottom: "8px",
-          paddingBottom: "20px",
-          borderBottom: "2px solid var(--rule)",
-        }}
-      >
-        <div style={{ flex: 1, minWidth: "280px" }}>
+    <div className={styles.page}>
+      <div className={`dpane-h ${styles.header}`}>
+        <div>
           <h2>Verification status</h2>
-          <p>What the placement office has checked and what is still outstanding</p>
+          <p>Track document reviews and see what needs your attention.</p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <div
-            style={{
-              width: "180px",
-              height: "8px",
-              background: "var(--rule-2)",
-              borderRadius: "4px",
-              overflow: "hidden",
-            }}
-          >
+        <div className={styles.headerActions}>
+          <div className={styles.progress}>
             <div
-              style={{
-                width: `${progress}%`,
-                height: "100%",
-                background: "linear-gradient(90deg, var(--green), var(--blue))",
-                borderRadius: "4px",
-                transition: "width 0.3s ease",
-              }}
-            />
+              className={styles.progressTrack}
+              role="progressbar"
+              aria-label="Required documents verified"
+              aria-valuemin={0}
+              aria-valuemax={documentRows.length}
+              aria-valuenow={verified}
+            >
+              <div className={styles.progressFill} style={{ width: `${progress}%` }} />
+            </div>
+            <span className={styles.progressLabel}>
+              {verified}/{documentRows.length} verified
+            </span>
           </div>
-          <span
-            style={{
-              fontWeight: 600,
-              fontSize: "14px",
-              color: "var(--ink)",
-              whiteSpace: "nowrap",
-            }}
+          <button
+            type="button"
+            className="btn btn-sm"
+            disabled={documentsStatus === "loading"}
+            onClick={() => void refresh()}
           >
-            {verified} / {documentRows.length} verified
-          </span>
+            <Icon name="arrow" size={13} /> Refresh
+          </button>
+          <button
+            type="button"
+            className="btn btn-sm btn-blue"
+            onClick={() => dashGo("documents")}
+          >
+            <Icon name="upload" size={13} /> Manage documents
+          </button>
         </div>
       </div>
 
-      {loading ? (
+      {documentsStatus === "loading" || documentsStatus === "idle" ? (
         <div className="panel">
-          <div className="pb" style={{ display: "grid", gap: "10px" }}>
-            <b style={{ fontSize: "14px" }}>Checking your documents…</b>
-            <p style={{ fontSize: "12.5px", color: "var(--muted)" }}>
-              Reading verification results from the placement office.
-            </p>
+          <div className="pb" style={{ fontSize: "11px", color: "var(--muted)" }}>
+            Loading your document statuses…
           </div>
         </div>
-      ) : error ? (
-        <div className="panel" style={{ borderColor: "var(--red)" }}>
-          <div className="pb">
-            <b style={{ fontSize: "14px", color: "var(--red)" }}>
-              Could not load verification status
-            </b>
-            <p
-              style={{
-                fontSize: "12.5px",
-                color: "var(--ink-2)",
-                marginTop: "6px",
-                lineHeight: 1.6,
-              }}
-            >
-              The server did not return your documents. Refresh the page to try
-              again.
-            </p>
+      ) : documentsStatus === "error" ? (
+        <div className="panel" role="alert">
+          <div className="pb" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "11px", color: "var(--red)" }}>
+              Could not load verification results. Your documents have not been changed.
+            </span>
+            <button type="button" className="btn btn-sm" onClick={() => void refresh()}>
+              Retry
+            </button>
           </div>
         </div>
       ) : (
         <>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
-              gap: "12px",
-              marginBottom: "20px",
-            }}
-          >
-            <Stat label="Verified" value={verified} tone="green" />
-            <Stat label="Pending review" value={pending} tone="gold" />
-            <Stat label="Needs attention" value={attention} tone="red" />
+          <div className={styles.stats}>
+            <div className={`${styles.stat} ${styles.verified}`}>
+              <span className={styles.statValue}>{verified}</span>
+              <span className={styles.statLabel}>Verified</span>
+            </div>
+            <div className={`${styles.stat} ${styles.pending}`}>
+              <span className={styles.statValue}>{pending}</span>
+              <span className={styles.statLabel}>Pending review</span>
+            </div>
+            <div className={`${styles.stat} ${styles.attention}`}>
+              <span className={styles.statValue}>{attention}</span>
+              <span className={styles.statLabel}>Needs attention</span>
+            </div>
           </div>
 
-          <div
-            className="panel"
-            style={{
-              background: "var(--white)",
-              border: "1px solid var(--rule)",
-              borderRadius: "var(--r-xl)",
-              overflow: "hidden",
-              boxShadow: "0 1px 3px var(--shadow-1)",
-              marginBottom: "20px",
-            }}
-          >
-            <div
-              className="ph"
-              style={{
-                background: "var(--paper-2)",
-                padding: "20px 28px",
-                borderBottom: "1px solid var(--rule)",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  flexWrap: "wrap",
-                  gap: "16px",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                  <div
-                    style={{
-                      width: "44px",
-                      height: "44px",
-                      borderRadius: "var(--r-md)",
-                      background: "var(--blue-tint)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "var(--blue)",
-                    }}
-                  >
-                    <Icon name="doc" size={20} />
-                  </div>
-                  <div>
-                    <h2 style={{ fontWeight: 800, fontSize: "22px", margin: 0 }}>
-                      Checklist
-                    </h2>
-                    <p
-                      style={{
-                        fontSize: "13px",
-                        color: "var(--ink-2)",
-                        marginTop: "2px",
-                      }}
-                    >
-                      Employers only see verified files
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className="btn btn-sm btn-blue"
-                  style={{ height: "40px", padding: "0 16px" }}
-                  onClick={() => dashGo("documents")}
-                >
-                  <Icon name="upload" size={14} /> Manage documents
-                </button>
-              </div>
-            </div>
-
-            <div className="pb" style={{ padding: "28px" }}>
-              <div style={{ display: "grid", gap: "12px" }}>
-                {rows.map((row) => (
-                  <div
-                    key={row.key}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "auto minmax(0, 1fr) auto",
-                      gap: "16px",
-                      alignItems: "center",
-                      border: "1px solid var(--rule)",
-                      borderRadius: "var(--r-lg)",
-                      padding: "16px 18px",
-                      background: "var(--white)",
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: "48px",
-                        height: "48px",
-                        borderRadius: "var(--r-md)",
-                        background:
-                          row.status === "verified"
-                            ? "var(--green-tint)"
-                            : row.status === "rejected"
-                            ? "var(--red-tint)"
-                            : "var(--blue-tint)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color:
-                          row.status === "verified"
-                            ? "var(--green)"
-                            : row.status === "rejected"
-                            ? "var(--red)"
-                            : "var(--blue)",
-                        fontWeight: 700,
-                        fontSize: "13px",
-                      }}
-                    >
-                      {row.icon}
-                    </div>
-                    <div style={{ minWidth: 0 }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "10px",
-                          flexWrap: "wrap",
-                          marginBottom: "4px",
-                        }}
-                      >
-                        <h4
-                          style={{
-                            fontWeight: 700,
-                            fontSize: "15px",
-                            color: "var(--ink)",
-                            margin: 0,
-                          }}
-                        >
-                          {row.label}
-                        </h4>
-                        <span className={statusClass(row.status)}>
-                          {statusLabel(row.status)}
-                        </span>
-                      </div>
-                      <p
-                        style={{
-                          fontSize: "12.5px",
-                          color: "var(--muted)",
-                          margin: 0,
-                        }}
-                      >
-                        {row.file
-                          ? `${row.file}${row.size ? ` · ${row.size}` : ""}`
-                          : row.detail}
-                      </p>
-                    </div>
-                    <span
-                      style={{
-                        fontSize: "11px",
-                        color:
-                          row.status === "verified"
-                            ? "var(--green)"
-                            : row.status === "rejected"
-                            ? "var(--red)"
-                            : "var(--muted)",
-                        fontWeight: 600,
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {row.status === "verified"
-                        ? "Cleared"
-                        : row.status === "pending"
-                        ? "In review"
-                        : row.status === "rejected"
-                        ? "Replace file"
-                        : row.status === "uploaded"
-                        ? "Uploaded"
-                        : "Upload"}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              <div
-                style={{
-                  marginTop: "24px",
-                  padding: "16px",
-                  background: "var(--paper-2)",
-                  borderRadius: "var(--r-lg)",
-                  border: "1px solid var(--rule)",
-                }}
-              >
-                <p
-                  style={{
-                    fontSize: "12.5px",
-                    color: "var(--ink-2)",
-                    lineHeight: 1.6,
-                    margin: 0,
-                  }}
-                >
-                  <strong style={{ color: "var(--ink)" }}>How it works:</strong>{" "}
-                  the placement office checks transcripts and IDs against the
-                  university record. Most reviews finish within 48 hours. A
-                  rejected file keeps its reason so you can replace it without
-                  starting over.
+          <section className="panel">
+            <div className="ph">
+              <div>
+                <span className="lbl blue">Document checklist</span>
+                <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: "10.5px" }}>
+                  Employers receive only verified supporting documents.
                 </p>
               </div>
             </div>
-          </div>
+            <div className="pb">
+              <div className={styles.list}>
+                {rows.map((row) => (
+                  <div className={styles.row} key={row.key}>
+                    <span className={styles.icon} aria-hidden="true">{row.icon}</span>
+                    <div className={styles.rowDetails}>
+                      <div className={styles.rowHeading}>
+                        <h3>{row.label}</h3>
+                        <span className={statusClass(row.status)}>{statusLabel(row.status)}</span>
+                      </div>
+                      <p className={styles.detail}>{row.file || row.detail}</p>
+                      {row.status === "rejected" && row.rejectionReason && (
+                        <p className={styles.reason}>Review note: {row.rejectionReason}</p>
+                      )}
+                    </div>
+                    {row.status === "missing" || row.status === "rejected" ? (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-blue"
+                        onClick={() => dashGo("documents")}
+                      >
+                        {row.status === "rejected" ? "Replace file" : "Upload"}
+                      </button>
+                    ) : (
+                      <span className={styles.progressLabel}>
+                        {row.status === "verified" ? "Cleared" : row.status === "pending" ? "In review" : "Ready"}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <p className={styles.note}>
+                Rejected documents include the reviewer’s note above. Replace the file from Documents to send it for review again.
+              </p>
+            </div>
+          </section>
         </>
       )}
-    </>
+    </div>
   );
 }

@@ -1844,6 +1844,9 @@ class StudentDocumentService:
             status=status,
             rejection_reason=rejection_reason.strip() if status == "rejected" else "",
             uploaded_at=document.uploaded_at,
+            is_public=document.is_public,
+            author_role=document.author_role,
+            author_id=document.author_id,
         )
         return self._repo.save(document)
 
@@ -1906,6 +1909,8 @@ class StudentDocumentService:
             rejection_reason=document.rejection_reason,
             uploaded_at=document.uploaded_at,
             is_public=is_public,
+            author_role=document.author_role,
+            author_id=document.author_id,
         )
         return self._repo.save(document)
 

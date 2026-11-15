@@ -1632,6 +1632,22 @@ export async function fetchAllStudentDocuments(
   return getJson<StudentDocumentRead[]>(`/admin/documents${params}`);
 }
 
+export async function fetchAdminStudentDocumentFile(
+  documentId: string,
+  download = false
+): Promise<{ blob: Blob; contentType: string }> {
+  const path = `/admin/documents/${encodeURIComponent(documentId)}/file${download ? "?download=true" : ""}`;
+  const response = await fetch(`${API_BASE}${path}`, {
+    headers: authHeader(),
+  });
+  if (!response.ok) await readError(response, path);
+  const blob = await response.blob();
+  return {
+    blob,
+    contentType: response.headers.get("content-type") || blob.type,
+  };
+}
+
 export async function verifyStudentDocument(
   documentId: string,
   status: "verified" | "rejected",

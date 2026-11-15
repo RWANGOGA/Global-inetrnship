@@ -753,7 +753,10 @@ def get_applicant_detail(
     
     # Get documents
     from app.infrastructure.orm import StudentDocumentORM
-    documents = session.query(StudentDocumentORM).filter_by(user_id=app.user_id).all()
+    documents = session.query(StudentDocumentORM).filter_by(
+        user_id=app.user_id,
+        status="verified",
+    ).all()
     
     # Calculate match score if internship
     match_score = None
