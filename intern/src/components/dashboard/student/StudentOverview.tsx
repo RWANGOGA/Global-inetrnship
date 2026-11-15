@@ -1,8 +1,12 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useApp } from "../../../context/AppContext";
+import { fetchStudentUsage, isApiEnabled } from "../../../lib/api";
 import { Icon } from "../../icons/Icons";
+
+// Fallback only; the live limit comes from GET /billing/student/usage.
+const DEMO_FREE_LIMIT = 30;
 
 const APPLICATION_STEPS = ["Submitted", "Documents", "Review", "Decision"];
 
@@ -27,12 +31,39 @@ export function StudentOverview() {
     getOrg,
   } = useApp();
   
-  // Simple monthly application counter (current month only)
+  // The server counts applications for the billing period and is the only
+  // authority on the free limit; the calendar-month tally below is a fallback
+  // for when the API is switched off.
+  const [usage, setUsage] = useState<{
+    application_count: number;
+    free_limit: number;
+  } | null>(null);
+  useEffect(() => {
+    if (!isApiEnabled || !session) return;
+    let alive = true;
+    fetchStudentUsage()
+      .then((value) => {
+        if (alive) {
+          setUsage({
+            application_count: value.application_count,
+            free_limit: value.free_limit,
+          });
+        }
+      })
+      .catch(() => {
+        /* keep the local fallback */
+      });
+    return () => {
+      alive = false;
+    };
+  }, [session, applications.length]);
+
   const currentMonth = new Date().toISOString().slice(0, 7);
-  const monthlyApps = applications.filter(a => 
+  const localMonthlyApps = applications.filter(a => 
     a.created_at?.startsWith(currentMonth)
   ).length;
-  const FREE_LIMIT = 30;
+  const monthlyApps = usage?.application_count ?? localMonthlyApps;
+  const FREE_LIMIT = usage?.free_limit ?? DEMO_FREE_LIMIT;
   const overLimit = monthlyApps >= FREE_LIMIT;
   if (dashboardDataStatus === "loading" || dashboardDataStatus === "idle") {
     return (
