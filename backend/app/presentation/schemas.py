@@ -509,6 +509,13 @@ class StudentDocumentRead(BaseModel):
     is_public: bool = False
 
 
+class PublicTestimonialRead(BaseModel):
+    id: str
+    author_role: str
+    uploaded_at: str
+    testimonial_text: str
+
+
 class StudentDocumentsResponse(BaseModel):
     items: list[StudentDocumentRead]
 

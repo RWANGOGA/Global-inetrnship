@@ -20,7 +20,7 @@ from app.infrastructure.orm import (
     UserORM,
 )
 from app.infrastructure.repositories import SqlAlchemyPlacementRepository
-from app.presentation.deps import get_current_user, get_student_document_service, get_admin_action_log_repository
+from app.presentation.deps import get_current_user, get_optional_current_user, get_student_document_service, get_admin_action_log_repository
 from app.presentation.schemas import (
     AdminActionLogRead,
     AdminActionLogListResponse,
@@ -43,6 +43,7 @@ from app.presentation.schemas import (
     OrganizationDetailResponse,
     OrganizationSanctionRequest,
     OrganizationSanctionResponse,
+    PublicTestimonialRead,
     UserRead,
     UserListResponse,
     UserDetailResponse,
@@ -367,14 +368,14 @@ def toggle_document_public(
     return StudentDocumentVerifyResponse.model_validate(document, from_attributes=True)
 
 
-@router.get("/testimonials", response_model=list[StudentDocumentRead])
+@router.get("/testimonials", response_model=list[PublicTestimonialRead])
 def list_testimonials(
     status: str = "verified",
     limit: int = 10,
     role: str = Query(None, description="Filter by author role: student, employer, employee, admin"),
     service: StudentDocumentService = Depends(get_student_document_service),
-    current_user: User = Depends(get_current_user),
-) -> list[StudentDocumentRead]:
+    current_user: User | None = Depends(get_optional_current_user),
+) -> list[PublicTestimonialRead]:
     """Get verified testimonials for the home page carousel.
     
     Public endpoint - no authentication required for the home page.
@@ -383,14 +384,30 @@ def list_testimonials(
     """
     if current_user and current_user.role == "admin":
         # Admin can see all testimonials with any status
-        documents = service.list_all(status=status if status != "all" else None)
+        documents = [
+            document
+            for document in service.list_all(status=status if status != "all" else None)
+            if document.document_type == "testimonial"
+        ]
     else:
         # Public endpoint - only verified and public testimonials
         if role:
             documents = service.list_public_testimonials_by_role(role=role, limit=limit)
         else:
             documents = service.list_public_testimonials(limit=limit)
-    return [StudentDocumentRead.model_validate(d, from_attributes=True) for d in documents[:limit]]
+    return [
+        PublicTestimonialRead(
+            id=document.id,
+            author_role=document.author_role,
+            uploaded_at=document.uploaded_at,
+            testimonial_text=(
+                document.content.decode("utf-8", errors="replace")
+                if document.content_type == "text/plain"
+                else ""
+            ),
+        )
+        for document in documents[:limit]
+    ]
 
 
 # ---------------- Placement Management ------------------------------------
