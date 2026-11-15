@@ -313,6 +313,127 @@ def test_documents_enforce_type_and_student_authorization(client):
     assert client.get("/documents", headers=_login(client, JOBSEEKER)).status_code == 403
 
 
+def test_admin_document_preview_is_authorized_and_extracts_docx_text(client):
+    student = _login(client, STUDENT)
+    admin = _login(client, ADMIN)
+    pdf_content = b"%PDF-1.4 test document"
+    pdf = client.put(
+        "/documents/transcript",
+        files={"file": ("transcript.pdf", pdf_content, "application/pdf")},
+        headers=student,
+    )
+    assert pdf.status_code == 200
+    document_id = pdf.json()["id"]
+
+    assert client.get(
+        f"/admin/documents/{document_id}/file", headers=student
+    ).status_code == 403
+    preview = client.get(f"/admin/documents/{document_id}/file", headers=admin)
+    assert preview.status_code == 200
+    assert preview.content == pdf_content
+    assert preview.headers["content-disposition"].startswith("inline;")
+
+    from io import BytesIO
+    from zipfile import ZipFile
+
+    docx_file = BytesIO()
+    with ZipFile(docx_file, "w") as archive:
+        archive.writestr(
+            "word/document.xml",
+            '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            "<w:body><w:p><w:r><w:t>Reviewed transcript</w:t></w:r></w:p></w:body>"
+            "</w:document>",
+        )
+    docx = client.put(
+        "/documents/student_id",
+        files={
+            "file": (
+                "student-id.docx",
+                docx_file.getvalue(),
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        },
+        headers=student,
+    )
+    assert docx.status_code == 200
+    extracted = client.get(
+        f"/admin/documents/{docx.json()['id']}/file", headers=admin
+    )
+    assert extracted.status_code == 200
+    assert extracted.text == "Reviewed transcript"
+    assert extracted.headers["content-type"].startswith("text/plain")
+
+
+def test_verifying_testimonial_preserves_visibility_and_employer_only_sees_verified_docs(client, session):
+    from uuid import uuid4
+
+    from app.infrastructure.orm import ApplicationORM, PlacementORM
+
+    student = _login(client, STUDENT)
+    admin = _login(client, ADMIN)
+    employer = _login(client, EMPLOYER)
+    student_id = _user_id(client, STUDENT)
+    testimonial = client.put(
+        "/documents/testimonial",
+        data={"testimonial_text": "The program helped me grow."},
+        headers=student,
+    )
+    assert testimonial.status_code == 200
+    reviewed = client.patch(
+        f"/admin/documents/{testimonial.json()['id']}/verify",
+        json={"status": "verified"},
+        headers=admin,
+    )
+    assert reviewed.status_code == 200
+    assert reviewed.json()["is_public"] is True
+    public_testimonials = client.get("/admin/testimonials")
+    public_testimonial = next(
+        item for item in public_testimonials.json() if item["id"] == testimonial.json()["id"]
+    )
+    assert public_testimonial["author_role"] == "student"
+    assert public_testimonial["testimonial_text"] == "The program helped me grow."
+
+    pending = client.put(
+        "/documents/transcript",
+        files={"file": ("transcript.pdf", b"pending", "application/pdf")},
+        headers=student,
+    )
+    verified = client.put(
+        "/documents/student_id",
+        files={"file": ("student-id.pdf", b"verified", "application/pdf")},
+        headers=student,
+    )
+    assert pending.status_code == verified.status_code == 200
+    verification = client.patch(
+        f"/admin/documents/{verified.json()['id']}/verify",
+        json={"status": "verified"},
+        headers=admin,
+    )
+    assert verification.status_code == 200
+
+    placement = session.query(PlacementORM).filter_by(org_id="o4").first()
+    assert placement is not None
+    application_id = str(uuid4())
+    session.add(
+        ApplicationORM(
+            id=application_id,
+            user_id=student_id,
+            placement_id=placement.id,
+            created_at="2025-01-01T00:00:00+00:00",
+            updated_at="2025-01-01T00:00:00+00:00",
+        )
+    )
+    session.commit()
+    details = client.get(
+        f"/organization/applicants/{application_id}/detail",
+        headers=employer,
+    )
+    assert details.status_code == 200
+    visible_document_ids = {doc["id"] for doc in details.json()["documents"]}
+    assert visible_document_ids == {testimonial.json()["id"], verified.json()["id"]}
+    assert pending.json()["id"] not in visible_document_ids
+
+
 # ---- Subscription ----------------------------------------------------------
 
 
