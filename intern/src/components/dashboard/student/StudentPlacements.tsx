@@ -3,7 +3,22 @@
 import React, { useEffect, useState } from "react";
 import { useApp } from "../../../context/AppContext";
 import { fetchRecommendedInternships, isApiEnabled, MatchResponse } from "../../../lib/api";
-import { Placement } from "../../../types";
+
+// Shared by the filter chips and the type column so "entry_level" never leaks
+// into the table as "Entry_level".
+const TYPE_LABELS: Record<string, string> = {
+  all: "All",
+  internship: "Internships",
+  gig: "Gigs",
+  entry_level: "Entry-Level",
+};
+
+const TYPE_COLORS: Record<string, string> = {
+  all: "var(--ink)",
+  internship: "var(--blue)",
+  gig: "var(--green)",
+  entry_level: "var(--gold)",
+};
 
 function scoreTone(score: number): { color: string; label: string } {
   if (score >= 70) return { color: "var(--green)", label: "Strong" };
@@ -14,7 +29,7 @@ function scoreTone(score: number): { color: string; label: string } {
 type OpportunityType = "all" | "internship" | "gig" | "entry_level";
 
 export function StudentPlacements() {
-  const { student, applyTo, openPlacement, go, toast } = useApp();
+  const { student, applyTo, openPlacement } = useApp();
   const [ranked, setRanked] = useState<MatchResponse["items"]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState("");
@@ -48,33 +63,10 @@ export function StudentPlacements() {
     }
   }
 
-  useEffect(() => {
-    if (!isApiEnabled || !student.skills.length) {
-      // Fallback to client-side matching if API not available or no skills
-      setStatus("ready");
-      return;
-    }
-    loadRecommendations();
-  }, [student.skills, student.course, student.cgpa]);
-
   // Filter by opportunity type
   const filteredRanked = activeType === "all"
     ? ranked
     : ranked.filter((r) => r.placement.opportunityType === activeType);
-
-  const typeLabels: Record<string, string> = {
-    all: "All",
-    internship: "Internships",
-    gig: "Gigs",
-    entry_level: "Entry-Level",
-  };
-
-  const typeColors: Record<string, string> = {
-    all: "var(--ink)",
-    internship: "var(--blue)",
-    gig: "var(--green)",
-    entry_level: "var(--gold)",
-  };
 
   const strongCount = filteredRanked.filter((r) => r.match.score >= 70).length;
   const totalCount = filteredRanked.length;
@@ -101,22 +93,27 @@ export function StudentPlacements() {
                 className={`btn btn-sm ${activeType === type ? "btn-blue" : ""}`}
                 style={{
                   borderColor: activeType === type ? "transparent" : "var(--rule)",
-                  background: activeType === type ? typeColors[type] : "transparent",
+                  background: activeType === type ? TYPE_COLORS[type] : "transparent",
                   color: activeType === type ? "white" : "var(--ink)",
                   borderLeftWidth: "3px",
-                  borderLeftColor: typeColors[type],
+                  borderLeftColor: TYPE_COLORS[type],
                 }}
                 onClick={() => setActiveType(type as OpportunityType)}
               >
-                {typeLabels[type]}
-                <span className="tg" style={{
-                  background: activeType === type ? "rgba(255,255,255,0.2)" : typeColors[type],
-                  color: activeType === type ? "white" : typeColors[type],
-                  marginLeft: "6px",
-                  fontSize: "9px",
-                  padding: "1px 5px",
-                  borderRadius: "var(--r-pill)",
-                }}>
+                {TYPE_LABELS[type]}
+                <span
+                  className="tg"
+                  style={{
+                    // Was typeColors[type] on both background and colour, which
+                    // rendered the count invisible on the idle chips.
+                    background: activeType === type ? "rgba(255,255,255,0.2)" : "var(--paper-2)",
+                    color: activeType === type ? "white" : "var(--ink-2)",
+                    marginLeft: "6px",
+                    fontSize: "9px",
+                    padding: "1px 5px",
+                    borderRadius: "var(--r-pill)",
+                  }}
+                >
                   {count}
                 </span>
               </button>
@@ -158,7 +155,6 @@ export function StudentPlacements() {
                   const o = p.org;
                   const tone = scoreTone(match.score);
                   const eligible = match.courseFit && match.gradeFit;
-                  const typeColor = typeColors[p.opportunityType] || "var(--blue)";
                   return (
                     <tr key={p.id}>
                       <td className="who" data-label="Placement">
@@ -171,9 +167,9 @@ export function StudentPlacements() {
                       <td className="hide-xs" data-label="Type">
                         <span
                           className="tg"
-                          style={{ background: typeColors[p.opportunityType] || "var(--blue)" }}
+                          style={{ background: TYPE_COLORS[p.opportunityType] || "var(--blue)" }}
                         >
-                          {p.opportunityType.charAt(0).toUpperCase() + p.opportunityType.slice(1)}
+                          {TYPE_LABELS[p.opportunityType] || "Unspecified"}
                         </span>
                       </td>
                       <td data-label="Match" style={{ minWidth: 120 }}>
@@ -230,17 +226,3 @@ export function StudentPlacements() {
     </>
   );
 }
-
-const typeLabels: Record<string, string> = {
-  all: "All",
-  internship: "Internships",
-  gig: "Gigs",
-  entry_level: "Entry-Level",
-};
-
-const typeColors: Record<string, string> = {
-  all: "var(--ink)",
-  internship: "var(--blue)",
-  gig: "var(--green)",
-  entry_level: "var(--gold)",
-};
