@@ -1328,3 +1328,35 @@ nav[aria-label="Primary"]{display:flex}
   .wa-search{margin:0 13px 9px}
   .wa-filters{padding:0 13px 9px}
 }
+
+/* ============ EMPLOYER: APPLICANTS + TALENT SEARCH ============
+   These two panes were written against a stylesheet that never shipped, so
+   their filter cards, result grid and candidate cells fell back to browser
+   defaults. The rules below implement that vocabulary on the shared tokens.
+   New panes should use .dpane-h / .panel / .seg / .dtable instead. */
+.section-card{background:var(--white);border:1px solid var(--rule);border-radius:var(--r-md);overflow:hidden}
+.section-header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:14px 16px;border-bottom:1px solid var(--rule)}
+.section-title-group{display:flex;gap:10px;align-items:flex-start;min-width:0}
+.section-icon{width:30px;height:30px;border-radius:var(--r-sm);background:var(--paper-2);color:var(--ink-2);display:grid;place-items:center;flex-shrink:0}
+.section-title{font-size:13.5px;font-weight:700;letter-spacing:-.01em}
+.section-description{font-size:11px;color:var(--muted);margin-top:2px}
+.section-action{flex-shrink:0}
+.section-content{padding:14px 16px;display:grid;gap:14px}
+
+.search-layout{display:grid;grid-template-columns:320px minmax(0,1fr);gap:18px;align-items:start}
+.skill-chips{display:flex;flex-wrap:wrap;gap:6px}
+.skill-chip,.skill-pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;padding:3px 10px;border-radius:var(--r-pill);background:var(--paper-2);border:1px solid var(--rule);color:var(--ink-2)}
+.skill-input-wrapper{display:flex;gap:8px;align-items:center}
+.filter-group{display:grid;gap:4px}
+.filter-actions{display:flex;gap:8px;flex-wrap:wrap}
+.results-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+
+.candidate-cell{display:flex;align-items:center;gap:10px;min-width:0}
+.candidate-avatar{width:30px;height:30px;border-radius:50%;background:var(--blue-tint);color:var(--blue);display:grid;place-items:center;font-family:var(--mono);font-size:10px;font-weight:700;flex-shrink:0}
+.candidate-info{min-width:0}
+.candidate-name{font-size:12.5px;font-weight:600;display:block}
+.candidate-details,.candidate-meta,.candidate-date{font-size:11px;color:var(--muted)}
+
+@media(max-width:900px){
+  .search-layout{grid-template-columns:1fr}
+}

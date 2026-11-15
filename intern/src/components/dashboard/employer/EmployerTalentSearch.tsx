@@ -301,12 +301,10 @@ export function EmployerTalentSearch() {
 
   return (
     <>
-      <div className="page-header">
-        <div className="header-content">
-          <div>
-            <h1 className="page-title">Talent Search</h1>
-            <p className="page-subtitle">Search verified student profiles who opted in to be discovered by employers.</p>
-          </div>
+      <div className="dpane-h">
+        <div>
+          <h2>Talent Search</h2>
+          <p>Search verified student profiles who opted in to be discovered by employers.</p>
         </div>
       </div>
 
