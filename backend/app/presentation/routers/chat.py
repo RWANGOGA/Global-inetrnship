@@ -90,6 +90,49 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+# ---- Payload helpers ----------------------------------------------------------
+
+def _initials(name: str) -> str:
+    parts = [p for p in (name or "").split() if p]
+    if not parts:
+        return "··"
+    if len(parts) == 1:
+        return parts[0][:2].upper()
+    return (parts[0][0] + parts[-1][0]).upper()
+
+
+def _names(session: Session, user_ids: Set[str]) -> Dict[str, str]:
+    """id -> display name, in one query."""
+    from app.infrastructure.orm import UserORM
+
+    if not user_ids:
+        return {}
+    rows = session.query(UserORM).filter(UserORM.id.in_(list(user_ids))).all()
+    return {r.id: (r.name or r.email or "Member") for r in rows}
+
+
+def _message_preview(
+    message, names: Dict[str, str], me: str
+) -> Optional[dict]:
+    """The one-line summary a thread list shows under the title."""
+    if message is None:
+        return None
+    body = message.content or ""
+    if message.type == "voice":
+        body = "Voice message"
+    elif message.type in ("image", "file"):
+        body = message.file_name or message.type.capitalize()
+    return {
+        "id": message.id,
+        "content": body,
+        "type": message.type,
+        "sender_id": message.sender_id,
+        "sender_name": names.get(message.sender_id, "Member"),
+        "created_at": message.created_at,
+        "is_mine": message.sender_id == me,
+    }
+
+
 # ---- Dependencies -------------------------------------------------------------
 
 def get_chat_service(
@@ -364,14 +407,30 @@ def delete_group(
 def get_members(
     group_id: str,
     service: ChatService = Depends(get_chat_service),
+    session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     group = service.get_group(group_id)
     if not group:
         raise HTTPException(404, "Group not found")
-    
+
     participants = service.get_participants(group_id)
-    return {"participants": participants}
+    names = _names(session, {p.user_id for p in participants})
+    return {
+        "participants": [
+            {
+                "id": p.id,
+                "group_id": p.group_id,
+                "user_id": p.user_id,
+                "role": p.role,
+                "joined_at": p.joined_at,
+                "is_muted": p.is_muted,
+                "name": names.get(p.user_id, "Member"),
+                "initials": _initials(names.get(p.user_id, "Member")),
+            }
+            for p in participants
+        ]
+    }
 
 
 @router.post("/groups/{group_id}/members", response_model=dict)
@@ -454,6 +513,7 @@ def get_messages(
     before: Optional[str] = None,
     after: Optional[str] = None,
     service: ChatService = Depends(get_chat_service),
+    session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     group = service.get_group(group_id)
@@ -469,10 +529,17 @@ def get_messages(
     
     # Auto-translate for current user
     import asyncio
+    names = _names(session, {msg.sender_id for msg in messages})
     translated = []
     for msg in messages:
         t = asyncio.run(service.translate_to_user_language(msg, current_user.id))
-        translated.append({**msg.__dict__, "translated_content": t})
+        translated.append(
+            {
+                **msg.__dict__,
+                "translated_content": t,
+                "sender_name": names.get(msg.sender_id, "Member"),
+            }
+        )
     
     return {"messages": translated}
 
@@ -626,16 +693,24 @@ def get_direct_messages(
     limit: int = 50,
     before: Optional[str] = None,
     service: ChatService = Depends(get_chat_service),
+    session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     messages = service.get_direct_messages(current_user.id, other_user_id, limit=limit, before=before)
     
     # Auto-translate
     import asyncio
+    names = _names(session, {msg.sender_id for msg in messages})
     translated = []
     for msg in messages:
         t = asyncio.run(service.translate_to_user_language(msg, current_user.id))
-        translated.append({**msg.__dict__, "translated_content": t})
+        translated.append(
+            {
+                **msg.__dict__,
+                "translated_content": t,
+                "sender_name": names.get(msg.sender_id, "Member"),
+            }
+        )
     
     return {"messages": translated}
 
@@ -647,6 +722,233 @@ def list_direct_chats(
 ):
     chats = service.list_direct_chats(current_user.id)
     return {"chats": chats}
+
+
+# ---- Inbox --------------------------------------------------------------------
+
+@router.get("/threads", response_model=dict)
+def list_threads(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Unified inbox: group and direct threads, newest activity first.
+
+    /groups and /direct hand back bare entities (ids only), so a client cannot
+    show a title, a preview or an unread badge without following up with one
+    request per row. This joins the few fields the message list needs.
+    """
+    from sqlalchemy import func
+
+    from app.infrastructure.orm import (
+        ChatGroupORM,
+        ChatMessageORM,
+        DirectChatORM,
+        GroupParticipantORM,
+        UserORM,
+    )
+
+    me = current_user.id
+    threads: list[dict] = []
+
+    memberships = session.query(GroupParticipantORM).filter_by(user_id=me).all()
+    group_ids = [m.group_id for m in memberships]
+    groups = (
+        session.query(ChatGroupORM)
+        .filter(ChatGroupORM.id.in_(group_ids))
+        .filter(ChatGroupORM.is_active == True)  # noqa: E712
+        .all()
+        if group_ids
+        else []
+    )
+    directs = (
+        session.query(DirectChatORM)
+        .filter((DirectChatORM.user1_id == me) | (DirectChatORM.user2_id == me))
+        .all()
+    )
+
+    # ---- collect the last message of every thread, then batch the names
+    group_rows = []
+    for group in groups:
+        participant = next((m for m in memberships if m.group_id == group.id), None)
+        last = (
+            session.query(ChatMessageORM)
+            .filter(ChatMessageORM.group_id == group.id)
+            .filter(ChatMessageORM.deleted_at.is_(None))
+            .order_by(ChatMessageORM.created_at.desc())
+            .first()
+        )
+        member_count = (
+            session.query(func.count(GroupParticipantORM.id))
+            .filter(GroupParticipantORM.group_id == group.id)
+            .scalar()
+            or 0
+        )
+        unread_query = (
+            session.query(func.count(ChatMessageORM.id))
+            .filter(ChatMessageORM.group_id == group.id)
+            .filter(ChatMessageORM.sender_id != me)
+            .filter(ChatMessageORM.deleted_at.is_(None))
+        )
+        if participant is not None and participant.last_read_at:
+            unread_query = unread_query.filter(
+                ChatMessageORM.created_at > participant.last_read_at
+            )
+        unread = unread_query.scalar() or 0
+        group_rows.append((group, participant, last, member_count, unread))
+
+    direct_rows = []
+    for chat in directs:
+        other_id = chat.user2_id if chat.user1_id == me else chat.user1_id
+        last = (
+            session.query(ChatMessageORM)
+            .filter(ChatMessageORM.group_id.is_(None))
+            .filter(
+                (
+                    (ChatMessageORM.sender_id == me)
+                    & (ChatMessageORM.recipient_id == other_id)
+                )
+                | (
+                    (ChatMessageORM.sender_id == other_id)
+                    & (ChatMessageORM.recipient_id == me)
+                )
+            )
+            .filter(ChatMessageORM.deleted_at.is_(None))
+            .order_by(ChatMessageORM.created_at.desc())
+            .first()
+        )
+        direct_rows.append((chat, other_id, last))
+
+    wanted = {me} | {other for _, other, _ in direct_rows}
+    wanted |= {last.sender_id for _, _, last, _, _ in group_rows if last is not None}
+    wanted |= {last.sender_id for _, _, last in direct_rows if last is not None}
+    names = _names(session, wanted)
+
+    for group, participant, last, member_count, unread in group_rows:
+        threads.append(
+            {
+                "id": group.id,
+                "kind": "group",
+                "title": group.name,
+                "type": group.type.value if isinstance(group.type, GroupType) else group.type,
+                "description": group.description or "",
+                "initials": _initials(group.name),
+                "subtitle": f"{member_count} member" + ("s" if member_count != 1 else ""),
+                "member_count": member_count,
+                "my_role": participant.role if participant else "member",
+                "unread_count": unread,
+                "last_message": _message_preview(last, names, me),
+                "last_activity": (
+                    last.created_at
+                    if last is not None
+                    else (group.updated_at or group.created_at)
+                ),
+            }
+        )
+
+    for chat, other_id, last in direct_rows:
+        other_name = names.get(other_id, "Member")
+        other_row = session.query(UserORM).filter(UserORM.id == other_id).first()
+        role = (other_row.role if other_row is not None else "") or ""
+        threads.append(
+            {
+                "id": chat.id,
+                "kind": "direct",
+                "title": other_name,
+                "type": role,
+                "description": "",
+                "initials": _initials(other_name),
+                "subtitle": role.capitalize() if role else "Direct message",
+                "member_count": 2,
+                "my_role": "member",
+                "unread_count": 0,
+                "other_user": {"id": other_id, "name": other_name, "role": role},
+                "last_message": _message_preview(last, names, me),
+                "last_activity": (
+                    last.created_at
+                    if last is not None
+                    else (chat.last_message_at or chat.created_at)
+                ),
+            }
+        )
+
+    threads.sort(key=lambda t: t.get("last_activity") or "", reverse=True)
+    return {"threads": threads}
+
+
+@router.get("/contacts", response_model=dict)
+def list_contacts(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """People the current user can message or add to a group."""
+    from app.infrastructure.orm import UserORM
+
+    rows = (
+        session.query(UserORM)
+        .filter(UserORM.id != current_user.id)
+        .filter(UserORM.is_active == True)  # noqa: E712
+        .filter(UserORM.deleted == False)  # noqa: E712
+        .order_by(UserORM.name)
+        .limit(300)
+        .all()
+    )
+    return {
+        "contacts": [
+            {
+                "id": row.id,
+                "name": row.name or row.email,
+                "role": row.role,
+                "initials": _initials(row.name or row.email),
+            }
+            for row in rows
+        ]
+    }
+
+
+@router.post("/threads/{thread_id}/read", response_model=dict)
+def mark_thread_read(
+    thread_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Clear the unread badge for a thread (groups track it, directs do not)."""
+    from datetime import datetime
+
+    from app.infrastructure.orm import GroupParticipantORM
+
+    now = datetime.utcnow().isoformat()
+    participant = (
+        session.query(GroupParticipantORM)
+        .filter_by(group_id=thread_id, user_id=current_user.id)
+        .first()
+    )
+    if participant is not None:
+        participant.last_read_at = now
+        session.commit()
+    return {"thread_id": thread_id, "read_at": now}
+
+
+@router.post("/groups/{group_id}/leave", response_model=dict)
+def leave_group(
+    group_id: str,
+    service: ChatService = Depends(get_chat_service),
+    current_user: User = Depends(get_current_user),
+):
+    """Leave a group. An owner hands ownership over before walking out."""
+    participants = service.get_participants(group_id)
+    me = next((p for p in participants if p.user_id == current_user.id), None)
+    if me is None:
+        raise HTTPException(404, "You are not a member of this group")
+
+    if me.role == "owner":
+        others = [p for p in participants if p.user_id != current_user.id]
+        if others:
+            service.update_participant(group_id, others[0].user_id, role="owner")
+        else:
+            raise HTTPException(400, "You are the last member; delete the group instead")
+
+    service.remove_member(group_id, current_user.id)
+    return {"left": True}
 
 
 # ---- Translation --------------------------------------------------------------

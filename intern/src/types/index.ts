@@ -341,6 +341,7 @@ export type DashboardView =
   | "talent-search"
   | "team"
   | "analytics"
+  | "messages"
   | "billing";
 
 export interface OrganizationRead {
