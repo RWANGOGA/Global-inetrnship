@@ -591,7 +591,6 @@ export function UserManagement() {
                 <select
                   value={newRole}
                   onChange={(e) => setNewRole(e.target.value)}
-                  className="field"
                 >
                   <option value="">Select role</option>
                   <option value="student">Student</option>
@@ -605,7 +604,6 @@ export function UserManagement() {
             <div className="field">
               <label>Reason (required)</label>
               <textarea
-                className="field"
                 rows={4}
                 required
                 value={actionReason}
