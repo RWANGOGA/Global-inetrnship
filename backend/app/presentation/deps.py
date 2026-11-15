@@ -49,6 +49,7 @@ from app.infrastructure.repositories import (
     SqlAlchemyInvoiceRepository,
     SqlAlchemyTransactionRepository,
     SqlAlchemyStudentUsageRepository,
+    SqlAlchemyPaymentMethodRepository,
     SqlAlchemyUserRepository,
     SqlAlchemyChatGroupRepository,
     SqlAlchemyGroupParticipantRepository,
@@ -132,6 +133,7 @@ def get_billing_service(session: Session = Depends(get_session)) -> BillingServi
         transaction_repo=SqlAlchemyTransactionRepository(session),
         gateway_factory=gateway_factory,
         student_usage_repo=SqlAlchemyStudentUsageRepository(session),
+        payment_method_repo=SqlAlchemyPaymentMethodRepository(session),
     )
 
 

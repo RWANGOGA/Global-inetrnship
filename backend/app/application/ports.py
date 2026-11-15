@@ -242,6 +242,25 @@ class SubscriptionRepository(ABC):
     def save(self, subscription: Subscription) -> Subscription: ...
 
 
+class PaymentMethodRepository(ABC):
+    """Saved payment methods for an organisation."""
+
+    @abstractmethod
+    def list(self, org_id: str) -> list[dict]: ...
+
+    @abstractmethod
+    def get(self, org_id: str, payment_method_id: str) -> Optional[dict]: ...
+
+    @abstractmethod
+    def add(self, org_id: str, type: str, details: dict, gateway_payment_method_id: Optional[str] = None) -> dict: ...
+
+    @abstractmethod
+    def delete(self, org_id: str, payment_method_id: str) -> bool: ...
+
+    @abstractmethod
+    def set_default(self, org_id: str, payment_method_id: str) -> bool: ...
+
+
 class InvoiceRepository(ABC):
     """Invoices for billing."""
 

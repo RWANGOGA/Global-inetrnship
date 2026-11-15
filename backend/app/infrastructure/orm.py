@@ -244,6 +244,20 @@ class SubscriptionORM(Base):
     gateway_subscription_id: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
+class PaymentMethodORM(Base):
+    """A saved payment method for an organisation (gateway-hosted in production)."""
+
+    __tablename__ = "payment_methods"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    org_id: Mapped[str] = mapped_column(String, ForeignKey("organisations.id"), index=True, nullable=False)
+    type: Mapped[str] = mapped_column(String, nullable=False)  # card, paypal, flutterwave, mpesa, bank_transfer, crypto
+    details: Mapped[dict] = mapped_column(JSON, default=dict)  # non-sensitive descriptor (last4, brand, email, ...)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    gateway_payment_method_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class InvoiceORM(Base):
     __tablename__ = "invoices"
 

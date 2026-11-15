@@ -3,10 +3,9 @@
 import React, { useState, useEffect } from "react";
 import { useApp } from "../../../context/AppContext";
 import { Icon } from "../../icons/Icons";
-import PaymentModal from "../../common/PaymentModal";
+import { Checkout } from "../common/checkout/Checkout";
 import { BillingStatusBanner } from "../common/BillingStatusBanner";
 import {
-  payInvoiceApi,
   fetchStudentInvoices,
   fetchStudentUsage,
   type StudentInvoiceResponse,
@@ -32,15 +31,12 @@ function UsageRow({ label, value, sub, color, tint }: { label: string; value: nu
   );
 }
 
-type PayStep = "plan" | "payment-method" | "review" | "confirm" | "receipt";
-
 export function StudentBilling() {
   const { student, session, isApiEnabled, toast } = useApp();
   const [usage, setUsage] = useState<{ application_count: number; overage_apps: number; overage_cents: number; free_limit: number } | null>(null);
   const [invoices, setInvoices] = useState<StudentInvoiceResponse[]>([]);
   const [loading, setLoading] = useState(true);
-  const [paymentModal, setPaymentModal] = useState<{ open: boolean; invoice: StudentInvoiceResponse | null }>({ open: false, invoice: null });
-  const [step, setStep] = useState<PayStep>("plan");
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
 
   useEffect(() => {
     if (!isApiEnabled) {
@@ -54,7 +50,7 @@ export function StudentBilling() {
   const loadData = async () => {
     try {
       const [usageResp, invResp] = await Promise.all([fetchStudentUsage(), fetchStudentInvoices()]);
-      setUsage({ application_count: usageResp.current, overage_apps: Math.max(0, usageResp.current - usageResp.limit), overage_cents: usageResp.overage_cents, free_limit: usageResp.limit });
+      setUsage({ application_count: usageResp.application_count, overage_apps: Math.max(0, usageResp.application_count - usageResp.free_limit), overage_cents: usageResp.overage_cents, free_limit: usageResp.free_limit });
       setInvoices(Array.isArray(invResp) ? invResp : []);
     } catch (e) {
       toast("Failed to load billing data");
@@ -62,20 +58,7 @@ export function StudentBilling() {
   };
 
   const handlePayInvoice = (invoice: StudentInvoiceResponse) => {
-    setPaymentModal({ open: true, invoice });
-    setStep("payment-method");
-  };
-
-  const handlePaymentSuccess = async () => {
-    setPaymentModal({ open: false, invoice: null });
-    setStep("receipt");
-    toast("Payment successful!");
-    await loadData();
-  };
-
-  const handleAddPaymentMethod = () => {
-    setPaymentModal({ open: true, invoice: null });
-    setStep("payment-method");
+    setCheckoutOpen(true);
   };
 
   const used = usage?.application_count ?? 0;
@@ -100,14 +83,12 @@ export function StudentBilling() {
         </div>
       </div>
 
-      {/* Billing status banner — visible step in every dashboard */}
+      {/* Billing status banner */}
       <BillingStatusBanner
         plan="Free"
         status={over > 0 ? "open" : "active"}
-        activeStep={step}
-        onStepClick={setStep}
         overdue={overdue}
-        onUpgrade={handleAddPaymentMethod}
+        onUpgrade={() => setCheckoutOpen(true)}
       />
 
       {/* Application counter — usage meter */}
@@ -195,18 +176,13 @@ export function StudentBilling() {
         </div>
       </div>
 
-      {/* Payment modal — renders whenever open */}
-      {paymentModal.open && (
-        <PaymentModal
-          isOpen={paymentModal.open}
-          onClose={() => setPaymentModal({ open: false, invoice: null })}
-          amount={(paymentModal.invoice?.amount_cents ?? 0)}
-          invoiceId={paymentModal.invoice?.id ?? ""}
-          description={paymentModal.invoice?.description ?? "Application overage"}
-          isStudent
-          initialStep="method"
-          onPaymentSuccess={handlePaymentSuccess}
-          onPaymentCancel={() => setPaymentModal({ open: false, invoice: null })}
+      {/* Checkout (Amazon-style one-page flow) — replaces the old PaymentModal/stepper */}
+      {checkoutOpen && (
+        <Checkout
+          onClose={() => {
+            setCheckoutOpen(false);
+            loadData();
+          }}
         />
       )}
     </div>

@@ -124,8 +124,8 @@ export function AdminBilling() {
         </div>
       </div>
 
-      {/* Billing status banner — visible step in every dashboard */}
-      <BillingStatusBanner plan="All plans" status={overdue ? "open" : "active"} activeStep="receipt" overdue={overdue} />
+      {/* Billing status banner */}
+      <BillingStatusBanner plan="All plans" status={overdue ? "open" : "active"} overdue={overdue} />
 
       {/* Revenue overview KPI strip */}
       <div className="kpis" style={{ marginBottom: "22px" }}>

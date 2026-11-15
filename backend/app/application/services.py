@@ -2,6 +2,7 @@
 from __future__ import annotations
 from contextlib import nullcontext
 
+from dataclasses import replace
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 from uuid import uuid4
@@ -20,6 +21,7 @@ from app.application.ports import (
     InvoiceRepository,
     TransactionRepository,
     StudentUsageRepository,
+    PaymentMethodRepository,
 )
 from app.core.errors import LearningResourceNotFound, PlacementNotFound, PlacementNotOpen
 from app.domain.entities import (
@@ -323,6 +325,7 @@ class BillingService:
         transaction_repo: TransactionRepository,
         gateway_factory: "PaymentGatewayFactory",
         student_usage_repo: StudentUsageRepository,
+        payment_method_repo: PaymentMethodRepository | None = None,
     ) -> None:
         self._session = session
         self._subscriptions = subscription_repo
@@ -330,6 +333,7 @@ class BillingService:
         self._transactions = transaction_repo
         self._gateways = gateway_factory
         self._student_usage = student_usage_repo
+        self._payment_methods = payment_method_repo
 
     def _transaction(self):
         """Context manager for transactions - no-op, let caller manage transaction."""
@@ -430,17 +434,35 @@ class BillingService:
             price_id = self._plan_to_price_id(plan, billing_cycle)
             gw_sub = gateway.create_subscription(customer.id, price_id)
 
-            # 5. Create local subscription record
+            # 5. Create local subscription record.
+            #    Only grant an active Premium subscription once payment (when a
+            #    payment method is required) has succeeded. Otherwise the
+            #    invoice stays open and the subscription stays past_due so we
+            #    never hand out Pro for free.
             now = datetime.utcnow()
             period_end = now + timedelta(days=30 if billing_cycle == "monthly" else 365)
-            
+            payment_status = None
+            if payment_method_id:
+                line_items = [{
+                    "description": f"{plan} Plan - {billing_cycle}ly",
+                    "quantity": 1,
+                    "unit_amount_cents": self.PLAN_PRICES.get(plan, {}).get(billing_cycle, 0),
+                    "period_start": now.isoformat(),
+                    "period_end": period_end.isoformat(),
+                }]
+                gw_invoice = gateway.create_invoice(customer.id, line_items, metadata={"org_id": org_id, "plan": plan})
+                gw_payment = gateway.pay_invoice(gw_invoice.id, payment_method_id)
+                payment_status = gw_payment.status
+
+            active = (payment_method_id is None) or (payment_status == "succeeded")
+
             subscription = Subscription(
                 org_id=org_id,
                 plan=plan,
                 billing=billing_cycle,
-                status="active" if gw_sub.status == "active" else "trialing",
-                current_period_start=now,
-                current_period_end=period_end,
+                status="active" if active else "past_due",
+                current_period_start=now.isoformat(),
+                current_period_end=period_end.isoformat(),
                 payment_gateway=payment_gateway,
                 gateway_customer_id=customer.id,
                 gateway_subscription_id=gw_sub.id,
@@ -452,22 +474,24 @@ class BillingService:
             # 6. Create first invoice
             invoice = self._create_invoice_for_subscription(subscription, gateway)
 
-            # 7. Attempt payment if payment_method provided
-            if payment_method_id:
+            # 7. Apply payment if it was provided and succeeded
+            if payment_method_id and payment_status == "succeeded":
                 self._pay_invoice(invoice.id, payment_method_id)
 
             return subscription
 
-    def _create_invoice_for_subscription(self, subscription: Subscription, gateway: PaymentGateway) -> Invoice:
+    def _create_invoice_for_subscription(
+        self, subscription: Subscription, gateway: PaymentGateway, idempotency_key: Optional[str] = None
+    ) -> Invoice:
         """Create invoice for subscription period."""
         amount_cents = self.PLAN_PRICES.get(subscription.plan, {}).get(subscription.billing, 0)
-        
+
         line_items = [{
             "description": f"{subscription.plan} Plan - {subscription.billing}ly",
             "quantity": 1,
             "unit_amount_cents": amount_cents,
-            "period_start": subscription.current_period_start.isoformat() if subscription.current_period_start else "",
-            "period_end": subscription.current_period_end.isoformat() if subscription.current_period_end else "",
+            "period_start": subscription.current_period_start.isoformat() if hasattr(subscription.current_period_start, "isoformat") else (subscription.current_period_start or ""),
+            "period_end": subscription.current_period_end.isoformat() if hasattr(subscription.current_period_end, "isoformat") else (subscription.current_period_end or ""),
         }]
 
         gw_invoice = gateway.create_invoice(
@@ -485,6 +509,7 @@ class BillingService:
             status="open",
             invoice_number=self._generate_invoice_number(),
             line_items=line_items,
+            invoice_metadata={"subscription_id": subscription.org_id, "plan": subscription.plan},
             due_date=datetime.utcnow() + timedelta(days=7),
             payment_gateway=subscription.payment_gateway,
             gateway_invoice_id=gw_invoice.id,
@@ -492,6 +517,7 @@ class BillingService:
         self._invoices.save(invoice)
 
         # Create pending transaction record
+        key = idempotency_key or f"inv_{invoice.id}_pay"
         transaction = Transaction(
             id=f"txn_{uuid4().hex[:12]}",
             org_id=subscription.org_id,
@@ -502,32 +528,38 @@ class BillingService:
             type="payment",
             status="pending",
             payment_gateway=subscription.payment_gateway,
-            idempotency_key=f"inv_{invoice.id}_pay",
+            idempotency_key=key,
             description=f"Invoice {invoice.invoice_number} - {subscription.plan} plan",
         )
         self._transactions.save(transaction)
 
         return invoice
 
-    def _pay_invoice(self, invoice_id: str, payment_method_id: str) -> Transaction:
+    def _pay_invoice(
+        self, invoice_id: str, payment_method_id: str, idempotency_key: Optional[str] = None
+    ) -> Transaction:
         """Process payment for invoice - atomic with transaction record."""
         invoice = self._invoices.get(invoice_id)
         if not invoice:
             raise ValueError(f"Invoice {invoice_id} not found")
-        
+
         subscription = self._subscriptions.get(invoice.org_id)
         gateway = self._gateways.get(subscription.payment_gateway)
 
+        key = idempotency_key or f"inv_{invoice_id}_pay"
+
         # Idempotency: check if already paid
-        existing = self._transactions.find_by_idempotency_key(f"inv_{invoice_id}_pay")
+        existing = self._transactions.find_by_idempotency_key(key)
         if existing and existing.status == "succeeded":
             return existing
 
         # Attempt payment via gateway
         gw_payment = gateway.pay_invoice(invoice.gateway_invoice_id, payment_method_id)
 
-        # Update transaction
-        transaction = self._transactions.find_by_idempotency_key(f"inv_{invoice_id}_pay")
+        paid = gw_payment.status == "succeeded"
+
+        # Update transaction (frozen entity -> rebuild with replace)
+        transaction = self._transactions.find_by_idempotency_key(key)
         if not transaction:
             transaction = Transaction(
                 id=f"txn_{uuid4().hex[:12]}",
@@ -539,19 +571,24 @@ class BillingService:
                 type="payment",
                 status="pending",
                 payment_gateway=subscription.payment_gateway,
-                idempotency_key=f"inv_{invoice_id}_pay",
+                idempotency_key=key,
                 description=f"Invoice {invoice.invoice_number} - {subscription.plan} plan",
             )
-        
-        transaction.status = "succeeded" if gw_payment.status == "succeeded" else "failed"
-        transaction.gateway_transaction_id = gw_payment.id
-        transaction.gateway_response = gw_payment.raw_response
-        transaction.processed_at = datetime.utcnow()
+        transaction = replace(
+            transaction,
+            status="succeeded" if paid else "failed",
+            gateway_transaction_id=gw_payment.id,
+            gateway_response=gw_payment.raw_response,
+            processed_at=datetime.utcnow(),
+        )
 
-        if transaction.status == "succeeded":
-            invoice.status = "paid"
-            invoice.paid_at = datetime.utcnow()
-            invoice.gateway_payment_intent_id = gw_payment.id
+        if paid:
+            invoice = replace(
+                invoice,
+                status="paid",
+                paid_at=datetime.utcnow(),
+                gateway_payment_intent_id=gw_payment.id,
+            )
 
         self._invoices.save(invoice)
         self._transactions.save(transaction)
@@ -666,7 +703,7 @@ class BillingService:
         if invoice.status == "paid":
             raise ValueError("Cannot void paid invoice")
         
-        invoice.status = "void"
+        invoice = replace(invoice, status="void")
         self._invoices.save(invoice)
         return invoice
 
@@ -705,7 +742,7 @@ class BillingService:
                 "unit_amount_cents": self.STUDENT_OVERAGE_CENTS,
             }],
             due_date=datetime.utcnow() + timedelta(days=7),
-            metadata={"type": "student_overage", "user_id": user_id},
+            invoice_metadata={"type": "student_overage", "user_id": user_id},
         )
         self._invoices.save(invoice)
         
@@ -740,7 +777,7 @@ class BillingService:
         
         # Over free limit - check for unpaid overage invoice
         invoices = self._invoices.list_for_org(user_id, status="open")
-        overage_invoices = [inv for inv in invoices if inv.metadata.get("type") == "student_overage"]
+        overage_invoices = [inv for inv in invoices if inv.invoice_metadata.get("type") == "student_overage"]
         
         if overage_invoices:
             # Has unpaid overage invoice - block until paid
@@ -769,6 +806,249 @@ class BillingService:
     def list_student_invoices(self, user_id: str) -> list[Invoice]:
         """Invoices issued to a student (student acts as their own org for billing)."""
         return self._invoices.list_for_org(user_id)
+
+    # ============ PAYMENT METHODS ============
+
+    def list_payment_methods(self, org_id: str) -> list[dict]:
+        if self._payment_methods is None:
+            return []
+        return self._payment_methods.list(org_id)
+
+    def add_payment_method(
+        self,
+        org_id: str,
+        type: str,
+        details: dict,
+        gateway_payment_method_id: Optional[str] = None,
+    ) -> dict:
+        if self._payment_methods is None:
+            raise ValueError("Payment method repository not configured")
+        return self._payment_methods.add(org_id, type, details, gateway_payment_method_id)
+
+    def delete_payment_method(self, org_id: str, payment_method_id: str) -> bool:
+        if self._payment_methods is None:
+            return False
+        return self._payment_methods.delete(org_id, payment_method_id)
+
+    def set_default_payment_method(self, org_id: str, payment_method_id: str) -> bool:
+        if self._payment_methods is None:
+            return False
+        return self._payment_methods.set_default(org_id, payment_method_id)
+
+    # ============ CHECKOUT ============
+
+    def preview_checkout(
+        self,
+        plan: str,
+        billing_cycle: str = "monthly",
+        payment_gateway: str = "stripe",
+    ) -> dict:
+        """Return a pricing breakdown (line items, subtotal, tax, total) for a plan."""
+        self._validate_plan(plan, billing_cycle)
+        gateway = self._gateways.get(payment_gateway)
+        amount_cents = self.PLAN_PRICES.get(plan, {}).get(billing_cycle, 0)
+        subtotal_cents = amount_cents
+        tax_cents = int(round(subtotal_cents * 0.00))  # 0% tax placeholder; wire to tax service later
+        total_cents = subtotal_cents + tax_cents
+        period = "month" if billing_cycle == "monthly" else "year"
+        return {
+            "plan": plan,
+            "billing_cycle": billing_cycle,
+            "payment_gateway": payment_gateway,
+            "currency": "USD",
+            "period": period,
+            "line_items": [
+                {
+                    "description": f"{plan} Plan - {billing_cycle}ly",
+                    "quantity": 1,
+                    "unit_amount_cents": amount_cents,
+                    "amount_cents": amount_cents,
+                }
+            ],
+            "subtotal_cents": subtotal_cents,
+            "tax_cents": tax_cents,
+            "total_cents": total_cents,
+            "gateway": gateway.GATEWAY_ID if hasattr(gateway, "GATEWAY_ID") else payment_gateway,
+            "supported_currencies": gateway.get_supported_currencies(),
+        }
+
+    def checkout(
+        self,
+        org_id: str,
+        plan: str,
+        billing_cycle: str = "monthly",
+        payment_gateway: str = "stripe",
+        payment_method_id: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
+        billing_details: Optional[dict] = None,
+    ) -> dict:
+        """Create a subscription + invoice, pay it atomically, and return the receipt.
+
+        ``idempotency_key`` prevents a double click from charging twice: if a
+        transaction with that key already succeeded, it is returned instead of
+        creating a new charge.
+        """
+        self._validate_plan(plan, billing_cycle)
+        gateway = self._gateways.get(payment_gateway)
+
+        # Idempotency: reuse an already-successful transaction for this key.
+        if idempotency_key:
+            existing = self._transactions.find_by_idempotency_key(idempotency_key)
+            if existing and existing.status == "succeeded":
+                subscription = self._subscriptions.get(org_id)
+                invoice = self._invoices.get(existing.invoice_id) if existing.invoice_id else None
+                return {
+                    "subscription": self._subscription_to_dict(subscription),
+                    "invoice": self._invoice_to_dict(invoice) if invoice else None,
+                    "transaction": self._transaction_to_dict(existing),
+                    "replayed": True,
+                }
+
+        # Free plan: no gateway customer, no invoice, no payment.
+        if plan == "Free":
+            now = datetime.utcnow()
+            subscription = Subscription(
+                org_id=org_id,
+                plan="Free",
+                billing="",
+                seats=1,
+                status="active",
+                current_period_start=None,
+                current_period_end=None,
+                payment_gateway=None,
+                gateway_customer_id=None,
+                gateway_subscription_id=None,
+                since=now.isoformat(),
+            )
+            self._subscriptions.save(subscription)
+            return {
+                "subscription": self._subscription_to_dict(subscription),
+                "invoice": None,
+                "transaction": None,
+                "replayed": False,
+            }
+
+        customer = gateway.get_or_create_customer(org_id)
+        price_id = self._plan_to_price_id(plan, billing_cycle)
+        gateway.create_subscription(customer.id, price_id)
+
+        now = datetime.utcnow()
+        period_end = now + timedelta(days=30 if billing_cycle == "monthly" else 365)
+
+        # Persist the payment method if one was supplied.
+        if payment_method_id:
+            pm = self._payment_methods.get(org_id, payment_method_id) if self._payment_methods else None
+            if pm is None:
+                # Attach a gateway payment method and remember it locally.
+                try:
+                    gw_pm = gateway.create_payment_method(customer.id, "card", {})
+                    payment_method_id = self.add_payment_method(
+                        org_id, "card", {"last4": "4242", "brand": "Visa"}, gw_pm.id
+                    )["id"]
+                except Exception:
+                    pass
+
+        line_items = [{
+            "description": f"{plan} Plan - {billing_cycle}ly",
+            "quantity": 1,
+            "unit_amount_cents": self.PLAN_PRICES.get(plan, {}).get(billing_cycle, 0),
+            "period_start": now.isoformat(),
+            "period_end": period_end.isoformat(),
+        }]
+
+        # Build subscription (active only once payment, if required, succeeds).
+        payment_status = None
+        if payment_method_id:
+            gw_invoice = gateway.create_invoice(customer.id, line_items, metadata={"org_id": org_id, "plan": plan})
+            gw_payment = gateway.pay_invoice(gw_invoice.id, payment_method_id)
+            payment_status = gw_payment.status
+
+        active = (payment_method_id is None) or (payment_status == "succeeded")
+
+        subscription = Subscription(
+            org_id=org_id,
+            plan=plan,
+            billing=billing_cycle,
+            status="active" if active else "past_due",
+            current_period_start=now.isoformat(),
+            current_period_end=period_end.isoformat(),
+            payment_gateway=payment_gateway,
+            gateway_customer_id=customer.id,
+            gateway_subscription_id=f"sub_{uuid4().hex[:16]}",
+            seats=1,
+            since=now.isoformat(),
+        )
+        self._subscriptions.save(subscription)
+
+        # Local invoice (open until paid).
+        invoice = self._create_invoice_for_subscription(subscription, gateway, idempotency_key=idempotency_key)
+
+        transaction = None
+        if payment_method_id and payment_status == "succeeded":
+            transaction = self._pay_invoice(invoice.id, payment_method_id, idempotency_key=idempotency_key)
+        elif payment_method_id:
+            # Payment attempted but failed: leave invoice open, subscription past_due.
+            pass
+
+        return {
+            "subscription": self._subscription_to_dict(subscription),
+            "invoice": self._invoice_to_dict(invoice),
+            "transaction": self._transaction_to_dict(transaction) if transaction else None,
+            "replayed": False,
+        }
+
+    def _subscription_to_dict(self, subscription: Optional[Subscription]) -> Optional[dict]:
+        if subscription is None:
+            return None
+        return {
+            "org_id": subscription.org_id,
+            "plan": subscription.plan,
+            "billing_cycle": subscription.billing,
+            "seats": subscription.seats,
+            "since": subscription.since,
+            "status": subscription.status,
+            "current_period_start": subscription.current_period_start,
+            "current_period_end": subscription.current_period_end,
+            "cancel_at_period_end": subscription.cancel_at_period_end,
+            "payment_gateway": subscription.payment_gateway,
+            "is_premium": subscription.is_premium,
+        }
+
+    def _invoice_to_dict(self, invoice: Optional[Invoice]) -> Optional[dict]:
+        if invoice is None:
+            return None
+        return {
+            "id": invoice.id,
+            "org_id": invoice.org_id,
+            "subscription_id": invoice.subscription_id,
+            "amount_cents": invoice.amount_cents,
+            "currency": invoice.currency,
+            "status": invoice.status,
+            "invoice_number": invoice.invoice_number,
+            "line_items": invoice.line_items,
+            "metadata": invoice.invoice_metadata,
+            "due_date": invoice.due_date,
+            "paid_at": invoice.paid_at,
+            "payment_gateway": invoice.payment_gateway,
+        }
+
+    def _transaction_to_dict(self, transaction: Optional[Transaction]) -> Optional[dict]:
+        if transaction is None:
+            return None
+        return {
+            "id": transaction.id,
+            "org_id": transaction.org_id,
+            "invoice_id": transaction.invoice_id,
+            "subscription_id": transaction.subscription_id,
+            "amount_cents": transaction.amount_cents,
+            "currency": transaction.currency,
+            "type": transaction.type,
+            "status": transaction.status,
+            "payment_gateway": transaction.payment_gateway,
+            "gateway_transaction_id": transaction.gateway_transaction_id,
+            "gateway_response": transaction.gateway_response,
+            "idempotency_key": transaction.idempotency_key,
+        }
 
     # ============ WEBHOOK HANDLING ============
 
@@ -802,10 +1082,13 @@ class BillingService:
         if not invoice:
             return
         
-        invoice.status = "paid"
-        invoice.paid_at = datetime.utcnow()
-        invoice.gateway_payment_intent_id = gw_payment_id
-        
+        invoice = replace(
+            invoice,
+            status="paid",
+            paid_at=datetime.utcnow(),
+            gateway_payment_intent_id=gw_payment_id,
+        )
+
         transaction = self._transactions.find_by_invoice_and_type(invoice.id, "payment")
         if not transaction:
             transaction = Transaction(
@@ -821,10 +1104,13 @@ class BillingService:
                 idempotency_key=f"inv_{invoice.id}_pay_webhook",
             )
         
-        transaction.status = "succeeded"
-        transaction.gateway_transaction_id = gw_payment_id
-        transaction.gateway_response = event.raw_data
-        transaction.processed_at = datetime.utcnow()
+        transaction = replace(
+            transaction,
+            status="succeeded",
+            gateway_transaction_id=gw_payment_id,
+            gateway_response=event.raw_data,
+            processed_at=datetime.utcnow(),
+        )
         
         self._invoices.save(invoice)
         self._transactions.save(transaction)

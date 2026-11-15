@@ -3,15 +3,13 @@
 import React, { useState, useEffect } from "react";
 import { useApp } from "../../../context/AppContext";
 import { Icon } from "../../icons/Icons";
-import PaymentModal from "../../common/PaymentModal";
+import { Checkout } from "../common/checkout/Checkout";
 import { BillingStatusBanner } from "../common/BillingStatusBanner";
 import {
-  payInvoiceApi,
   fetchInvoices,
   fetchTransactions,
   fetchGateways,
   fetchSubscription,
-  createSubscriptionApi,
   cancelSubscriptionApi,
   resumeSubscriptionApi,
   type InvoiceResponse,
@@ -35,8 +33,6 @@ function getLimit(plan: string) {
   return PLAN_PRICES[plan]?.limit ?? 3;
 }
 
-type PayStep = "plan" | "payment-method" | "review" | "confirm" | "receipt";
-
 export function EmployerBilling() {
   const { student, isApiEnabled, toast } = useApp();
   const [invoices, setInvoices] = useState<InvoiceResponse[]>([]);
@@ -44,9 +40,7 @@ export function EmployerBilling() {
   const [gateways, setGateways] = useState<GatewayOption[]>([]);
   const [subscription, setSubscription] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [paymentModal, setPaymentModal] = useState<{ open: boolean; invoice: InvoiceResponse | null }>({ open: false, invoice: null });
-  const [step, setStep] = useState<PayStep>("plan");
-  const [upgrading, setUpgrading] = useState<string | null>(null);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [canceling, setCanceling] = useState(false);
   const [resuming, setResuming] = useState(false);
 
@@ -76,17 +70,7 @@ export function EmployerBilling() {
   };
 
   const handleUpgrade = async (plan: "Pro" | "Enterprise", billingCycle: "monthly" | "annual") => {
-    if (!gateways.length) return;
-    const gateway = gateways[0].id;
-    setUpgrading(plan);
-    try {
-      const created = await createSubscriptionApi(plan, billingCycle, gateway);
-      setSubscription(created);
-      setStep("receipt");
-      toast(`${plan} plan activated (${billingCycle})`);
-      await loadData();
-    } catch (e: any) { toast(e?.message || "Upgrade failed"); }
-    finally { setUpgrading(null); }
+    setCheckoutOpen(true);
   };
 
   const handleCancel = async () => {
@@ -111,20 +95,7 @@ export function EmployerBilling() {
   };
 
   const handlePayInvoice = (invoice: InvoiceResponse) => {
-    setPaymentModal({ open: true, invoice });
-    setStep("payment-method");
-  };
-
-  const handlePaymentSuccess = async () => {
-    setPaymentModal({ open: false, invoice: null });
-    setStep("receipt");
-    toast("Payment successful!");
-    await loadData();
-  };
-
-  const handleAddPaymentMethod = () => {
-    setPaymentModal({ open: true, invoice: null });
-    setStep("payment-method");
+    setCheckoutOpen(true);
   };
 
   const subPlan = subscription?.plan || "Free";
@@ -148,17 +119,12 @@ export function EmployerBilling() {
         </div>
       </div>
 
-      {/* Billing status banner — visible step in every dashboard */}
+      {/* Billing status banner */}
       <BillingStatusBanner
         plan={subPlan}
         status={subStatus}
-        activeStep={step}
-        onStepClick={setStep}
         overdue={overdue}
-        onUpgrade={() => {
-          setStep("plan");
-          setPaymentModal({ open: true, invoice: null });
-        }}
+        onUpgrade={() => setCheckoutOpen(true)}
       />
 
       {/* Current plan */}
@@ -181,8 +147,8 @@ export function EmployerBilling() {
             <div style={{ display: "flex", flexDirection: "column", gap: "10px", minWidth: "180px", flexShrink: 0 }}>
               {subPlan === "Free" ? (
                 <>
-                  <button className="btn btn-sm btn-blue" onClick={() => handleUpgrade("Pro", "monthly")} disabled={upgrading === "Pro"} style={{ width: "100%", fontWeight: 700, fontSize: "11.5px" }}>{upgrading === "Pro" ? "Activating…" : "Upgrade to Pro — $30/mo"}</button>
-                  <button className="btn btn-sm btn-ghost" onClick={() => handleUpgrade("Pro", "annual")} disabled={upgrading === "Pro"} style={{ width: "100%", fontWeight: 700, fontSize: "11.5px" }}>{upgrading === "Pro" ? "Upgrading…" : "Upgrade to Pro — $300/yr (save 17%)"}</button>
+                  <button className="btn btn-sm btn-blue" onClick={() => handleUpgrade("Pro", "monthly")} style={{ width: "100%", fontWeight: 700, fontSize: "11.5px" }}>Upgrade to Pro — $30/mo</button>
+                  <button className="btn btn-sm btn-ghost" onClick={() => handleUpgrade("Pro", "annual")} style={{ width: "100%", fontWeight: 700, fontSize: "11.5px" }}>Upgrade to Pro — $300/yr (save 17%)</button>
                 </>
               ) : subPlan === "Pro" ? (
                 <>
@@ -191,7 +157,7 @@ export function EmployerBilling() {
                   ) : (
                     <button className="btn btn-sm btn-ghost" onClick={handleCancel} disabled={subStatus === "cancelled" || canceling} style={{ width: "100%", fontWeight: 700, fontSize: "11.5px" }}>{canceling ? "Cancelling…" : "Cancel at period end"}</button>
                   )}
-                  <button className="btn btn-sm btn-blue" onClick={() => handleUpgrade("Enterprise", "monthly")} disabled={upgrading === "Enterprise"} style={{ width: "100%", fontWeight: 700, fontSize: "11.5px" }}>{upgrading === "Enterprise" ? "Upgrading…" : "Upgrade to Enterprise"}</button>
+                  <button className="btn btn-sm btn-blue" onClick={() => handleUpgrade("Enterprise", "monthly")} style={{ width: "100%", fontWeight: 700, fontSize: "11.5px" }}>Upgrade to Enterprise</button>
                 </>
               ) : (
                 <button className="btn btn-sm btn-ghost" disabled style={{ width: "100%", fontWeight: 700, fontSize: "11.5px" }}>Enterprise plan active</button>
@@ -240,7 +206,7 @@ export function EmployerBilling() {
                 <span style={{ fontSize: "10px", color: "var(--muted)", fontFamily: "var(--mono)", textTransform: "uppercase", letterSpacing: "0.1em" }}>{g.currencies.join(", ")}</span>
               </div>
             )) : (<span className="lbl blue" style={{ fontSize: "11px", fontWeight: 700 }}>None connected</span>)}
-            <button type="button" className="btn btn-sm btn-blue" onClick={handleAddPaymentMethod} style={{ width: "fit-content", fontWeight: 700, fontSize: "11.5px" }}><Icon name="plus" size={12} /> Add payment method</button>
+            <button type="button" className="btn btn-sm btn-blue" onClick={() => setCheckoutOpen(true)} style={{ width: "fit-content", fontWeight: 700, fontSize: "11.5px" }}><Icon name="plus" size={12} /> Add payment method</button>
           </div>
           <p style={{ fontSize: "12px", color: "var(--ink-2)", marginTop: "14px", fontWeight: 500 }}>Payment methods are managed via the payment gateway's portal. Click "Pay now" on an open invoice to add a method.</p>
         </div>
@@ -325,18 +291,13 @@ export function EmployerBilling() {
         </div>
       </div>
 
-      {/* Payment modal — renders whenever open, regardless of invoice */}
-      {paymentModal.open && (
-        <PaymentModal
-          isOpen={paymentModal.open}
-          onClose={() => setPaymentModal({ open: false, invoice: null })}
-          amount={(paymentModal.invoice?.amount_cents ?? 0)}
-          invoiceId={paymentModal.invoice?.id ?? ""}
-          description={paymentModal.invoice?.description ?? "Invoice payment"}
-          currency="USD"
-          initialStep="method"
-          onPaymentSuccess={handlePaymentSuccess}
-          onPaymentCancel={() => setPaymentModal({ open: false, invoice: null })}
+      {/* Checkout (Amazon-style one-page flow) — replaces the old PaymentModal/stepper */}
+      {checkoutOpen && (
+        <Checkout
+          onClose={() => {
+            setCheckoutOpen(false);
+            loadData();
+          }}
         />
       )}
     </div>
