@@ -83,7 +83,8 @@ function ApplicationDetail({ application }: { application: ApplicationDto }) {
           </section>
         )}
 
-        {application.academic_papers?.length && (
+        {/* `?.length && …` renders a literal 0 when the list is empty. */}
+        {(application.academic_papers?.length ?? 0) > 0 && (
           <section style={{ border: "1px solid var(--rule)", borderRadius: "var(--r-md)", padding: "16px" }}>
             <h4 className="lbl" style={{ marginBottom: "8px" }}>Academic Papers</h4>
             <ul style={{ display: "grid", gap: "6px" }}>
@@ -128,7 +129,7 @@ function ApplicationDetail({ application }: { application: ApplicationDto }) {
           </section>
         )}
 
-        {application.document_ids?.length && (
+        {(application.document_ids?.length ?? 0) > 0 && (
           <section style={{ border: "1px solid var(--rule)", borderRadius: "var(--r-md)", padding: "16px" }}>
             <h4 className="lbl" style={{ marginBottom: "8px" }}>Additional Documents</h4>
             <ul style={{ display: "grid", gap: "6px" }}>
@@ -179,10 +180,10 @@ export function StudentApplications() {
             const canWithdrawApp = canWithdraw(application.status);
             return (
               <div key={application.id} style={{ border: "1px solid var(--rule)", borderRadius: "var(--r-md)", overflow: "hidden" }}>
-                <div
+                <button
+                  type="button"
                   className="dashboard-recommendation"
                   onClick={() => setExpandedId(isExpanded ? null : application.id)}
-                  style={{ cursor: "pointer" }}
                 >
                   <span>
                     <b>{placement?.title || "Internship application"}</b>
@@ -196,7 +197,7 @@ export function StudentApplications() {
                       <Icon name={isExpanded ? "chevron-up" : "chevron-down"} size={13} />
                     </span>
                   </span>
-                </div>
+                </button>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderTop: "1px solid var(--rule)", background: "var(--paper-2)" }}>
                   <span style={{ fontSize: "12px", color: "var(--muted)" }}>
                     {application.updated_at && application.updated_at !== application.created_at
@@ -234,16 +235,6 @@ export function StudentApplications() {
                         )}
                       </button>
                     )}
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-ghost"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setExpandedId(isExpanded ? null : application.id);
-                      }}
-                    >
-                      <Icon name={isExpanded ? "chevron-up" : "chevron-down"} size={13} />
-                    </button>
                   </div>
                 </div>
                 {isExpanded && (

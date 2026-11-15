@@ -86,6 +86,10 @@ export function StudentOverview() {
     );
   }
   const firstName = (session?.name || "").trim().split(/\s+/)[0];
+  // The header said "Good morning" all day. Computed after the loading guard
+  // above, so the server render never disagrees with the client.
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const currentApplication = applications[0];
   const currentPlacement = currentApplication
     ? getPlacement(currentApplication.placement_id)
@@ -102,7 +106,7 @@ export function StudentOverview() {
     <>
       <div className="dpane-h">
         <div>
-          <h2>{firstName ? `Good morning, ${firstName}` : "Good morning"}</h2>
+          <h2>{firstName ? `${greeting}, ${firstName}` : greeting}</h2>
           <p>
             {applications.length} live application{applications.length === 1 ? "" : "s"} ·{" "}
             {matches.length} recommended internship{matches.length === 1 ? "" : "s"}
