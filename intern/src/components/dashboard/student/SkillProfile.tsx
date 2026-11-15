@@ -202,20 +202,8 @@ export function SkillProfile() {
         }}
       >
         <div style={{ flex: 1, minWidth: "280px" }}>
-          <h1
-            style={{
-              fontWeight: 800,
-              fontSize: "32px",
-              marginBottom: "8px",
-              color: "var(--ink)",
-              letterSpacing: "-0.5px",
-            }}
-          >
-            Skills profile
-          </h1>
-          <p style={{ color: "var(--ink-2)", fontSize: "15px", fontWeight: 500 }}>
-            Evidence-backed skills that drive every match score
-          </p>
+          <h2>Skills profile</h2>
+          <p>Evidence-backed skills that drive every match score</p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <div

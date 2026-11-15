@@ -90,18 +90,8 @@ export function StudentDocs() {
         borderBottom: "2px solid var(--rule)",
       }}>
         <div style={{ flex: 1, minWidth: "280px" }}>
-          <h1 style={{ 
-            fontWeight: 800, 
-            fontSize: "32px", 
-            marginBottom: "8px",
-            color: "var(--ink)",
-            letterSpacing: "-0.5px",
-          }}>
-            Documents
-          </h1>
-          <p style={{ color: "var(--ink-2)", fontSize: "15px", fontWeight: 500 }}>
-            Transcripts, IDs, recommendation letters and testimonials
-          </p>
+          <h2>Documents</h2>
+          <p>Transcripts, IDs, recommendation letters and testimonials</p>
         </div>
         
         {/* Progress indicator */}
