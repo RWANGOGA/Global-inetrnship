@@ -137,6 +137,10 @@ svg{display:block}
 .btn-block{width:100%}
 .btn-ghost{border-color:transparent}
 .btn-ghost:hover{background:var(--paper-2);border-color:transparent;color:var(--ink)}
+/* Without this a disabled button looked identical to an idle one. */
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn:disabled:hover{background:transparent;color:var(--ink);border-color:var(--rule-2)}
+.btn-solid:disabled:hover,.btn-blue:disabled:hover,.btn-green:disabled:hover{background:inherit;border-color:inherit;color:inherit}
 
 .tg{
   display:inline-flex;align-items:center;gap:6px;padding:4px 10px;
@@ -343,6 +347,14 @@ nav[aria-label="Primary"]{display:flex}
 .doclist{display:flex;gap:6px;flex-wrap:wrap}
 .doc{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1px dashed var(--rule-2);border-radius:var(--r-pill);font-size:10.5px;color:var(--ink-2)}
 .reqfoot{display:flex;justify-content:space-between;align-items:center;padding-top:14px}
+/* Requirements pane: two-up on desktop, one-up below 700px. Panes that need a
+   bespoke split (the testimony forms) still pass their own inline template.
+   400px keeps the cards at two per row inside the dashboard pane rather than
+   letting a wide monitor squeeze them into three narrow columns. */
+.reqgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:18px;align-items:start}
+.reqcard .org{font-size:11px;color:var(--muted);margin-top:3px}
+.reqcard .doclist .muted,.reqrow .muted{font-size:11px;color:var(--muted)}
+@media (max-width:700px){.reqgrid{grid-template-columns:1fr}}
 
 /* placements table */
 .ptable{border-top:1px solid var(--rule)}
