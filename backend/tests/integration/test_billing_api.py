@@ -252,6 +252,40 @@ def test_student_plus_checkout_is_idempotent_and_updates_allowance(client: TestC
     assert usage["checkout_enabled"] is True
 
 
+def test_student_checkout_records_flutterwave_for_admin_audit(client: TestClient):
+    headers = _login(client, STUDENT)
+    user_id = client.get("/auth/me", headers=headers).json()["id"]
+    checkout = client.post(
+        "/billing/student/checkout",
+        json={
+            "billing_email": STUDENT,
+            "idempotency_key": f"student-flutterwave-{user_id}",
+            "terms_accepted": True,
+            "payment_gateway": "flutterwave",
+        },
+        headers=headers,
+    )
+    assert checkout.status_code == 200, checkout.text
+    result = checkout.json()
+    assert result["invoice"]["payment_gateway"] == "flutterwave"
+    assert result["transaction"]["payment_gateway"] == "flutterwave"
+    assert result["transaction"]["user_id"] == user_id
+
+    admin_headers = _login(client, ADMIN)
+    transactions = client.get("/billing/admin/transactions", headers=admin_headers)
+    assert transactions.status_code == 200
+    tracked = next(
+        item for item in transactions.json()
+        if item["id"] == result["transaction"]["id"]
+    )
+    assert tracked["user_id"] == user_id
+    assert tracked["payment_gateway"] == "flutterwave"
+    assert tracked["gateway_transaction_id"]
+
+    invoices = client.get("/billing/admin/invoices", headers=admin_headers)
+    assert any(item["id"] == result["invoice"]["id"] for item in invoices.json())
+
+
 def test_student_plus_limit_cancellation_and_resume(client: TestClient, session):
     from app.presentation.deps import get_billing_service
 
@@ -364,6 +398,44 @@ def test_student_overage_invoice_is_owned_payable_and_not_double_billed(client: 
     updated = client.get("/billing/student/invoices", headers=headers).json()
     assert len(updated) == 2
     assert all(item["amount_cents"] == service.STUDENT_OVERAGE_CENTS for item in updated)
+
+
+def test_student_can_pay_overage_invoice_with_flutterwave_and_admin_sees_it(client: TestClient, session):
+    from app.presentation.deps import get_billing_service
+
+    headers = _login(client, STUDENT)
+    user_id = client.get("/auth/me", headers=headers).json()["id"]
+    service = get_billing_service(session)
+    for _ in range(service.STUDENT_FREE_APPS + 1):
+        service.record_student_application(user_id)
+
+    invoice = client.get("/billing/student/invoices", headers=headers).json()[0]
+    payment = client.post(
+        f"/billing/student/invoices/{invoice['id']}/pay",
+        json={
+            "payment_method_id": "sandbox-student-card",
+            "payment_gateway": "flutterwave",
+            "terms_accepted": True,
+        },
+        headers=headers,
+    )
+    assert payment.status_code == 200, payment.text
+    assert payment.json()["status"] == "succeeded"
+    assert payment.json()["payment_gateway"] == "flutterwave"
+    assert payment.json()["user_id"] == user_id
+
+    admin_headers = _login(client, ADMIN)
+    transactions = client.get("/billing/admin/transactions", headers=admin_headers).json()
+    tracked = next(item for item in transactions if item["id"] == payment.json()["id"])
+    assert tracked["user_id"] == user_id
+    assert tracked["payment_gateway"] == "flutterwave"
+    assert tracked["gateway_transaction_id"]
+
+    updated_invoice = next(
+        item for item in client.get("/billing/student/invoices", headers=headers).json()
+        if item["id"] == invoice["id"]
+    )
+    assert updated_invoice["payment_gateway"] == "flutterwave"
 
 
 def test_admin_billing_defaults_to_recent_period_and_lists_all_records(client: TestClient):
