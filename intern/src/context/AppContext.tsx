@@ -195,6 +195,7 @@ interface AppContextType {
   metaReady: boolean;
   student: Student;
   docs: DocItem[];
+  documentsStatus: "idle" | "loading" | "ready" | "error";
   adminQueue: AdminQueueItem[];
   activity: ActivityItem[];
   pack: ApplicationPack;
@@ -281,6 +282,7 @@ interface AppContextType {
   uploadDoc: (name: string) => void;
   uploadResumeFile: (file: File) => Promise<void>;
   uploadDocumentFile: (documentType: string, file: File) => Promise<void>;
+  refreshStudentDocuments: () => Promise<void>;
   withdrawApplication: (applicationId: string) => Promise<void>;
   editPack: () => void;
   editPackTargets: () => void;
@@ -368,6 +370,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     skillsSource: {},
   });
   const [docs, setDocs] = useState<DocItem[]>([]);
+  const [documentsStatus, setDocumentsStatus] = useState<
+    "idle" | "loading" | "ready" | "error"
+  >("idle");
   const [adminQueue, setAdminQueue] = useState<AdminQueueItem[]>([]);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [pack, setPack] = useState<ApplicationPack>(INITIAL_PACK);
@@ -456,42 +461,60 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const uploadResumeFile = useCallback(
     async (file: File) => {
       if (!isApiEnabled || !session || role !== "student") {
-        toast("Sign in as a student to upload a resume.");
-        return;
+        throw new Error("Sign in as a student to upload a resume.");
       }
-      try {
-        const saved = await uploadResume(file);
-        setResume(saved);
-        toast("Resume uploaded and saved.");
-      } catch (error) {
-        toast(error instanceof Error ? error.message : "Resume upload failed.");
-        throw error;
-      }
+      const saved = await uploadResume(file);
+      setResume(saved);
     },
-    [role, session, toast]
+    [role, session]
   );
 
   const uploadDocumentFile = useCallback(
     async (documentType: string, file: File) => {
-      try {
-        const saved = await uploadStudentDocument(documentType, file);
-        setDocs((current) => [
-          ...current.filter((doc) => doc.name !== documentType),
-          {
-            name: documentType,
-            status: saved.status,
-            file: saved.filename,
-            size: `${Math.ceil(saved.size_bytes / 1024)} KB`,
-          },
-        ]);
-        toast(`${documentType} uploaded and pending verification.`);
-      } catch (error) {
-        toast(error instanceof Error ? error.message : "Document upload failed.");
-        throw error;
+      if (!isApiEnabled || !session || role !== "student") {
+        throw new Error("Sign in as a student to upload documents.");
       }
+      const saved = await uploadStudentDocument(documentType, file);
+      setDocs((current) => [
+        ...current.filter((doc) => doc.name !== documentType),
+        {
+          name: documentType,
+          status: saved.status,
+          file: saved.filename,
+          size: `${Math.ceil(saved.size_bytes / 1024)} KB`,
+          id: saved.id,
+          uploadedAt: saved.uploaded_at,
+          contentType: saved.content_type,
+          rejectionReason: saved.rejection_reason,
+        },
+      ]);
+      setDocumentsStatus("ready");
     },
-    [toast]
+    [role, session]
   );
+
+  const refreshStudentDocuments = useCallback(async () => {
+    setDocumentsStatus("loading");
+    try {
+      const documents = await fetchStudentDocuments();
+      setDocs(
+        documents.map((document) => ({
+          name: document.document_type,
+          status: document.status,
+          file: document.filename,
+          size: `${Math.ceil(document.size_bytes / 1024)} KB`,
+          id: document.id,
+          uploadedAt: document.uploaded_at,
+          contentType: document.content_type,
+          rejectionReason: document.rejection_reason,
+        }))
+      );
+      setDocumentsStatus("ready");
+    } catch (error) {
+      setDocumentsStatus("error");
+      throw error;
+    }
+  }, []);
 
   const withdrawApplication = useCallback(
     async (applicationId: string) => {
@@ -1427,10 +1450,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setApplications([]);
       setRecommendations(null);
       setDashboardDataStatus("idle");
+      setDocumentsStatus("ready");
       return;
     }
     let cancelled = false;
     setDashboardDataStatus("loading");
+    setDocumentsStatus("loading");
 
     (async () => {
       try {
@@ -1448,6 +1473,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const currentResume = results[2].status === "fulfilled" ? results[2].value : null;
         const documents = results[3].status === "fulfilled" ? results[3].value : [];
         const apiPack = results[4].status === "fulfilled" ? results[4].value : { statement: "", targets: [] };
+
+        if (results[3].status === "fulfilled") {
+          setDocs(
+            documents.map((document) => ({
+              name: document.document_type,
+              status: document.status,
+              file: document.filename,
+              size: `${Math.ceil(document.size_bytes / 1024)} KB`,
+              id: document.id,
+              uploadedAt: document.uploaded_at,
+              contentType: document.content_type,
+              rejectionReason: document.rejection_reason,
+            }))
+          );
+          setDocumentsStatus("ready");
+        } else {
+          setDocumentsStatus("error");
+        }
 
         if (results[1].status === "rejected") {
           console.error("Failed to fetch student profile:", results[1].reason);
@@ -1479,14 +1522,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
         setStudent(nextStudent);
         setResume(currentResume);
-        setDocs(
-          documents.map((document) => ({
-            name: document.document_type,
-            status: document.status,
-            file: document.filename,
-            size: `${Math.ceil(document.size_bytes / 1024)} KB`,
-          }))
-        );
         const matches = await fetchRecommendedInternships(
           nextStudent.skills,
           nextStudent.course,
@@ -2192,6 +2227,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         metaReady,
         student,
         docs,
+        documentsStatus,
         resume,
         adminQueue,
         activity,
@@ -2252,6 +2288,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         uploadDoc,
         uploadResumeFile,
         uploadDocumentFile,
+        refreshStudentDocuments,
         withdrawApplication,
         editPack,
         editPackTargets,

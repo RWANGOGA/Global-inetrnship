@@ -1,42 +1,145 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useApp } from "../../../context/AppContext";
-import { ApiError, fetchAllStudentDocuments, verifyStudentDocument, isApiEnabled, toggleDocumentPublic } from "../../../lib/api";
+import {
+  ApiError,
+  fetchAdminStudentDocumentFile,
+  fetchAllStudentDocuments,
+  isApiEnabled,
+  toggleDocumentPublic,
+  verifyStudentDocument,
+} from "../../../lib/api";
 import { StudentDocument } from "../../../types";
+import styles from "./AdminDocuments.module.css";
+
+type DocumentFilter = "all" | "pending" | "verified" | "rejected";
+type PreviewStatus = "idle" | "loading" | "ready" | "error";
 
 export function AdminDocuments() {
-  const { toast, session } = useApp();
+  const { authReady, toast, session } = useApp();
   const [documents, setDocuments] = useState<StudentDocument[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState("");
-  const [filter, setFilter] = useState<"all" | "pending" | "verified" | "rejected">("pending");
+  const [filter, setFilter] = useState<DocumentFilter>("pending");
   const [actionId, setActionId] = useState("");
-  const [rejecting, setRejecting] = useState<string | null>(null);
+  const [togglingPublic, setTogglingPublic] = useState("");
+  const [previewDocument, setPreviewDocument] = useState<StudentDocument | null>(null);
+  const [previewStatus, setPreviewStatus] = useState<PreviewStatus>("idle");
+  const [previewError, setPreviewError] = useState("");
+  const [previewType, setPreviewType] = useState("");
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [previewText, setPreviewText] = useState("");
+  const [downloading, setDownloading] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
-  const [togglingPublic, setTogglingPublic] = useState<string | null>(null);
+  const previewRequest = useRef(0);
 
-  useEffect(() => {
-    if (!isApiEnabled || session?.role !== "admin") {
-      setStatus("ready");
-      return;
-    }
-    loadDocuments();
-  }, [session, filter]);
-
-  async function loadDocuments() {
+  const loadDocuments = useCallback(async () => {
     setStatus("loading");
+    setError("");
     try {
-      const items = await fetchAllStudentDocuments(filter === "all" ? undefined : filter);
+      const items = await fetchAllStudentDocuments("all");
       setDocuments(items);
       setStatus("ready");
     } catch (cause) {
-      setError(
-        cause instanceof ApiError
-          ? cause.message
-          : "Unable to load documents"
-      );
+      setError(cause instanceof ApiError ? cause.message : "Unable to load documents.");
       setStatus("error");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!authReady) return;
+    if (!isApiEnabled) {
+      setError("Connect the admin dashboard to the API to review uploaded documents.");
+      setStatus("error");
+      return;
+    }
+    if (session?.role !== "admin") {
+      setError("Administrator access is required to review documents.");
+      setStatus("error");
+      return;
+    }
+    void loadDocuments();
+  }, [authReady, loadDocuments, session]);
+
+  useEffect(() => {
+    if (previewUrl) return () => URL.revokeObjectURL(previewUrl);
+  }, [previewUrl]);
+
+  const closePreview = useCallback(() => {
+    previewRequest.current += 1;
+    setPreviewDocument(null);
+    setPreviewStatus("idle");
+    setPreviewError("");
+    setPreviewUrl("");
+    setPreviewText("");
+    setPreviewType("");
+    setRejecting(false);
+    setReason("");
+  }, []);
+
+  useEffect(() => {
+    if (!previewDocument) return;
+    const previousOverflow = document.body.style.overflow;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closePreview();
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [closePreview, previewDocument]);
+
+  async function openPreview(doc: StudentDocument) {
+    const requestId = previewRequest.current + 1;
+    previewRequest.current = requestId;
+    setPreviewDocument(doc);
+    setPreviewStatus("loading");
+    setPreviewError("");
+    setPreviewUrl("");
+    setPreviewText("");
+    setPreviewType("");
+    setRejecting(false);
+    setReason("");
+    try {
+      const result = await fetchAdminStudentDocumentFile(doc.id);
+      if (requestId !== previewRequest.current) return;
+      const contentType = result.contentType.split(";")[0].trim().toLowerCase();
+      setPreviewType(contentType);
+      if (contentType.startsWith("text/")) {
+        setPreviewText(await result.blob.text());
+      } else {
+        setPreviewUrl(URL.createObjectURL(result.blob));
+      }
+      setPreviewStatus("ready");
+    } catch (cause) {
+      if (requestId !== previewRequest.current) return;
+      setPreviewError(
+        cause instanceof ApiError ? cause.message : "Unable to open this document."
+      );
+      setPreviewStatus("error");
+    }
+  }
+
+  async function downloadOriginal(doc: StudentDocument) {
+    setDownloading(true);
+    try {
+      const result = await fetchAdminStudentDocumentFile(doc.id, true);
+      const url = URL.createObjectURL(result.blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = doc.filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (cause) {
+      toast(cause instanceof ApiError ? cause.message : "Unable to download the document.");
+    } finally {
+      setDownloading(false);
     }
   }
 
@@ -46,22 +149,23 @@ export function AdminDocuments() {
     rejectionReason = ""
   ) {
     setActionId(documentId);
+    setError("");
     try {
-      await verifyStudentDocument(documentId, decision, rejectionReason);
+      const updated = await verifyStudentDocument(documentId, decision, rejectionReason);
       setDocuments((items) =>
-        items.map((doc) =>
-          doc.id === documentId
-            ? { ...doc, status: decision, rejection_reason: rejectionReason }
-            : doc
-        )
+        items.map((doc) => (doc.id === documentId ? updated : doc))
       );
-      setRejecting(null);
+      setPreviewDocument((current) =>
+        current?.id === documentId ? updated : current
+      );
+      setRejecting(false);
       setReason("");
       toast(decision === "verified" ? "Document verified" : "Document rejected");
     } catch (cause) {
-      setError(
-        cause instanceof ApiError ? cause.message : "Unable to update document"
-      );
+      const message =
+        cause instanceof ApiError ? cause.message : "Unable to update document.";
+      setError(message);
+      toast(message);
     } finally {
       setActionId("");
     }
@@ -69,28 +173,32 @@ export function AdminDocuments() {
 
   async function togglePublic(documentId: string, currentPublic: boolean) {
     setTogglingPublic(documentId);
+    setError("");
     try {
-      await toggleDocumentPublic(documentId, !currentPublic);
+      const updated = await toggleDocumentPublic(documentId, !currentPublic);
       setDocuments((items) =>
-        items.map((doc) =>
-          doc.id === documentId ? { ...doc, is_public: !currentPublic } : doc
-        )
+        items.map((doc) => (doc.id === documentId ? updated : doc))
       );
       toast(`Document set to ${!currentPublic ? "public" : "private"}`);
     } catch (cause) {
-      setError(
-        cause instanceof ApiError ? cause.message : "Unable to update document"
-      );
+      const message =
+        cause instanceof ApiError ? cause.message : "Unable to update document.";
+      setError(message);
+      toast(message);
     } finally {
       setTogglingPublic("");
     }
   }
 
   const statusCounts = {
-    pending: documents.filter((d) => d.status === "pending").length,
-    verified: documents.filter((d) => d.status === "verified").length,
-    rejected: documents.filter((d) => d.status === "rejected").length,
+    pending: documents.filter((doc) => doc.status === "pending").length,
+    verified: documents.filter((doc) => doc.status === "verified").length,
+    rejected: documents.filter((doc) => doc.status === "rejected").length,
   };
+  const visibleDocuments =
+    filter === "all"
+      ? documents
+      : documents.filter((doc) => doc.status === filter);
 
   const formatBytes = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -98,136 +206,101 @@ export function AdminDocuments() {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  const statusClass = (value: string) =>
+    `tg ${value === "verified" ? "green" : value === "rejected" ? "red" : "gold"}`;
+
   return (
-    <>
-      <div className="dpane-h">
+    <div className={styles.page}>
+      <div className={`dpane-h ${styles.header}`}>
         <div>
           <h2>Document verification</h2>
-          <p>
-            Review and verify student documents — {statusCounts.pending} pending
-          </p>
+          <p>Open each file to review it before verifying or rejecting · {statusCounts.pending} pending</p>
         </div>
-        <div style={{ display: "flex", gap: "6px" }}>
-          {(["pending", "verified", "rejected", "all"] as const).map((f) => (
+        <div className={styles.filters} aria-label="Filter documents">
+          {(["pending", "verified", "rejected", "all"] as const).map((value) => (
             <button
-              key={f}
+              key={value}
               type="button"
-              className={`btn btn-sm ${filter === f ? "btn-blue" : ""}`}
-              onClick={() => setFilter(f)}
+              className={`btn btn-sm ${filter === value ? "btn-blue" : ""}`}
+              aria-pressed={filter === value}
+              onClick={() => setFilter(value)}
             >
-              {f.charAt(0).toUpperCase() + f.slice(1)}
-              {f !== "all" && <span className="tg gold">{statusCounts[f as keyof typeof statusCounts]}</span>}
+              {value.charAt(0).toUpperCase() + value.slice(1)}
+              {value !== "all" && <span className={statusClass(value)}>{statusCounts[value]}</span>}
             </button>
           ))}
+          <button
+            type="button"
+            className="btn btn-sm"
+            disabled={status === "loading"}
+            onClick={() => void loadDocuments()}
+          >
+            Refresh
+          </button>
         </div>
       </div>
-      <div className="panel">
-        <div className="pb" style={{ padding: 0 }}>
+
+      {error && status !== "error" && (
+        <div className={styles.errorNotice} role="alert">{error}</div>
+      )}
+
+      <section className="panel">
+        <div className={`${styles.tableWrap} pb`} style={{ padding: 0 }}>
           <table className="dtable">
             <thead>
               <tr>
-                <th>Student</th>
-                <th>Document</th>
+                <th>Student ID</th>
+                <th>File</th>
                 <th className="hide-xs">Type</th>
                 <th>Size</th>
                 <th>Uploaded</th>
                 <th>Status</th>
                 <th>Public</th>
-                <th></th>
+                <th>Review</th>
               </tr>
             </thead>
             <tbody>
               {status === "loading" ? (
-                <tr>
-                  <td colSpan={7}>Loading documents...</td>
-                </tr>
+                <tr><td colSpan={8}>Loading documents…</td></tr>
               ) : status === "error" ? (
-                <tr>
-                  <td colSpan={7} className="error">
-                    {error}
-                  </td>
-                </tr>
-              ) : !documents || documents.length === 0 ? (
-                <tr>
-                  <td colSpan={8}>No documents found for this filter.</td>
-                </tr>
+                <tr><td colSpan={8} className="error">{error}</td></tr>
+              ) : visibleDocuments.length === 0 ? (
+                <tr><td colSpan={8}>No documents found for this filter.</td></tr>
               ) : (
-                (documents || []).map((doc) => (
+                visibleDocuments.map((doc) => (
                   <tr key={doc.id}>
                     <td className="who">
                       <b>{doc.user_id.slice(0, 8)}…</b>
-                      <span style={{ fontSize: "11px", color: "var(--muted)" }}>
-                        {doc.document_type}
+                      <span style={{ fontSize: "10px", color: "var(--muted)" }}>
+                        {doc.user_id}
                       </span>
                     </td>
                     <td>{doc.filename}</td>
-                    <td className="hide-xs">
-                      <span className="tg gold">{doc.document_type}</span>
-                    </td>
+                    <td className="hide-xs">{doc.document_type.replaceAll("_", " ")}</td>
                     <td className="num">{formatBytes(doc.size_bytes)}</td>
                     <td className="num">{doc.uploaded_at.slice(0, 10)}</td>
-                    <td>
-                      <span
-                        className={`tg ${
-                          doc.status === "verified"
-                            ? "green"
-                            : doc.status === "rejected"
-                            ? "red"
-                            : "gold"
-                        }`}
-                      >
-                        {doc.status}
-                      </span>
-                    </td>
-                    <td className="num">
-                      <span
-                        className={`tg ${
-                          doc.is_public ? "green" : "muted"
-                        }`}
-                      >
-                        {doc.is_public ? "Yes" : "No"}
-                      </span>
-                    </td>
+                    <td><span className={statusClass(doc.status)}>{doc.status}</span></td>
+                    <td className="num">{doc.is_public ? "Yes" : "No"}</td>
                     <td className="act">
-                      {doc.status === "pending" && (
-                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-blue"
-                            disabled={actionId === doc.id}
-                            onClick={() => decide(doc.id, "verified")}
-                          >
-                            Verify
-                          </button>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-blue"
+                          onClick={() => void openPreview(doc)}
+                        >
+                          Review
+                        </button>
+                        {doc.status === "verified" && (
                           <button
                             type="button"
                             className="btn btn-sm"
-                            disabled={actionId === doc.id}
-                            onClick={() => setRejecting(doc.id)}
+                            disabled={togglingPublic === doc.id}
+                            onClick={() => void togglePublic(doc.id, doc.is_public)}
                           >
-                            Reject
+                            {doc.is_public ? "Make private" : "Make public"}
                           </button>
-                        </div>
-                      )}
-                      {doc.status === "verified" && (
-                        <button
-                          type="button"
-                          className="btn btn-sm"
-                          disabled={togglingPublic === doc.id}
-                          onClick={() => togglePublic(doc.id, doc.is_public)}
-                        >
-                          {doc.is_public ? "Make Private" : "Make Public"}
-                        </button>
-                      )}
-                      {doc.status !== "pending" && (
-                        <span className="muted" style={{ fontSize: "11px" }}>
-                          {doc.status === "rejected" && doc.rejection_reason && (
-                          <span title={doc.rejection_reason}>
-                            Rejected: {doc.rejection_reason.slice(0, 30)}…
-                          </span>
-                          )}
-                        </span>
-                      )}
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -235,44 +308,140 @@ export function AdminDocuments() {
             </tbody>
           </table>
         </div>
-      </div>
-      {rejecting && (
-        <div className="panel" style={{ marginTop: "14px" }}>
-          <div className="ph">
-            <span className="lbl">Rejection reason</span>
-          </div>
-          <div className="pb" style={{ display: "grid", gap: "10px" }}>
-            {/* .field on a bare control only sets display:grid, so this textarea had
-                no border, padding or height. The wrapper is what styles the child. */}
-            <div className="field">
-              <textarea
-                rows={3}
-                required
-                value={reason}
-                onChange={(event) => setReason(event.target.value)}
-                placeholder="Explain what the student must correct."
-              />
+      </section>
+
+      {previewDocument && (
+        <div
+          className={styles.overlay}
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closePreview();
+          }}
+        >
+          <section
+            className={styles.dialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="document-preview-title"
+          >
+            <header className={styles.dialogHeader}>
+              <div style={{ minWidth: 0 }}>
+                <h2 className={styles.documentTitle} id="document-preview-title">
+                  {previewDocument.filename}
+                </h2>
+                <p className={styles.documentMeta}>
+                  {previewDocument.document_type.replaceAll("_", " ")} · {previewDocument.user_id} · {formatBytes(previewDocument.size_bytes)}
+                </p>
+              </div>
+              <div className={styles.headerActions}>
+                <span className={statusClass(previewDocument.status)}>{previewDocument.status}</span>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  disabled={downloading}
+                  onClick={() => void downloadOriginal(previewDocument)}
+                >
+                  {downloading ? "Preparing…" : "Download original"}
+                </button>
+                <button type="button" className="btn btn-sm" autoFocus onClick={closePreview}>
+                  Close
+                </button>
+              </div>
+            </header>
+
+            <div className={styles.previewBody}>
+              {previewStatus === "loading" ? (
+                <div className={styles.previewMessage}>Loading secure document preview…</div>
+              ) : previewStatus === "error" ? (
+                <div className={styles.previewMessage} role="alert">
+                  <strong>{previewError}</strong>
+                  <span>The original can still be downloaded from this review window.</span>
+                </div>
+              ) : previewType === "application/pdf" && previewUrl ? (
+                <iframe
+                  className={styles.previewFrame}
+                  title={`Preview of ${previewDocument.filename}`}
+                  src={previewUrl}
+                  sandbox="allow-same-origin"
+                />
+              ) : previewType.startsWith("image/") && previewUrl ? (
+                <img
+                  className={styles.previewImage}
+                  src={previewUrl}
+                  alt={`Preview of ${previewDocument.filename}`}
+                />
+              ) : previewType.startsWith("text/") ? (
+                <pre className={styles.previewText}>{previewText}</pre>
+              ) : (
+                <div className={styles.previewMessage}>
+                  <strong>This file format cannot be previewed in the browser.</strong>
+                  <span>Download the original to review it, then return here to record your decision.</span>
+                </div>
+              )}
             </div>
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button
-                type="button"
-                className="btn btn-sm btn-blue"
-                disabled={!reason.trim() || actionId === rejecting}
-                onClick={() => decide(rejecting, "rejected", reason)}
-              >
-                Send rejection
-              </button>
-              <button
-                type="button"
-                className="btn btn-sm"
-                onClick={() => setRejecting(null)}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
+
+            {previewDocument.status === "pending" && (
+              rejecting ? (
+                <div className={styles.rejectionForm}>
+                  <label htmlFor="document-rejection-reason" className="lbl">
+                    Rejection reason
+                  </label>
+                  <textarea
+                    id="document-rejection-reason"
+                    rows={3}
+                    value={reason}
+                    onChange={(event) => setReason(event.target.value)}
+                    placeholder="Explain what the student must correct."
+                    autoFocus
+                  />
+                  <div className={styles.rejectionActions}>
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      disabled={actionId === previewDocument.id}
+                      onClick={() => {
+                        setRejecting(false);
+                        setReason("");
+                      }}
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-blue"
+                      disabled={!reason.trim() || actionId === previewDocument.id}
+                      onClick={() => void decide(previewDocument.id, "rejected", reason)}
+                    >
+                      {actionId === previewDocument.id ? "Sending…" : "Send rejection"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <footer className={styles.dialogFooter}>
+                  <div className={styles.decisionActions}>
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      disabled={actionId === previewDocument.id}
+                      onClick={() => setRejecting(true)}
+                    >
+                      Reject
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-blue"
+                      disabled={actionId === previewDocument.id}
+                      onClick={() => void decide(previewDocument.id, "verified")}
+                    >
+                      {actionId === previewDocument.id ? "Saving…" : "Verify document"}
+                    </button>
+                  </div>
+                </footer>
+              )
+            )}
+          </section>
         </div>
       )}
-    </>
+    </div>
   );
 }

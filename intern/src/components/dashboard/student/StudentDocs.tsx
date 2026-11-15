@@ -25,7 +25,16 @@ function getStatusClass(status: string) {
 }
 
 export function StudentDocs() {
-  const { docs, resume, uploadResumeFile, uploadDocumentFile, toast } = useApp();
+  const {
+    docs,
+    documentsStatus,
+    isApiEnabled,
+    refreshStudentDocuments,
+    resume,
+    uploadResumeFile,
+    uploadDocumentFile,
+    toast,
+  } = useApp();
   const [uploadingType, setUploadingType] = React.useState<string | null>(null);
   const [uploading, setUploading] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -38,6 +47,11 @@ export function StudentDocs() {
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast("Files must be 10 MB or smaller.");
+      event.target.value = "";
+      return;
+    }
 
     setUploading(true);
     try {
@@ -46,9 +60,9 @@ export function StudentDocs() {
       } else if (uploadingType) {
         await uploadDocumentFile(uploadingType, file);
       }
-      toast(`${uploadingType === "resume" ? "Resume" : "Document"} uploaded successfully!`);
-    } catch {
-      toast("Upload failed. Please try again.");
+      toast(`${uploadingType === "resume" ? "Resume" : "Document"} uploaded and saved.`);
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "Upload failed. Please try again.");
     } finally {
       setUploading(false);
       setUploadingType(null);
@@ -66,7 +80,7 @@ export function StudentDocs() {
       <input
         ref={inputRef}
         type="file"
-        accept=".pdf,.doc,.docx"
+        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
         hidden
         onChange={handleFileChange}
       />
@@ -92,6 +106,20 @@ export function StudentDocs() {
           </span>
         </div>
       </div>
+
+      {documentsStatus === "loading" && (
+        <div className="panel"><div className="pb" style={{ fontSize: "11px", color: "var(--muted)" }}>Loading document statuses…</div></div>
+      )}
+      {documentsStatus === "error" && (
+        <div className="panel" role="alert">
+          <div className="pb" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "11px", color: "var(--red)" }}>Could not load your saved documents. Your previous files have not been changed.</span>
+            <button type="button" className="btn btn-sm" disabled={!isApiEnabled} onClick={() => refreshStudentDocuments().catch((error) => toast(error instanceof Error ? error.message : "Could not reload documents"))}>
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
 
       <section className="panel">
         <div className={`ph ${styles.panelHeader}`}>
@@ -159,59 +187,73 @@ export function StudentDocs() {
           </div>
         </div>
         <div className={`pb ${styles.panelBody}`}>
-          <div className={styles.documentList}>
-            {DOCUMENT_TYPES.map(({ type, label, icon }) => {
-              const document = docs.find((item) => item.name === type);
-              const hasDocument = document && document.status !== "missing";
-              const status = document?.status || "missing";
-              const isUploading = uploading && uploadingType === type;
+          {documentsStatus === "ready" ? (
+            <>
+              <div className={styles.documentList}>
+                {DOCUMENT_TYPES.map(({ type, label, icon }) => {
+                  const document = docs.find((item) => item.name === type);
+                  const hasDocument = document && document.status !== "missing";
+                  const status = document?.status || "missing";
+                  const isUploading = uploading && uploadingType === type;
 
-              return (
-                <div className={styles.documentRow} key={type}>
-                  <span className={styles.documentIcon} aria-hidden="true">{icon}</span>
-                  <div className={styles.documentDetails}>
-                    <div className={styles.documentHeading}>
-                      <h4>{label}</h4>
-                      <span className={getStatusClass(status)}>
-                        {status === "missing"
-                          ? "Not uploaded"
-                          : status.charAt(0).toUpperCase() + status.slice(1)}
-                      </span>
+                  return (
+                    <div className={styles.documentRow} key={type}>
+                      <span className={styles.documentIcon} aria-hidden="true">{icon}</span>
+                      <div className={styles.documentDetails}>
+                        <div className={styles.documentHeading}>
+                          <h4>{label}</h4>
+                          <span className={getStatusClass(status)}>
+                            {status === "missing"
+                              ? "Not uploaded"
+                              : status.charAt(0).toUpperCase() + status.slice(1)}
+                          </span>
+                        </div>
+                        {hasDocument && (
+                          <p>
+                            {document.file}
+                            {document.size ? ` · ${document.size}` : ""}
+                            {document.status === "rejected" && document.rejectionReason && (
+                              <span style={{ display: "block", color: "var(--red)" }}>
+                                Review note: {document.rejectionReason}
+                              </span>
+                            )}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        className={`btn btn-sm ${hasDocument ? "" : "btn-blue"}`}
+                        onClick={() => openFileDialog(type)}
+                        disabled={uploading}
+                      >
+                        {isUploading ? (
+                          <>
+                            <span className={styles.spinner} aria-hidden="true" />
+                            Uploading…
+                          </>
+                        ) : (
+                          <>
+                            <Icon name={hasDocument ? "upload" : "plus"} size={12} />
+                            {hasDocument ? "Replace" : "Upload"}
+                          </>
+                        )}
+                      </button>
                     </div>
-                    {hasDocument && (
-                      <p>
-                        {document.file}
-                        {document.size ? ` · ${document.size}` : ""}
-                      </p>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    className={`btn btn-sm ${hasDocument ? "" : "btn-blue"}`}
-                    onClick={() => openFileDialog(type)}
-                    disabled={uploading}
-                  >
-                    {isUploading ? (
-                      <>
-                        <span className={styles.spinner} aria-hidden="true" />
-                        Uploading…
-                      </>
-                    ) : (
-                      <>
-                        <Icon name={hasDocument ? "upload" : "plus"} size={12} />
-                        {hasDocument ? "Replace" : "Upload"}
-                      </>
-                    )}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
+                  );
+                })}
+              </div>
 
-          <p className={styles.note}>
-            Files are reviewed by the placement office within 48 hours. If a file is rejected,
-            you can replace it without starting over.
-          </p>
+              <p className={styles.note}>
+                Accepted formats: PDF, Word, JPG, and PNG · up to 10 MB. Files are reviewed by the placement office. If a file is rejected, you can replace it without starting over.
+              </p>
+            </>
+          ) : (
+            <p className={styles.note}>
+              {documentsStatus === "error"
+                ? "Document statuses are unavailable. Retry loading them before replacing a file."
+                : "Loading saved document statuses…"}
+            </p>
+          )}
         </div>
       </section>
     </div>
