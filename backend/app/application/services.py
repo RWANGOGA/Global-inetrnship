@@ -1,6 +1,7 @@
 """Application services — thin use-case orchestrators over the ports."""
 from __future__ import annotations
 from contextlib import nullcontext
+import re
 
 from dataclasses import replace
 from datetime import date, datetime, timedelta, timezone
@@ -349,11 +350,10 @@ class BillingService:
     def check_placement_limit(self, org_id: str, session: Session = None) -> dict:
         """Check if org can create another placement. Returns dict with allowed, current, limit, reason."""
         sub = self.get_subscription(org_id)
-        limit = self.PLACEMENT_LIMITS.get(sub.plan, 3)
-        
-        if limit == -1:
-            return {"allowed": True, "current": 0, "limit": -1, "reason": "unlimited"}
-        
+        effective_plan = sub.plan if sub.is_premium else "Free"
+        limit = self.PLACEMENT_LIMITS.get(effective_plan, 3)
+        session = session or self._session
+
         # Count active/open placements for this org
         if session:
             from app.infrastructure.orm import PlacementORM
@@ -365,13 +365,16 @@ class BillingService:
         else:
             # Fallback for tests without session
             current = 0
-        
-        allowed = current < limit
+
+        allowed = limit == -1 or current < limit
         return {
             "allowed": allowed,
             "current": current,
             "limit": limit,
-            "reason": f"Free plan allows {limit} placements. Upgrade to Pro for unlimited." if not allowed else None
+            "reason": (
+                f"Free plan allows {limit} placements. Upgrade to Pro for unlimited."
+                if not allowed else None
+            )
         }
 
     def create_subscription(
@@ -403,6 +406,12 @@ class BillingService:
 
             # 2. Validate plan
             self._validate_plan(plan, billing_cycle)
+            if plan != "Free":
+                if not payment_method_id:
+                    raise ValueError("A saved payment method is required for a paid subscription")
+                payment_method = self._payment_methods.get(org_id, payment_method_id) if self._payment_methods else None
+                if not payment_method or not payment_method.get("gateway_payment_method_id"):
+                    raise ValueError("Select a valid saved payment method for this organisation")
 
             # Free plan: no gateway customer, no invoice, no payment — just a
             # local Free subscription record.
@@ -424,6 +433,8 @@ class BillingService:
                 self._subscriptions.save(subscription)
                 return subscription
 
+            if not payment_method_id:
+                raise ValueError("A saved payment method is required for a paid subscription")
             gateway = self._gateways.get(payment_gateway)
             self._validate_gateway(gateway, org.currency if hasattr(org, 'currency') else "USD")
 
@@ -441,26 +452,11 @@ class BillingService:
             #    never hand out Pro for free.
             now = datetime.utcnow()
             period_end = now + timedelta(days=30 if billing_cycle == "monthly" else 365)
-            payment_status = None
-            if payment_method_id:
-                line_items = [{
-                    "description": f"{plan} Plan - {billing_cycle}ly",
-                    "quantity": 1,
-                    "unit_amount_cents": self.PLAN_PRICES.get(plan, {}).get(billing_cycle, 0),
-                    "period_start": now.isoformat(),
-                    "period_end": period_end.isoformat(),
-                }]
-                gw_invoice = gateway.create_invoice(customer.id, line_items, metadata={"org_id": org_id, "plan": plan})
-                gw_payment = gateway.pay_invoice(gw_invoice.id, payment_method_id)
-                payment_status = gw_payment.status
-
-            active = (payment_method_id is None) or (payment_status == "succeeded")
-
             subscription = Subscription(
                 org_id=org_id,
                 plan=plan,
                 billing=billing_cycle,
-                status="active" if active else "past_due",
+                status="past_due",
                 current_period_start=now.isoformat(),
                 current_period_end=period_end.isoformat(),
                 payment_gateway=payment_gateway,
@@ -474,9 +470,11 @@ class BillingService:
             # 6. Create first invoice
             invoice = self._create_invoice_for_subscription(subscription, gateway)
 
-            # 7. Apply payment if it was provided and succeeded
-            if payment_method_id and payment_status == "succeeded":
-                self._pay_invoice(invoice.id, payment_method_id)
+            # 7. Grant the paid plan only after the invoice payment succeeds.
+            transaction = self._pay_invoice(invoice.id, payment_method_id)
+            if transaction.status == "succeeded":
+                subscription = replace(subscription, status="active")
+                self._subscriptions.save(subscription)
 
             return subscription
 
@@ -543,6 +541,8 @@ class BillingService:
         if not invoice:
             raise ValueError(f"Invoice {invoice_id} not found")
 
+        if not invoice.org_id:
+            raise ValueError("Invoice is not associated with an organisation")
         subscription = self._subscriptions.get(invoice.org_id)
         gateway = self._gateways.get(subscription.payment_gateway)
 
@@ -552,9 +552,15 @@ class BillingService:
         existing = self._transactions.find_by_idempotency_key(key)
         if existing and existing.status == "succeeded":
             return existing
+        if invoice.status != "open":
+            raise ValueError("Invoice is not payable")
+
+        payment_method = self._payment_methods.get(invoice.org_id, payment_method_id) if self._payment_methods else None
+        if not payment_method or not payment_method.get("gateway_payment_method_id"):
+            raise ValueError("Select a valid saved payment method for this organisation")
 
         # Attempt payment via gateway
-        gw_payment = gateway.pay_invoice(invoice.gateway_invoice_id, payment_method_id)
+        gw_payment = gateway.pay_invoice(invoice.gateway_invoice_id, payment_method["gateway_payment_method_id"])
 
         paid = gw_payment.status == "succeeded"
 
@@ -690,12 +696,24 @@ class BillingService:
     def list_invoices(self, org_id: str, status: Optional[str] = None) -> list[Invoice]:
         return self._invoices.list_for_org(org_id, status)
 
+    def list_all_invoices(self, status: Optional[str] = None, org_id: Optional[str] = None) -> list[Invoice]:
+        return self._invoices.list_all(status, org_id)
+
     def list_transactions(self, org_id: str, status: Optional[str] = None) -> list[Transaction]:
         return self._transactions.list_for_org(org_id, status)
 
+    def list_all_transactions(self, status: Optional[str] = None, org_id: Optional[str] = None) -> list[Transaction]:
+        return self._transactions.list_all(status, org_id)
+
     def pay_invoice(self, invoice_id: str, payment_method_id: str) -> Transaction:
         """Pay an open invoice."""
-        return self._pay_invoice(invoice_id, payment_method_id)
+        transaction = self._pay_invoice(invoice_id, payment_method_id)
+        invoice = self._invoices.get(invoice_id)
+        if transaction.status == "succeeded" and invoice and invoice.org_id:
+            subscription = self._subscriptions.get(invoice.org_id)
+            if subscription.status == "past_due":
+                self._subscriptions.save(replace(subscription, status="active"))
+        return transaction
 
     def void_invoice(self, invoice_id: str) -> Invoice:
         """Void an invoice (admin only)."""
@@ -712,42 +730,53 @@ class BillingService:
     def record_student_application(self, user_id: str) -> StudentUsage:
         """Track student application count for billing. Called when student applies."""
         month = datetime.utcnow().strftime("%Y-%m")
-        
+
         with self._transaction():
             usage = self._student_usage.get_or_create(user_id, month)
-            usage.application_count += 1
-            
-            # Check if should bill (31st application)
-            if usage.application_count == self.STUDENT_FREE_APPS + 1:
-                self._bill_student_overage(user_id, usage)
-            
+            usage = replace(usage, application_count=usage.application_count + 1)
+
+            overage_count = max(0, usage.application_count - self.STUDENT_FREE_APPS)
+            if overage_count > usage.billed_count:
+                usage = self._bill_student_overage(user_id, usage)
+
             self._student_usage.save(usage)
             return usage
 
-    def _bill_student_overage(self, user_id: str, usage: StudentUsage):
+    def _bill_student_overage(self, user_id: str, usage: StudentUsage) -> StudentUsage:
         """Bill student for applications beyond free tier."""
         overage_count = usage.application_count - self.STUDENT_FREE_APPS
-        amount_cents = overage_count * self.STUDENT_OVERAGE_CENTS
-        
+        newly_billable = overage_count - usage.billed_count
+        amount_cents = newly_billable * self.STUDENT_OVERAGE_CENTS
+        gateway = self._gateways.get("stripe")
+        customer = gateway.get_or_create_customer(user_id)
+        line_items = [{
+            "description": f"Applications over free tier ({self.STUDENT_FREE_APPS}/month)",
+            "quantity": newly_billable,
+            "unit_amount_cents": self.STUDENT_OVERAGE_CENTS,
+        }]
+        gateway_invoice = gateway.create_invoice(
+            customer.id,
+            line_items,
+            metadata={"type": "student_overage", "user_id": user_id},
+        )
+        gateway.finalize_invoice(gateway_invoice.id)
         invoice = Invoice(
             id=f"inv_{uuid4().hex[:12]}",
-            org_id=user_id,  # student acts as their own "org" for billing
+            org_id=None,
+            user_id=user_id,
             amount_cents=amount_cents,
             currency="USD",
             status="open",
             invoice_number=self._generate_invoice_number(),
-            line_items=[{
-                "description": f"Applications over free tier ({self.STUDENT_FREE_APPS}/month)",
-                "quantity": overage_count,
-                "unit_amount_cents": self.STUDENT_OVERAGE_CENTS,
-            }],
+            line_items=line_items,
             due_date=datetime.utcnow() + timedelta(days=7),
             invoice_metadata={"type": "student_overage", "user_id": user_id},
+            payment_gateway="stripe",
+            gateway_invoice_id=gateway_invoice.id,
         )
         self._invoices.save(invoice)
-        
-        usage.billed_count = overage_count
-        usage.last_billed_at = datetime.utcnow()
+
+        return replace(usage, billed_count=overage_count, last_billed_at=datetime.utcnow())
 
     def get_student_usage(self, user_id: str) -> StudentUsage:
         """Get current month's usage for a student."""
@@ -804,8 +833,68 @@ class BillingService:
         }
 
     def list_student_invoices(self, user_id: str) -> list[Invoice]:
-        """Invoices issued to a student (student acts as their own org for billing)."""
-        return self._invoices.list_for_org(user_id)
+        """Invoices owned by a student."""
+        return self._invoices.list_for_user(user_id)
+
+    def pay_student_invoice(self, invoice_id: str, user_id: str) -> Transaction:
+        """Pay a student overage invoice through the configured sandbox gateway."""
+        invoice = self._invoices.get(invoice_id)
+        if not invoice or (invoice.user_id != user_id and invoice.org_id != user_id):
+            raise ValueError("Invoice not found")
+        if invoice.status != "open":
+            raise ValueError("Invoice is not payable")
+
+        key = f"student-invoice-{invoice.id}-pay"
+        existing = self._transactions.find_by_idempotency_key(key)
+        if existing and existing.status == "succeeded":
+            return existing
+
+        gateway_id = invoice.payment_gateway or "stripe"
+        gateway = self._gateways.get(gateway_id)
+        customer = gateway.get_or_create_customer(user_id)
+        gateway_invoice_id = invoice.gateway_invoice_id
+        if not gateway_invoice_id:
+            gateway_invoice = gateway.create_invoice(
+                customer.id,
+                invoice.line_items,
+                metadata={"type": "student_overage", "user_id": user_id},
+            )
+            gateway.finalize_invoice(gateway_invoice.id)
+            gateway_invoice_id = gateway_invoice.id
+            invoice = replace(invoice, payment_gateway=gateway_id, gateway_invoice_id=gateway_invoice_id)
+            self._invoices.save(invoice)
+
+        test_method = gateway.create_payment_method(customer.id, "card", {"last4": "4242"})
+        payment = gateway.pay_invoice(gateway_invoice_id, test_method.id)
+        transaction = existing or Transaction(
+            id=f"txn_{uuid4().hex[:12]}",
+            org_id=None,
+            user_id=user_id,
+            invoice_id=invoice.id,
+            amount_cents=invoice.amount_cents,
+            currency=invoice.currency,
+            type="payment",
+            payment_gateway=gateway_id,
+            idempotency_key=key,
+            description=f"Student overage invoice {invoice.invoice_number}",
+        )
+        transaction = replace(
+            transaction,
+            status="succeeded" if payment.status == "succeeded" else "failed",
+            gateway_transaction_id=payment.id,
+            gateway_response=payment.raw_response,
+            processed_at=datetime.utcnow(),
+        )
+        if payment.status == "succeeded":
+            invoice = replace(
+                invoice,
+                status="paid",
+                paid_at=datetime.utcnow(),
+                gateway_payment_intent_id=payment.id,
+            )
+            self._invoices.save(invoice)
+        self._transactions.save(transaction)
+        return transaction
 
     # ============ PAYMENT METHODS ============
 
@@ -823,6 +912,11 @@ class BillingService:
     ) -> dict:
         if self._payment_methods is None:
             raise ValueError("Payment method repository not configured")
+        if not gateway_payment_method_id:
+            gateway = self._gateways.get("stripe")
+            customer = gateway.get_or_create_customer(org_id)
+            gateway_method = gateway.create_payment_method(customer.id, type, details)
+            gateway_payment_method_id = gateway_method.id
         return self._payment_methods.add(org_id, type, details, gateway_payment_method_id)
 
     def delete_payment_method(self, org_id: str, payment_method_id: str) -> bool:
@@ -881,6 +975,7 @@ class BillingService:
         payment_method_id: Optional[str] = None,
         idempotency_key: Optional[str] = None,
         billing_details: Optional[dict] = None,
+        terms_accepted: bool = False,
     ) -> dict:
         """Create a subscription + invoice, pay it atomically, and return the receipt.
 
@@ -889,18 +984,45 @@ class BillingService:
         creating a new charge.
         """
         self._validate_plan(plan, billing_cycle)
+        billing_email = ""
+        if plan != "Free":
+            if not terms_accepted:
+                raise ValueError("Subscription terms must be accepted")
+            billing_email = str((billing_details or {}).get("email", "")).strip()
+            if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", billing_email):
+                raise ValueError("A valid billing email is required")
+            if not payment_method_id:
+                raise ValueError("A saved payment method is required for a paid subscription")
+            payment_method = self._payment_methods.get(org_id, payment_method_id) if self._payment_methods else None
+            if not payment_method or not payment_method.get("gateway_payment_method_id"):
+                raise ValueError("Select a valid saved payment method for this organisation")
         gateway = self._gateways.get(payment_gateway)
 
         # Idempotency: reuse an already-successful transaction for this key.
         if idempotency_key:
             existing = self._transactions.find_by_idempotency_key(idempotency_key)
-            if existing and existing.status == "succeeded":
-                subscription = self._subscriptions.get(org_id)
+            if existing:
                 invoice = self._invoices.get(existing.invoice_id) if existing.invoice_id else None
+                if existing.status == "succeeded":
+                    subscription = self._subscriptions.get(org_id)
+                    return {
+                        "subscription": self._subscription_to_dict(subscription),
+                        "invoice": self._invoice_to_dict(invoice) if invoice else None,
+                        "transaction": self._transaction_to_dict(existing),
+                        "replayed": True,
+                    }
+                if existing.status != "failed" or not invoice or invoice.status != "open":
+                    raise ValueError("A checkout with this idempotency key is already in progress")
+                transaction = self._pay_invoice(invoice.id, payment_method_id, idempotency_key)
+                invoice = self._invoices.get(invoice.id)
+                subscription = self._subscriptions.get(org_id)
+                if transaction.status == "succeeded" and subscription.status == "past_due":
+                    subscription = replace(subscription, status="active")
+                    self._subscriptions.save(subscription)
                 return {
                     "subscription": self._subscription_to_dict(subscription),
                     "invoice": self._invoice_to_dict(invoice) if invoice else None,
-                    "transaction": self._transaction_to_dict(existing),
+                    "transaction": self._transaction_to_dict(transaction),
                     "replayed": True,
                 }
 
@@ -932,21 +1054,19 @@ class BillingService:
         price_id = self._plan_to_price_id(plan, billing_cycle)
         gateway.create_subscription(customer.id, price_id)
 
+        if self._session and plan != "Free":
+            from app.infrastructure.orm import OrganisationORM
+            organisation = self._session.query(OrganisationORM).filter_by(id=org_id).one_or_none()
+            if not organisation:
+                raise ValueError(f"Organisation {org_id} not found")
+            details = billing_details or {}
+            organisation.billing_email = billing_email
+            organisation.tax_id = str(details.get("tax_id", "")).strip() or None
+            address = str(details.get("billing_address", "")).strip()
+            organisation.billing_address = {"formatted": address} if address else {}
+
         now = datetime.utcnow()
         period_end = now + timedelta(days=30 if billing_cycle == "monthly" else 365)
-
-        # Persist the payment method if one was supplied.
-        if payment_method_id:
-            pm = self._payment_methods.get(org_id, payment_method_id) if self._payment_methods else None
-            if pm is None:
-                # Attach a gateway payment method and remember it locally.
-                try:
-                    gw_pm = gateway.create_payment_method(customer.id, "card", {})
-                    payment_method_id = self.add_payment_method(
-                        org_id, "card", {"last4": "4242", "brand": "Visa"}, gw_pm.id
-                    )["id"]
-                except Exception:
-                    pass
 
         line_items = [{
             "description": f"{plan} Plan - {billing_cycle}ly",
@@ -957,19 +1077,11 @@ class BillingService:
         }]
 
         # Build subscription (active only once payment, if required, succeeds).
-        payment_status = None
-        if payment_method_id:
-            gw_invoice = gateway.create_invoice(customer.id, line_items, metadata={"org_id": org_id, "plan": plan})
-            gw_payment = gateway.pay_invoice(gw_invoice.id, payment_method_id)
-            payment_status = gw_payment.status
-
-        active = (payment_method_id is None) or (payment_status == "succeeded")
-
         subscription = Subscription(
             org_id=org_id,
             plan=plan,
             billing=billing_cycle,
-            status="active" if active else "past_due",
+            status="past_due",
             current_period_start=now.isoformat(),
             current_period_end=period_end.isoformat(),
             payment_gateway=payment_gateway,
@@ -984,11 +1096,11 @@ class BillingService:
         invoice = self._create_invoice_for_subscription(subscription, gateway, idempotency_key=idempotency_key)
 
         transaction = None
-        if payment_method_id and payment_status == "succeeded":
+        if payment_method_id:
             transaction = self._pay_invoice(invoice.id, payment_method_id, idempotency_key=idempotency_key)
-        elif payment_method_id:
-            # Payment attempted but failed: leave invoice open, subscription past_due.
-            pass
+        if transaction and transaction.status == "succeeded":
+            subscription = replace(subscription, status="active")
+            self._subscriptions.save(subscription)
 
         return {
             "subscription": self._subscription_to_dict(subscription),
@@ -1167,35 +1279,37 @@ class BillingService:
     # ============ ADMIN ANALYTICS ============
 
     def get_revenue_analytics(
-        self, 
-        start_date: datetime, 
+        self,
+        start_date: datetime,
         end_date: datetime
     ) -> dict:
         """Admin: Revenue breakdown by gateway, plan, org type."""
         from sqlalchemy import func
-        
+        from app.infrastructure.orm import SubscriptionORM, TransactionORM
+
         # Total revenue
-        total_revenue = self._session.query(func.sum(Transaction.amount_cents)).filter(
-            Transaction.type == "payment",
-            Transaction.status == "succeeded",
-            Transaction.processed_at >= start_date,
-            Transaction.processed_at <= end_date,
+        total_revenue = self._session.query(func.sum(TransactionORM.amount_cents)).filter(
+            TransactionORM.type == "payment",
+            TransactionORM.status == "succeeded",
+            TransactionORM.processed_at.isnot(None),
+            TransactionORM.processed_at >= start_date,
+            TransactionORM.processed_at <= end_date,
         ).scalar() or 0
-        
+
         # By gateway
         by_gateway = self._session.query(
-            Transaction.payment_gateway,
-            func.count(Transaction.id),
-            func.sum(Transaction.amount_cents)
+            TransactionORM.payment_gateway,
+            func.count(TransactionORM.id),
+            func.sum(TransactionORM.amount_cents)
         ).filter(
-            Transaction.type == "payment",
-            Transaction.status == "succeeded",
-            Transaction.processed_at >= start_date,
-            Transaction.processed_at <= end_date,
-        ).group_by(Transaction.payment_gateway).all()
-        
+            TransactionORM.type == "payment",
+            TransactionORM.status == "succeeded",
+            TransactionORM.processed_at.isnot(None),
+            TransactionORM.processed_at >= start_date,
+            TransactionORM.processed_at <= end_date,
+        ).group_by(TransactionORM.payment_gateway).all()
+
         # By plan
-        from app.infrastructure.orm import SubscriptionORM
         by_plan = self._session.query(
             SubscriptionORM.plan,
             func.count(SubscriptionORM.org_id)
@@ -1229,8 +1343,9 @@ class BillingService:
         if billing_cycle not in ("monthly", "annual"):
             raise ValueError(f"Invalid billing cycle: {billing_cycle}")
         if plan != "Free" and self.PLAN_PRICES[plan].get(billing_cycle, 0) == 0:
-            if plan != "Enterprise":  # Enterprise has custom pricing
-                raise ValueError(f"Plan {plan} not available for {billing_cycle} billing")
+            raise ValueError(
+                f"Plan {plan} is not available for self-serve {billing_cycle} checkout"
+            )
 
     def _validate_gateway(self, gateway: PaymentGateway, currency: str):
         if currency not in gateway.get_supported_currencies():

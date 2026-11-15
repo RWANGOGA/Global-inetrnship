@@ -1,11 +1,12 @@
 """Billing API endpoints for company/organisation accounts."""
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.application.services import BillingService
+from app.core.config import get_settings
 from app.domain.entities import User, Invoice, Transaction, Subscription, StudentUsage
 from app.presentation.deps import get_billing_service, get_current_user
 from app.presentation.schemas import SubscriptionRead
@@ -20,6 +21,7 @@ class SubscriptionCreate(BaseModel):
     billing_cycle: str = "monthly"  # "monthly", "annual"
     payment_gateway: str = "stripe"
     payment_method_id: Optional[str] = None
+    terms_accepted: bool = False
 
 
 class SubscriptionUpdate(BaseModel):
@@ -35,13 +37,15 @@ class InvoiceCreate(BaseModel):
 
 class PaymentRequest(BaseModel):
     payment_method_id: str
+    terms_accepted: bool = False
 
 
 class InvoiceResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
-    org_id: str
+    org_id: Optional[str] = None
+    user_id: Optional[str] = None
     subscription_id: Optional[str]
     amount_cents: int
     currency: str
@@ -63,7 +67,8 @@ class TransactionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
-    org_id: str
+    org_id: Optional[str] = None
+    user_id: Optional[str] = None
     invoice_id: Optional[str]
     subscription_id: Optional[str]
     amount_cents: int
@@ -122,6 +127,7 @@ class CheckoutRequest(BaseModel):
     payment_method_id: Optional[str] = None
     idempotency_key: Optional[str] = None
     billing_details: Optional[dict] = None
+    terms_accepted: bool = False
 
 
 class CheckoutResponse(BaseModel):
@@ -166,6 +172,10 @@ def create_subscription(
     """Create or upgrade a subscription for the current user's organisation."""
     if current_user.role != "employer" or not current_user.org_id:
         raise HTTPException(status_code=403, detail="Only employers can manage subscriptions")
+    if payload.plan != "Free" and not _sandbox_billing_enabled():
+        raise HTTPException(status_code=503, detail="A live payment-provider integration is not configured")
+    if payload.plan != "Free" and not payload.terms_accepted:
+        raise HTTPException(status_code=422, detail="Subscription terms must be accepted")
     
     try:
         subscription = service.create_subscription(
@@ -295,6 +305,10 @@ def pay_invoice(
     """Pay an open invoice."""
     if current_user.role != "employer" or not current_user.org_id:
         raise HTTPException(status_code=403, detail="Only employers can pay invoices")
+    if not _sandbox_billing_enabled():
+        raise HTTPException(status_code=503, detail="A live payment-provider integration is not configured")
+    if not payload.terms_accepted:
+        raise HTTPException(status_code=422, detail="Payment authorization is required")
     
     invoice = service.get_invoice(invoice_id)
     if not invoice or invoice.org_id != current_user.org_id:
@@ -303,7 +317,10 @@ def pay_invoice(
     if invoice.status != "open":
         raise HTTPException(status_code=409, detail="Invoice is not payable")
     
-    transaction = service.pay_invoice(invoice_id, payload.payment_method_id)
+    try:
+        transaction = service.pay_invoice(invoice_id, payload.payment_method_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     return TransactionResponse.model_validate(transaction, from_attributes=True)
 
 
@@ -332,6 +349,7 @@ def get_usage(
     
     # Return subscription info with placement counts
     subscription = service.get_subscription(current_user.org_id)
+    placement_usage = service.check_placement_limit(current_user.org_id)
     return {
         "plan": subscription.plan,
         "billing_cycle": subscription.billing,
@@ -339,6 +357,12 @@ def get_usage(
         "current_period_start": subscription.current_period_start.isoformat() if subscription.current_period_start else None,
         "current_period_end": subscription.current_period_end.isoformat() if subscription.current_period_end else None,
         "seats": subscription.seats,
+        "current_placements": placement_usage["current"],
+        "placement_limit": placement_usage["limit"],
+        "remaining_placements": (
+            None if placement_usage["limit"] == -1
+            else max(0, placement_usage["limit"] - placement_usage["current"])
+        ),
     }
 
 
@@ -355,7 +379,8 @@ def list_gateways(
             {"id": "mpesa", "name": "M-Pesa (Mobile Money)", "currencies": ["KES", "USD"]},
             {"id": "bank_transfer", "name": "Bank Transfer", "currencies": ["USD", "UGX", "EUR", "KES"]},
             {"id": "crypto", "name": "Crypto (USDC/USDT)", "currencies": ["USDC", "USDT", "USD"]},
-        ]
+        ],
+        "sandbox_mode": _sandbox_billing_enabled(),
     }
 
 
@@ -388,6 +413,10 @@ def checkout(
     """
     if current_user.role != "employer" or not current_user.org_id:
         raise HTTPException(status_code=403, detail="Only employers can check out")
+    if payload.plan != "Free" and not _sandbox_billing_enabled():
+        raise HTTPException(status_code=503, detail="A live payment-provider integration is not configured")
+    if payload.plan != "Free" and not payload.terms_accepted:
+        raise HTTPException(status_code=422, detail="Subscription terms must be accepted")
     try:
         result = service.checkout(
             org_id=current_user.org_id,
@@ -397,6 +426,7 @@ def checkout(
             payment_method_id=payload.payment_method_id,
             idempotency_key=payload.idempotency_key,
             billing_details=payload.billing_details,
+            terms_accepted=payload.terms_accepted,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
@@ -423,11 +453,17 @@ def add_payment_method(
     """Save a payment method for the organisation."""
     if current_user.role != "employer" or not current_user.org_id:
         raise HTTPException(status_code=403, detail="Only employers can manage payment methods")
+    if get_settings().environment.lower() not in ("development", "test"):
+        raise HTTPException(
+            status_code=503,
+            detail="Payment methods require a configured payment-provider integration",
+        )
+    if payload.type != "card":
+        raise HTTPException(status_code=422, detail="Sandbox checkout supports card payments only")
     pm = service.add_payment_method(
         org_id=current_user.org_id,
-        type=payload.type,
-        details=payload.details,
-        gateway_payment_method_id=payload.gateway_payment_method_id,
+        type="card",
+        details={"brand": "Visa", "last4": "4242", "sandbox": True},
     )
     return PaymentMethodResponse(**pm)
 
@@ -520,15 +556,27 @@ def pay_student_invoice(
     """Pay a student overage invoice."""
     if current_user.role != "student":
         raise HTTPException(status_code=403, detail="Only students can pay their invoices")
+    if get_settings().environment.lower() not in ("development", "test"):
+        raise HTTPException(
+            status_code=503,
+            detail="Student payments require a configured payment-provider integration",
+        )
+    if not payload.terms_accepted:
+        raise HTTPException(status_code=422, detail="Payment authorization is required")
     
     invoice = service.get_invoice(invoice_id)
-    if not invoice or invoice.org_id != current_user.id:
+    if not invoice or (
+        invoice.user_id != current_user.id and invoice.org_id != current_user.id
+    ):
         raise HTTPException(status_code=404, detail="Invoice not found")
     
     if invoice.status != "open":
         raise HTTPException(status_code=409, detail="Invoice is not payable")
     
-    transaction = service.pay_invoice(invoice_id, payload.payment_method_id)
+    try:
+        transaction = service.pay_student_invoice(invoice_id, current_user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     return TransactionResponse.model_validate(transaction, from_attributes=True)
 
 
@@ -536,8 +584,8 @@ def pay_student_invoice(
 
 @router.get("/admin/revenue", response_model=RevenueAnalyticsResponse)
 def get_revenue_analytics(
-    start_date: str = Query(...),
-    end_date: str = Query(...),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
     service: BillingService = Depends(get_billing_service),
     current_user: User = Depends(get_current_user),
 ) -> RevenueAnalyticsResponse:
@@ -545,8 +593,13 @@ def get_revenue_analytics(
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
     
-    start = datetime.fromisoformat(start_date)
-    end = datetime.fromisoformat(end_date)
+    try:
+        end = datetime.fromisoformat(end_date) if end_date else datetime.utcnow()
+        start = datetime.fromisoformat(start_date) if start_date else end - timedelta(days=30)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="Dates must be valid ISO-8601 values") from exc
+    if start > end:
+        raise HTTPException(status_code=422, detail="start_date must be earlier than end_date")
     
     analytics = service.get_revenue_analytics(start, end)
     return RevenueAnalyticsResponse(**analytics)
@@ -575,9 +628,22 @@ def list_admin_invoices(
     """List all invoices (admin). Optionally filter by status or organisation."""
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
-    target_org = org_id or current_user.org_id
-    invoices = service.list_invoices(target_org, status) if target_org else []
+    invoices = service.list_all_invoices(status, org_id)
     return [InvoiceResponse.model_validate(inv, from_attributes=True) for inv in invoices]
+
+
+@router.get("/admin/transactions", response_model=list[TransactionResponse])
+def list_admin_transactions(
+    status: Optional[str] = Query(None),
+    org_id: Optional[str] = Query(None),
+    service: BillingService = Depends(get_billing_service),
+    current_user: User = Depends(get_current_user),
+) -> list[TransactionResponse]:
+    """List all transactions for administrators, with optional filters."""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    transactions = service.list_all_transactions(status, org_id)
+    return [TransactionResponse.model_validate(tx, from_attributes=True) for tx in transactions]
 
 
 @router.post("/admin/invoices/{invoice_id}/void")
@@ -609,7 +675,7 @@ def _to_subscription_read(sub: Subscription) -> SubscriptionRead:
         seats=sub.seats,
         since=since_str,
         org_id=sub.org_id if hasattr(sub, 'org_id') else "",
-        is_premium=sub.plan != "Free",
+        is_premium=sub.is_premium,
         status=sub.status,
         billing_cycle=sub.billing,
         current_period_start=sub.current_period_start,
@@ -617,3 +683,7 @@ def _to_subscription_read(sub: Subscription) -> SubscriptionRead:
         cancel_at_period_end=sub.cancel_at_period_end,
         payment_gateway=sub.payment_gateway,
     )
+
+
+def _sandbox_billing_enabled() -> bool:
+    return get_settings().environment.lower() in ("development", "test")

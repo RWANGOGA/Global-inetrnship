@@ -7,8 +7,9 @@ store) without touching a single use case.
 """
 from datetime import datetime
 from typing import Optional
+from uuid import uuid4
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, inspect, or_, select
 from sqlalchemy.orm import Session
 
 from app.application.ports import (
@@ -564,6 +565,14 @@ def get_by_id(self, user_id: str) -> Optional[User]:
         return self._to_domain(row) if row is not None else None
 
 
+def _billing_org_id(session: Session, table: str, org_id: Optional[str]) -> Optional[str]:
+    if org_id is not None or session.bind.dialect.name != "sqlite":
+        return org_id
+    columns = inspect(session.bind).get_columns(table)
+    org_column = next((column for column in columns if column["name"] == "org_id"), None)
+    return "" if org_column and not org_column["nullable"] else None
+
+
 class SqlAlchemyInvoiceRepository(InvoiceRepository):
     def __init__(self, session: Session) -> None:
         self._session = session
@@ -573,6 +582,7 @@ class SqlAlchemyInvoiceRepository(InvoiceRepository):
         return Invoice(
             id=row.id,
             org_id=row.org_id,
+            user_id=row.user_id,
             subscription_id=row.subscription_id,
             amount_cents=row.amount_cents,
             currency=row.currency,
@@ -598,6 +608,24 @@ class SqlAlchemyInvoiceRepository(InvoiceRepository):
         query = self._session.query(InvoiceORM).filter_by(org_id=org_id)
         if status:
             query = query.filter_by(status=status)
+        rows = query.order_by(InvoiceORM.created_at.desc()).all()
+        return [self._to_domain(r) for r in rows]
+
+    def list_for_user(self, user_id: str, status: Optional[str] = None) -> list[Invoice]:
+        query = self._session.query(InvoiceORM).filter(
+            (InvoiceORM.user_id == user_id) | (InvoiceORM.org_id == user_id)
+        )
+        if status:
+            query = query.filter_by(status=status)
+        rows = query.order_by(InvoiceORM.created_at.desc()).all()
+        return [self._to_domain(r) for r in rows]
+
+    def list_all(self, status: Optional[str] = None, org_id: Optional[str] = None) -> list[Invoice]:
+        query = self._session.query(InvoiceORM)
+        if status:
+            query = query.filter_by(status=status)
+        if org_id:
+            query = query.filter_by(org_id=org_id)
         rows = query.order_by(InvoiceORM.created_at.desc()).all()
         return [self._to_domain(r) for r in rows]
 
@@ -627,7 +655,8 @@ class SqlAlchemyInvoiceRepository(InvoiceRepository):
         if row is None:
             row = InvoiceORM(id=invoice.id)
             self._session.add(row)
-        row.org_id = invoice.org_id
+        row.org_id = _billing_org_id(self._session, "invoices", invoice.org_id)
+        row.user_id = invoice.user_id
         row.subscription_id = invoice.subscription_id
         row.amount_cents = invoice.amount_cents
         row.currency = invoice.currency
@@ -655,6 +684,7 @@ class SqlAlchemyTransactionRepository(TransactionRepository):
         return Transaction(
             id=row.id,
             org_id=row.org_id,
+            user_id=row.user_id,
             invoice_id=row.invoice_id,
             subscription_id=row.subscription_id,
             amount_cents=row.amount_cents,
@@ -682,6 +712,15 @@ class SqlAlchemyTransactionRepository(TransactionRepository):
         rows = query.order_by(TransactionORM.created_at.desc()).all()
         return [self._to_domain(r) for r in rows]
 
+    def list_all(self, status: Optional[str] = None, org_id: Optional[str] = None) -> list[Transaction]:
+        query = self._session.query(TransactionORM)
+        if status:
+            query = query.filter_by(status=status)
+        if org_id:
+            query = query.filter_by(org_id=org_id)
+        rows = query.order_by(TransactionORM.created_at.desc()).all()
+        return [self._to_domain(r) for r in rows]
+
     def find_by_idempotency_key(self, key: str) -> Optional[Transaction]:
         row = self._session.query(TransactionORM).filter_by(idempotency_key=key).first()
         return self._to_domain(row) if row else None
@@ -697,7 +736,8 @@ class SqlAlchemyTransactionRepository(TransactionRepository):
         if row is None:
             row = TransactionORM(id=transaction.id)
             self._session.add(row)
-        row.org_id = transaction.org_id
+        row.org_id = _billing_org_id(self._session, "transactions", transaction.org_id)
+        row.user_id = transaction.user_id
         row.invoice_id = transaction.invoice_id
         row.subscription_id = transaction.subscription_id
         row.amount_cents = transaction.amount_cents
