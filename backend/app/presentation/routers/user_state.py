@@ -450,7 +450,6 @@ def get_contact_info(
 @router.get("/home/stats", response_model=HomeStatsRead)
 def get_home_stats(
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
 ) -> HomeStatsRead:
     """Get home page statistics and featured placements."""
     from app.infrastructure.orm import PlacementORM, OrganisationORM, UserORM

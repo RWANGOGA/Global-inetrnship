@@ -54,7 +54,7 @@ function MetricCard({ label, value, icon, color }: { label: string; value: strin
 }
 
 export function AdminBilling() {
-  const { isApiEnabled, toast } = useApp();
+  const { isApiEnabled, toast, openModal } = useApp();
   const [invoices, setInvoices] = useState<InvoiceResponse[]>([]);
   const [transactions, setTransactions] = useState<TransactionResponse[]>([]);
   const [revenue, setRevenue] = useState<{
@@ -103,6 +103,66 @@ export function AdminBilling() {
   const paidInvoices = Array.isArray(invoices) ? invoices.filter(i => i.status === "paid").length : 0;
   const paidTxns = Array.isArray(transactions) ? transactions.filter(t => t.status === "succeeded").length : 0;
   const overdue = outstanding.length > 0;
+
+  /**
+   * "View details" used to raise a toast, so the button promised a panel that
+   * never existed. Everything the modal shows is already on the invoice record
+   * the list holds, so this costs no extra request.
+   */
+  function showInvoice(inv: InvoiceResponse) {
+    const fields: Array<[string, string]> = [
+      ["Status", inv.status],
+      ["Billed to", inv.user_id ? "Student account" : inv.org_id || "—"],
+      ["Description", inv.description || "—"],
+      ["Issued", formatDate(inv.created_at)],
+      ["Due", formatDate(inv.due_date)],
+      ["Paid", formatDate(inv.paid_at)],
+      ["Gateway", inv.payment_gateway || "—"],
+      ["Gateway invoice", inv.gateway_invoice_id || "—"],
+      ["Payment intent", inv.gateway_payment_intent_id || "—"],
+      ["Invoice ID", inv.id],
+    ];
+    const lineItems = Array.isArray(inv.line_items) ? inv.line_items : [];
+
+    openModal(
+      inv.invoice_number,
+      <div style={{ display: "grid", gap: "16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "12px", borderBottom: "1px solid var(--rule)", paddingBottom: "12px" }}>
+          <span className="lbl">Amount</span>
+          <b style={{ fontSize: "20px", letterSpacing: "-.02em" }}>{formatCents(inv.amount_cents)} {inv.currency}</b>
+        </div>
+
+        {lineItems.length > 0 && (
+          <div>
+            <span className="lbl">Line items</span>
+            <div style={{ display: "grid", gap: "6px", marginTop: "8px" }}>
+              {lineItems.map((item, index) => {
+                const description = typeof item.description === "string" ? item.description : "Item";
+                const quantity = typeof item.quantity === "number" ? item.quantity : 1;
+                const unit = typeof item.unit_amount_cents === "number" ? item.unit_amount_cents : 0;
+                return (
+                  <div key={index} style={{ display: "flex", justifyContent: "space-between", gap: "12px", fontSize: "12px" }}>
+                    <span>{description} × {quantity}</span>
+                    <b>{formatCents(unit * quantity)}</b>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: "grid", gap: "7px" }}>
+          {fields.map(([label, value]) => (
+            <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: "12px", fontSize: "12px" }}>
+              <span className="lbl">{label}</span>
+              <span style={{ textAlign: "right", wordBreak: "break-all" }}>{value}</span>
+            </div>
+          ))}
+        </div>
+      </div>,
+      null
+    );
+  }
 
   if (loading) {
     return <div className="dpane-h" style={{ padding: "24px", textAlign: "center" }}><p style={{ fontWeight: 600, color: "var(--ink)" }}>Loading billing…</p></div>;
@@ -182,7 +242,7 @@ export function AdminBilling() {
                         <td style={{ padding: "10px 12px", color: "var(--red)", fontWeight: 600, fontFamily: "var(--mono)", fontSize: "12px" }}>{daysOverdue}d</td>
                         <td style={{ padding: "10px 12px", fontWeight: 600, color: "var(--ink)", fontSize: "12px" }}>{formatCents(inv.amount_cents)}</td>
                         <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{inv.payment_gateway || "—"}</td>
-                        <td style={{ padding: "10px 12px" }}><button className="btn btn-sm" onClick={() => toast("Opening invoice details…")} style={{ padding: "5px 12px", fontWeight: 700, fontSize: "11.5px" }}>View details</button></td>
+                        <td style={{ padding: "10px 12px" }}><button className="btn btn-sm" onClick={() => showInvoice(inv)} style={{ padding: "5px 12px", fontWeight: 700, fontSize: "11.5px" }}>View details</button></td>
                       </tr>
                     );
                   })}
@@ -214,7 +274,16 @@ export function AdminBilling() {
                 <tbody>
                   {invoices.slice(0, 100).map((inv) => (
                     <tr key={inv.id} style={{ borderBottom: "1px solid var(--rule)" }}>
-                      <td style={{ padding: "10px 12px", fontWeight: 500, color: "var(--ink)", fontSize: "12px" }}>{inv.invoice_number}</td>
+                      <td style={{ padding: "10px 12px", fontWeight: 500, color: "var(--ink)", fontSize: "12px" }}>
+                        {/* Paid invoices had no way in; the number itself is now the control. */}
+                        <button
+                          type="button"
+                          onClick={() => showInvoice(inv)}
+                          style={{ background: "none", border: 0, padding: 0, font: "inherit", color: "var(--blue)", fontWeight: 600, cursor: "pointer", textAlign: "left" }}
+                        >
+                          {inv.invoice_number}
+                        </button>
+                      </td>
                       <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{inv.user_id ? "Student account" : inv.org_id || "—"}</td>
                       <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{formatDate(inv.created_at)}</td>
                       <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{formatDate(inv.due_date)}</td>

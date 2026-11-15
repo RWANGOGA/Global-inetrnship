@@ -27,6 +27,18 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={classMap[color] || "tg"}>{status.replace("_", " ")}</span>;
 }
 
+/** Table copy for the posting type; the raw value can arrive empty from older records. */
+const TYPE_LABELS: Record<string, string> = {
+  internship: "Internship",
+  gig: "Gig",
+  entry_level: "Entry level",
+};
+
+function typeLabel(type?: string) {
+  if (!type) return "Unspecified";
+  return TYPE_LABELS[type] || type.replace(/_/g, " ");
+}
+
 function TypeBadge({ type }: { type: string }) {
   const colors: Record<string, string> = {
     internship: "blue",
@@ -325,29 +337,14 @@ export function EmployerPlacements() {
   return (
     <>
       {/* Header */}
-      <div className="dpane-h" style={{ 
-        flexWrap: "wrap", 
-        gap: "20px", 
-        alignItems: "center",
-        marginBottom: "8px",
-        paddingBottom: "20px",
-        borderBottom: "2px solid var(--rule)",
-      }}>
-        <div style={{ flex: 1, minWidth: "280px" }}>
-          <h1 style={{ 
-            fontWeight: 800, 
-            fontSize: "32px", 
-            marginBottom: "8px",
-            color: "var(--ink)",
-            letterSpacing: "-0.5px",
-          }}>
-            My Placements
-          </h1>
-          <p style={{ color: "var(--ink-2)", fontSize: "15px", fontWeight: 500 }}>
+      <div className="dpane-h" style={{ flexWrap: "wrap", gap: "16px" }}>
+        <div>
+          <h2>My Placements</h2>
+          <p>
             {employerLiveCount} published ·{" "}
             {isPremium ? (
               <>
-                <span style={{ background: "var(--blue-tint)", color: "var(--blue)", padding: "4px 10px", borderRadius: "var(--r-pill)", fontSize: "12px", fontWeight: 600, marginRight: "8px" }}>
+                <span style={{ background: "var(--blue-tint)", color: "var(--blue)", padding: "2px 9px", borderRadius: "var(--r-pill)", fontSize: "11px", fontWeight: 600, marginRight: "8px" }}>
                   {subscription.plan}
                 </span>
                 <span>unlimited postings</span>
@@ -355,7 +352,7 @@ export function EmployerPlacements() {
               </>
             ) : (
               <>
-                <span style={{ background: "var(--gold-tint)", color: "var(--gold)", padding: "4px 10px", borderRadius: "var(--r-pill)", fontSize: "12px", fontWeight: 600, marginRight: "8px" }}>
+                <span style={{ background: "var(--gold-tint)", color: "var(--gold)", padding: "2px 9px", borderRadius: "var(--r-pill)", fontSize: "11px", fontWeight: 600, marginRight: "8px" }}>
                   {remaining} free left
                 </span>
                 <span>then placement fee applies</span>
@@ -363,18 +360,17 @@ export function EmployerPlacements() {
             )}
           </p>
         </div>
-        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-          <button type="button" className="btn btn-sm" onClick={handleExport} style={{ height: "44px" }}>
-            <span style={{ marginRight: "8px" }}><Icon name="download" size={14} /></span> Export CSV
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <button type="button" className="btn btn-sm" onClick={handleExport}>
+            <Icon name="download" size={13} /> Export CSV
           </button>
           <button
             type="button"
-            className={`btn btn-sm ${showForm ? "btn-blue" : ""}`}
+            className="btn btn-sm btn-blue"
             onClick={() => setShowForm((current) => !current)}
-            style={{ height: "44px" }}
           >
-            <span style={{ marginRight: "8px" }}><Icon name={showForm ? "x" : "plus"} size={14} /></span>
-            {showForm ? "Close form" : "Create new placement"}
+            <Icon name={showForm ? "x" : "plus"} size={13} />
+            {showForm ? "Close form" : "New placement"}
           </button>
         </div>
       </div>
@@ -805,7 +801,7 @@ export function EmployerPlacements() {
                       {p.title}
                     </div>
                     <div style={{ fontSize: "13px", color: "var(--muted)", marginTop: "4px" }}>
-                      {p.slots} slots · {p.opportunityType.charAt(0).toUpperCase() + p.opportunityType.slice(1)}
+                      {p.slots} slots · {typeLabel(p.opportunityType)}
                     </div>
                   </td>
                   <td data-label="Status" style={{ padding: "18px 20px" }}>

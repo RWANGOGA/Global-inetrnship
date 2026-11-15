@@ -1,324 +1,123 @@
 "use client";
 
-import React, { useRef, useEffect, useState, useMemo } from "react";
-import { useApp } from "../../context/AppContext";
-import { Icon } from "../icons/Icons";
-import { StudentDocument } from "../../types";
-
-type TestimonialRole = "all" | "student" | "employer" | "employee" | "admin";
+import React, { useState } from "react";
+import type { TestimonialDto } from "../../lib/api";
+import styles from "./TestimonialCarousel.module.css";
 
 interface TestimonialCarouselProps {
-  testimonials: StudentDocument[];
+  testimonials: TestimonialDto[];
+  loading?: boolean;
   autoScroll?: boolean;
   interval?: number;
 }
 
-function formatDate(dateStr: string): string {
-  try {
-    return new Date(dateStr).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  } catch {
-    return dateStr;
-  }
-}
-
-const ROLE_LABELS: Record<TestimonialRole, string> = {
-  all: "All",
-  student: "Students",
-  employer: "Employers",
-  employee: "Employees",
-  admin: "Admins",
+const ROLE_LABELS: Record<string, string> = {
+  student: "Student",
+  employer: "Employer",
+  employee: "Employee",
+  admin: "Placement office",
 };
 
-const ROLE_COLORS: Record<TestimonialRole, string> = {
-  all: "var(--ink)",
-  student: "var(--blue)",
-  employer: "var(--green)",
-  employee: "var(--gold)",
-  admin: "var(--red)",
-};
-
-interface TestimonialCarouselProps {
-  testimonials: StudentDocument[];
-  autoScroll?: boolean;
-  interval?: number;
+function getTestimonialText(testimonial: TestimonialDto): string {
+  return testimonial.testimonial_text
+    .split(/\r?\n/)
+    .filter((line) => !/^(?:(?:employer|employee)\s+)?testimonial for\b|^(?:supervisor|role):/i.test(line.trim()))
+    .join("\n")
+    .trim();
 }
 
-export function TestimonialCarousel({ 
-  testimonials, 
-  autoScroll = true, 
-  interval = 5000 
+function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  return Number.isNaN(date.getTime())
+    ? ""
+    : date.toLocaleDateString(undefined, { month: "short", year: "numeric" });
+}
+
+export function TestimonialCarousel({
+  testimonials,
+  loading = false,
+  autoScroll = true,
+  interval = 5000,
 }: TestimonialCarouselProps) {
-  const { openPlacement } = useApp();
-  const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
-  const [activeRole, setActiveRole] = useState<TestimonialRole>("all");
-  const carouselRef = useRef<HTMLDivElement>(null);
+  const visibleTestimonials = testimonials
+    .map((testimonial) => ({ testimonial, text: getTestimonialText(testimonial) }))
+    .filter(({ text }) => text.length > 0);
 
-  const filteredTestimonials = useMemo(() => 
-    activeRole === "all" 
-      ? testimonials 
-      : testimonials.filter(t => t.author_role === activeRole),
-    [activeRole, testimonials]
-  );
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setPrefersReducedMotion(mediaQuery.matches);
-    const handler = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
-    mediaQuery.addEventListener("change", handler);
-    return () => mediaQuery.removeEventListener("change", handler);
-  }, []);
-
-  useEffect(() => {
-    if (!autoScroll || prefersReducedMotion || testimonials.length <= 1) return;
-    
-    const timer = setInterval(() => {
-      if (!isPaused) {
-        setCurrentIndex((prev) => (prev + 1) % testimonials.length);
-      }
-    }, interval);
-    
-    return () => clearInterval(timer);
-  }, [autoScroll, prefersReducedMotion, testimonials.length, isPaused, interval]);
-
-  // Reset index when role filter changes
-  useEffect(() => {
-    setCurrentIndex(0);
-  }, [activeRole]);
-
-  if (testimonials.length === 0) {
-    return null;
-  }
-
-  const current = filteredTestimonials[currentIndex];
-
-  function renderEmptyState() {
-    return (
-      <section className="sec" style={{ paddingTop: 0 }}>
-        <div className="wrap">
-          <div className="sec-h" style={{ marginBottom: "16px" }}>
-            <div>
-              <span className="lbl">Testimonials</span>
-              <h2 style={{ marginTop: "6px" }}>
-                What our community says<br />
-                about BrighterWorks.
-              </h2>
-            </div>
-          </div>
-          <div className="panel" style={{ textAlign: "center", padding: "40px" }}>
-            <p className="lbl" style={{ color: "var(--muted)" }}>
-              No {ROLE_LABELS[activeRole].toLowerCase()} testimonials yet.
-            </p>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  function renderTestimonials() {
-    if (filteredTestimonials.length === 0) {
-      return renderEmptyState();
-    }
-
-    return (
-      <div>
-        <div
-          ref={carouselRef}
-          className="testimonial-carousel"
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "12px",
-            maxHeight: "320px",
-            overflow: "hidden",
-            position: "relative",
-          }}
-          onMouseEnter={() => setIsPaused(true)}
-          onMouseLeave={() => setIsPaused(false)}
-          onFocus={() => setIsPaused(true)}
-          onBlur={() => setIsPaused(false)}
-          role="region"
-          aria-label="Community testimonials carousel"
-          aria-live="polite"
-        >
-          {filteredTestimonials.map((testimonial, index) => (
-            <div
-              key={testimonial.id}
-              className="testimonial-card"
-              style={{
-                flex: "0 0 100%",
-                minWidth: "100%",
-                opacity: index === currentIndex ? 1 : 0,
-                transform: `translateY(${(index - currentIndex) * 100}%)`,
-                transition: "opacity 0.4s ease, transform 0.4s ease",
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "100%",
-                pointerEvents: index === currentIndex ? "auto" : "none",
-              }}
-            >
-              <article
-                style={{
-                  border: "1px solid var(--rule)",
-                  borderRadius: "var(--r-lg)",
-                  padding: "20px",
-                  background: "#FBFAF6",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "12px",
-                  height: "100%",
-                  borderLeft: `4px solid ${ROLE_COLORS[testimonial.author_role as TestimonialRole] || "var(--blue)"}`,
-                }}
-              >
-                <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
-                  <div
-                    className="seal"
-                    style={{
-                      width: "56px",
-                      height: "56px",
-                      flexShrink: 0,
-                      fontSize: "6.5px",
-                      display: "flex",
-                      flexDirection: "column",
-                      justifyContent: "center",
-                      alignItems: "center",
-                      textAlign: "center",
-                      background: ROLE_COLORS[testimonial.author_role as TestimonialRole] || "var(--blue)",
-                      color: "white",
-                      borderRadius: "var(--r-md)",
-                    }}
-                  >
-                    <span style={{ fontWeight: 600, fontSize: "10px" }}>{ROLE_LABELS[testimonial.author_role as TestimonialRole] || "User"}</span>
-                    <span style={{ fontSize: "9px" }}>{formatDate(testimonial.uploaded_at)}</span>
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: "13.5px", lineHeight: 1.65, marginBottom: "8px" }}>
-                      &ldquo;{testimonial.filename.replace(".txt", "")}&rdquo;
-                    </p>
-                    <div className="lbl" style={{ marginTop: "4px", display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-                      <span>{testimonial.user_id.slice(0, 8)}&hellip;</span>
-                      <span style={{ color: ROLE_COLORS[testimonial.author_role as TestimonialRole] || "var(--blue)" }}>
-                        &middot; {ROLE_LABELS[testimonial.author_role as TestimonialRole] || "User"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    marginTop: "8px",
-                    paddingTop: "8px",
-                    borderTop: "1px solid var(--rule-2)",
-                  }}
-                >
-                  <span className="tg green" style={{ fontSize: "10px" }}>
-                    <Icon name="check" size={8} /> Verified
-                  </span>
-                  <span className="tg blue" style={{ fontSize: "10px" }}>
-                    <Icon name="user" size={8} /> Public
-                  </span>
-                  <span style={{ flex: 1 }}></span>
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    style={{ fontSize: "10px", padding: "4px 8px" }}
-                    onClick={() => openPlacement("p2")}
-                    disabled={index !== currentIndex}
-                  >
-                    Read more
-                    <Icon name="arrow" size={8} />
-                  </button>
-                </div>
-              </article>
-            </div>
-          ))}
-        </div>
-
-        {/* Navigation dots */}
-        {filteredTestimonials.length > 1 && (
-          <div
-            style={{
-              position: "absolute",
-              bottom: "12px",
-              left: "50%",
-              transform: "translateX(-50%)",
-              display: "flex",
-              gap: "8px",
-              zIndex: 10,
-            }}
-            role="tablist"
-            aria-label="Testimonial navigation"
-          >
-            {filteredTestimonials.map((_, index) => (
-              <button
-                key={index}
-                type="button"
-                role="tab"
-                aria-selected={index === currentIndex}
-                aria-label={`Go to testimonial ${index + 1}`}
-                onClick={() => setCurrentIndex(index)}
-                style={{
-                  width: "10px",
-                  height: "10px",
-                  borderRadius: "50%",
-                  border: "none",
-                  background: index === currentIndex ? "var(--blue)" : "var(--muted)",
-                  cursor: "pointer",
-                  transition: "background 0.2s ease",
-                  padding: 0,
-                }}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Pause/Play button */}
-        {filteredTestimonials.length > 1 && (
-          <button
-            type="button"
-            className="btn btn-sm"
-            style={{
-              position: "absolute",
-              top: "12px",
-              right: "12px",
-              zIndex: 10,
-              padding: "6px 10px",
-              fontSize: "10px",
-            }}
-            onClick={() => setIsPaused(!isPaused)}
-            aria-label={isPaused ? "Resume auto-scroll" : "Pause auto-scroll"}
-          >
-            {isPaused ? (
-              <>
-                <Icon name="plus" size={10} /> Resume
-              </>
-            ) : (
-              <>
-                <Icon name="x" size={10} /> Pause
-              </>
-            )}
-          </button>
-        )}
-      </div>
-    );
-  }
+  const duration = Math.max(20, (visibleTestimonials.length * interval) / 1000);
+  const loopCopies = autoScroll && visibleTestimonials.length > 1 ? [0, 1] : [0];
 
   return (
-    <section className="sec" style={{ paddingTop: 0 }}>
+    <section className={`sec ${styles.section}`} aria-labelledby="testimonials-heading">
       <div className="wrap">
-        {renderTestimonials()}
-        <p className="lbl" style={{ textAlign: "center", marginTop: "12px", color: "var(--muted)" }}>
-          {filteredTestimonials.length} verified {ROLE_LABELS[activeRole].toLowerCase()} testimonial{filteredTestimonials.length !== 1 ? "s" : ""}
-        </p>
+        <div className="sec-h">
+          <div>
+            <span className="lbl">Community stories</span>
+            <h2 id="testimonials-heading">What our community says.</h2>
+          </div>
+          {!loading && visibleTestimonials.length > 0 && (
+            <span className="lbl">
+              {visibleTestimonials.length} verified testimonial{visibleTestimonials.length === 1 ? "" : "s"}
+            </span>
+          )}
+        </div>
+
+        {loading ? (
+          <div className={`panel ${styles.empty}`} role="status">Loading testimonials…</div>
+        ) : visibleTestimonials.length === 0 ? (
+          <div className={`panel ${styles.empty}`}>
+            Verified public testimonials will appear here once they are approved.
+          </div>
+        ) : (
+          <div
+            className={styles.viewport}
+            onMouseEnter={() => setIsPaused(true)}
+            onMouseLeave={() => setIsPaused(false)}
+            onFocus={() => setIsPaused(true)}
+            onBlur={() => setIsPaused(false)}
+            tabIndex={0}
+            role="region"
+            aria-label="Verified community testimonials scrolling upward"
+          >
+            <div
+              className={styles.track}
+              style={{
+                animationName: autoScroll && visibleTestimonials.length > 1 ? undefined : "none",
+                animationDuration: `${duration}s`,
+                animationPlayState: isPaused ? "paused" : "running",
+              }}
+            >
+              {loopCopies.map((copy) => (
+                <div
+                  className={styles.group}
+                  key={copy}
+                  aria-hidden={copy === 1}
+                >
+                  {visibleTestimonials.map(({ testimonial, text }) => (
+                    <article
+                      className={styles.card}
+                      data-role={testimonial.author_role}
+                      key={`${copy}-${testimonial.id}`}
+                    >
+                      <p className={styles.quote}>&ldquo;{text}&rdquo;</p>
+                      <div className={styles.meta}>
+                        <span className={styles.role}>
+                          {ROLE_LABELS[testimonial.author_role] || "Community member"}
+                        </span>
+                        <span>Verified</span>
+                        {formatDate(testimonial.uploaded_at) && (
+                          <time dateTime={testimonial.uploaded_at}>
+                            {formatDate(testimonial.uploaded_at)}
+                          </time>
+                        )}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );

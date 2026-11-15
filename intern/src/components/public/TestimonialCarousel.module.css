@@ -1,0 +1,97 @@
+.section {
+  padding-top: 0;
+}
+
+.viewport {
+  height: min(440px, 70vh);
+  min-height: 280px;
+  overflow: hidden;
+  position: relative;
+  mask-image: linear-gradient(transparent, #000 8%, #000 92%, transparent);
+}
+
+.track {
+  display: flex;
+  flex-direction: column;
+  animation: scroll-up linear infinite;
+}
+
+.group {
+  display: grid;
+  gap: 12px;
+  padding-bottom: 12px;
+}
+
+.card {
+  background: var(--white);
+  border: 1px solid var(--rule);
+  border-left: 4px solid var(--blue);
+  border-radius: var(--r-md);
+  padding: 18px 20px;
+  box-shadow: var(--shadow);
+}
+
+.card[data-role="student"] {
+  border-left-color: var(--blue);
+}
+
+.card[data-role="employer"] {
+  border-left-color: var(--green);
+}
+
+.card[data-role="employee"] {
+  border-left-color: var(--gold);
+}
+
+.quote {
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.7;
+  white-space: pre-line;
+}
+
+.meta {
+  align-items: center;
+  border-top: 1px solid var(--rule);
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-family: var(--mono);
+  font-size: 10px;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 10px;
+  text-transform: uppercase;
+}
+
+.role {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.empty {
+  color: var(--muted);
+  padding: 28px;
+  text-align: center;
+}
+
+@keyframes scroll-up {
+  to {
+    transform: translateY(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .viewport {
+    height: auto;
+    mask-image: none;
+  }
+
+  .track {
+    animation: none;
+  }
+
+  .group[aria-hidden="true"] {
+    display: none;
+  }
+}
