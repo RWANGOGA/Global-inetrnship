@@ -396,7 +396,7 @@ export function PlacementDetailView() {
             </div>
           </div>
 
-          <aside className="side">
+          <aside className="dside">
             <div className="ticket" style={{ padding: "16px" }}>
               <div
                 style={{

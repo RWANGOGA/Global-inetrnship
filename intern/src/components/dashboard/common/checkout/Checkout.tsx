@@ -6,6 +6,7 @@ import {
   fetchSubscription,
   fetchGateways,
   fetchPaymentMethods,
+  addPaymentMethodApi,
   previewCheckoutApi,
   checkoutApi,
   type SubscriptionDto,
@@ -17,6 +18,7 @@ import { OrderSummary } from "./OrderSummary";
 import { PaymentMethodPicker } from "./PaymentMethodPicker";
 import { OrderConfirmation } from "./OrderConfirmation";
 import { Icon } from "../../../icons/Icons";
+import styles from "./Checkout.module.css";
 
 type Section = "plan" | "details" | "payment" | "review";
 
@@ -28,18 +30,23 @@ interface PlanOption {
 
 const PLANS: PlanOption[] = [
   { value: "Pro", label: "Pro", desc: "Unlimited placements + priority review" },
-  { value: "Enterprise", label: "Enterprise", desc: "Volume pricing + dedicated support" },
 ];
 
 const CYCLES: { value: "monthly" | "annual"; label: string }[] = [
   { value: "monthly", label: "Monthly" },
-  { value: "annual", label: "Annual (save 20%)" },
+  { value: "annual", label: "Annual (save 17%)" },
 ];
 
 export function Checkout({
   onClose,
-}: { onClose?: () => void } = {}) {
-  const { toast, subscription, role, session } = useApp();
+  initialPlan = "Pro",
+  initialBillingCycle = "monthly",
+}: {
+  onClose?: () => void;
+  initialPlan?: string;
+  initialBillingCycle?: "monthly" | "annual";
+} = {}) {
+  const { toast, role } = useApp();
   const [gateways, setGateways] = useState<GatewayOption[]>([]);
   const [methods, setMethods] = useState<PaymentMethodResponse[]>([]);
   const [preview, setPreview] = useState<CheckoutPreviewResponse | null>(null);
@@ -53,15 +60,15 @@ export function Checkout({
   } | null>(null);
 
   // Form state
-  const [plan, setPlan] = useState("Pro");
-  const [cycle, setCycle] = useState<"monthly" | "annual">("monthly");
+  const [plan, setPlan] = useState(initialPlan);
+  const [cycle, setCycle] = useState<"monthly" | "annual">(initialBillingCycle);
   const [gateway, setGateway] = useState("stripe");
   const [billingEmail, setBillingEmail] = useState("");
   const [taxId, setTaxId] = useState("");
   const [billingAddress, setBillingAddress] = useState("");
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
   const [addingMethod, setAddingMethod] = useState(false);
-  const [newMethodType, setNewMethodType] = useState("card");
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   // Section state
   const [done, setDone] = useState<Record<Section, boolean>>({
@@ -93,7 +100,7 @@ export function Checkout({
     return () => {
       cancelled = true;
     };
-  }, [selectedPaymentMethod]);
+  }, []);
 
   const canPreview = useMemo(() => Boolean(plan && cycle && gateway), [plan, cycle, gateway]);
 
@@ -120,8 +127,15 @@ export function Checkout({
   }, [refreshPreview]);
 
   const placeOrder = useCallback(async () => {
-    if (!preview || !selectedPaymentMethod) {
-      toast("Please select a plan and payment method.");
+    if (
+      !preview ||
+      !selectedPaymentMethod ||
+      !done.plan ||
+      !done.details ||
+      !done.payment ||
+      !termsAccepted
+    ) {
+      setError("Complete each checkout step and accept the subscription terms before ordering.");
       return;
     }
     setPlacing(true);
@@ -138,7 +152,12 @@ export function Checkout({
           tax_id: taxId,
           billing_address: billingAddress,
         },
+        terms_accepted: termsAccepted,
       });
+      if (result.transaction?.status !== "succeeded") {
+        setError("Payment was not completed. Your paid plan has not been activated.");
+        return;
+      }
       setConfirmed({
         subscription: result.subscription ?? null,
         invoice: result.invoice ? { invoice_number: result.invoice.invoice_number } : null,
@@ -152,20 +171,25 @@ export function Checkout({
     } finally {
       setPlacing(false);
     }
-  }, [plan, cycle, gateway, selectedPaymentMethod, preview, billingEmail, taxId, billingAddress, toast]);
-
-  const sectionDone = (s: Section) => done[s];
-  const complete = Object.values(done).every(Boolean);
+  }, [plan, cycle, gateway, selectedPaymentMethod, preview, billingEmail, taxId, billingAddress, done, termsAccepted]);
 
   const handleSectionToggle = (s: Section) => {
     setExpanded(expanded === s ? null : s);
   };
   const handleChange = (s: Section) => {
-    setDone((prev) => ({ ...prev, [s]: false }));
+    setDone((prev) => {
+      if (s === "plan") return { plan: false, details: false, payment: false, review: false };
+      if (s === "details") return { ...prev, details: false, payment: false, review: false };
+      if (s === "payment") return { ...prev, payment: false, review: false };
+      return { ...prev, review: false };
+    });
+    setTermsAccepted(false);
     setExpanded(s);
   };
 
-  const allDone = useMemo(() => complete, [done]);
+  const canPlaceOrder = Boolean(
+    preview && selectedPaymentMethod && done.plan && done.details && done.payment && termsAccepted && !placing
+  );
 
   const currency = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
@@ -174,7 +198,7 @@ export function Checkout({
     : null;
 
   return (
-    <section className="dpane" style={{ maxWidth: 1100, margin: "0 auto" }}>
+    <section className={`dpane ${styles.checkout}`} style={{ maxWidth: 1100, margin: "0 auto", width: "100%" }}>
       {confirmed ? (
         <OrderConfirmation
           subscription={confirmed.subscription}
@@ -223,7 +247,7 @@ export function Checkout({
             </div>
           )}
 
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 360px", gap: 22, alignItems: "start" }}>
+          <div className={styles.layout}>
             {/* Left: sections */}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {renderSection("plan", "1 · Choose your plan", [
@@ -242,13 +266,14 @@ export function Checkout({
 
             {/* Right: sticky order summary */}
             <OrderSummary
+              className={styles.summary}
               preview={preview}
               plan={plan}
               cycle={cycle}
               paymentMethod={paymentMethodLabel}
               placing={placing}
               onPlaceOrder={placeOrder}
-              canPlace={Boolean(preview) && Boolean(selectedPaymentMethod) && !placing}
+              canPlace={canPlaceOrder}
             />
           </div>
         </>
@@ -306,7 +331,6 @@ export function Checkout({
   }
 
   function renderPlanSection() {
-    const selectedPlan = PLANS.find((p) => p.value === plan);
     return (
       <div style={{ display: "grid", gap: 12 }}>
         <div>
@@ -319,8 +343,8 @@ export function Checkout({
                   key={p.value}
                   onClick={() => {
                     setPlan(p.value);
-                    setDone((d) => ({ ...d, plan: true }));
-                    setExpanded("details");
+                    setDone((d) => ({ ...d, plan: false, details: false, payment: false, review: false }));
+                    setTermsAccepted(false);
                   }}
                   style={{
                     flex: 1,
@@ -350,7 +374,11 @@ export function Checkout({
               return (
                 <button
                   key={c.value}
-                  onClick={() => setCycle(c.value)}
+                  onClick={() => {
+                    setCycle(c.value);
+                    setDone((d) => ({ ...d, plan: false, details: false, payment: false, review: false }));
+                    setTermsAccepted(false);
+                  }}
                   style={{
                     padding: "10px 14px",
                     border: `1px solid ${sel ? "var(--blue)" : "var(--rule-2)"}`,
@@ -376,7 +404,11 @@ export function Checkout({
               return (
                 <button
                   key={g.id}
-                  onClick={() => setGateway(g.id)}
+                  onClick={() => {
+                    setGateway(g.id);
+                    setDone((d) => ({ ...d, plan: false, details: false, payment: false, review: false }));
+                    setTermsAccepted(false);
+                  }}
                   style={{
                     padding: "8px 12px",
                     border: `1px solid ${sel ? "var(--blue)" : "var(--rule-2)"}`,
@@ -394,6 +426,15 @@ export function Checkout({
             })}
           </div>
         </div>
+        <button
+          className="btn btn-blue"
+          onClick={() => {
+            setDone((d) => ({ ...d, plan: true }));
+            setExpanded("details");
+          }}
+        >
+          Continue to billing details
+        </button>
       </div>
     );
   }
@@ -408,7 +449,10 @@ export function Checkout({
               type="email"
               placeholder="you@organisation.org"
               value={billingEmail}
-              onChange={(e) => setBillingEmail(e.target.value)}
+              onChange={(e) => {
+                setBillingEmail(e.target.value);
+                setDone((d) => ({ ...d, details: false, payment: false, review: false }));
+              }}
               style={{}}
             />
           </div>
@@ -438,11 +482,15 @@ export function Checkout({
         <button
           className="btn btn-blue"
           onClick={() => {
-            setDone((d) => ({ ...d, details: Boolean(billingEmail) }));
-            if (billingEmail) setExpanded("payment");
-            else toast("Please enter a billing email.");
+            const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(billingEmail.trim());
+            if (!validEmail) {
+              toast("Enter a valid billing email.");
+              return;
+            }
+            setDone((d) => ({ ...d, details: true }));
+            setExpanded("payment");
           }}
-          disabled={!billingEmail}
+          disabled={!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(billingEmail.trim())}
           style={{}}
         >
           Continue to payment
@@ -460,38 +508,38 @@ export function Checkout({
           selectedId={selectedPaymentMethod ?? (defaultMethod?.id ?? null)}
           onSelect={(id) => {
             setSelectedPaymentMethod(id);
-            setDone((d) => ({ ...d, payment: Boolean(id) }));
+            setDone((d) => ({ ...d, payment: false, review: false }));
+            setTermsAccepted(false);
           }}
           onAdd={() => setAddingMethod(true)}
           adding={addingMethod}
         />
         {addingMethod && (
           <div style={{ display: "grid", gap: 8, paddingTop: 6, borderTop: "1px solid var(--rule)" }}>
-            <div className="lbl ink">Add a new card</div>
+            <div className="lbl ink">Add a sandbox payment method</div>
+            <p style={{ margin: 0, fontSize: "11.5px", color: "var(--muted)" }}>
+              Test mode only. No real card details or charges are used.
+            </p>
             <div style={{ display: "grid", gap: 8 }}>
-              <div className="fld">
-                <select
-                  value={newMethodType}
-                  onChange={(e) => setNewMethodType(e.target.value as "card")}
-                  style={{}}
-                >
-                  <option value="card">Card (Stripe Elements)</option>
-                </select>
-              </div>
               <div style={{ display: "flex", gap: 8 }}>
                 <button
                   className="btn btn-blue"
-                  onClick={() => {
-                    const pm = { id: `pm_${crypto.randomUUID().slice(0, 8)}`, org_id: session?.org_id ?? "", type: newMethodType, details: { last4: "4242", brand: "Visa" }, is_default: true, gateway_payment_method_id: null, created_at: new Date().toISOString() };
-                    setMethods((prev) => [pm, ...prev]);
-                    setSelectedPaymentMethod(pm.id);
-                    setDone((d) => ({ ...d, payment: true }));
-                    setAddingMethod(false);
-                    setExpanded("review");
+                  onClick={async () => {
+                    try {
+                      const pm = await addPaymentMethodApi({
+                        type: "card",
+                        details: { sandbox: true },
+                      });
+                      setMethods((prev) => [pm, ...prev]);
+                      setSelectedPaymentMethod(pm.id);
+                      setDone((d) => ({ ...d, payment: false }));
+                      setAddingMethod(false);
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : "Could not save the test payment method.");
+                    }
                   }}
-                  style={{}}
                 >
-                  Save & continue
+                  Save test payment method
                 </button>
                 <button
                   className="btn btn-ghost"
@@ -504,10 +552,16 @@ export function Checkout({
             </div>
           </div>
         )}
-        {selectedPaymentMethod && !done.payment && (
-          <div style={{ fontSize: "11.5px", color: "var(--green)" }}>
-            <Icon name="check" size={13} /> Payment method saved.
-          </div>
+        {selectedPaymentMethod && (
+          <button
+            className="btn btn-blue"
+            onClick={() => {
+              setDone((d) => ({ ...d, payment: true }));
+              setExpanded("review");
+            }}
+          >
+            Continue to review
+          </button>
         )}
       </div>
     );
@@ -561,8 +615,8 @@ export function Checkout({
           <label style={{ display: "flex", alignItems: "start", gap: 8, fontSize: "12px", cursor: "pointer" }}>
             <input
               type="checkbox"
-              defaultChecked
-              style={{}}
+              checked={termsAccepted}
+              onChange={(event) => setTermsAccepted(event.target.checked)}
             />
             <span style={{}}>I agree to the subscription terms and authorize
               {currency(preview?.total_cents || 0)} to be charged to my selected payment method.</span>
@@ -570,10 +624,9 @@ export function Checkout({
           <button
             className="btn btn-blue btn-block"
             onClick={() => {
-              setDone((d) => ({ ...d, review: true }));
               placeOrder();
             }}
-            disabled={!preview || placing || !selectedPaymentMethod}
+            disabled={!canPlaceOrder}
             style={{}}
           >
             Place your order

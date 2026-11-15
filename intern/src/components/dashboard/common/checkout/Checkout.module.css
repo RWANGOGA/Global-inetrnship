@@ -1,0 +1,30 @@
+.checkout {
+  padding: 20px;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 22px;
+  align-items: start;
+}
+
+.summary {
+  min-width: 0;
+}
+
+@media (max-width: 860px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .summary {
+    position: static !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .checkout {
+    padding: 12px;
+  }
+}

@@ -1,11 +1,12 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useApp } from "../../context/AppContext";
 import { NAV, ROLE_META } from "../../data";
 import { DashboardView, UserRole } from "../../types";
 import { Icon } from "../icons/Icons";
-import { ChatSidebar } from "../common/ChatSidebar";
+import { listThreads } from "../../lib/chat";
+import { MessagesView } from "./common/MessagesView";
 
 // Views
 import { AdminOverview } from "./admin/AdminOverview";
@@ -70,6 +71,26 @@ export function DashboardShell() {
   const meta = ROLE_META[role] || ROLE_META.student;
   const navItems = NAV[role] || NAV.student;
 
+  // Unread badge for the Messages item. Counted from the inbox endpoint rather
+  // than pushed, so it stays right after a reload or a second device.
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    const load = () => {
+      listThreads()
+        .then((list) => {
+          if (alive) setUnread(list.reduce((sum, t) => sum + (t.unread_count || 0), 0));
+        })
+        .catch(() => undefined);
+    };
+    load();
+    const timer = window.setInterval(load, 60000);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, [dash]);
+
   // Identity shown in the sidebar / "me" chip comes from the signed-in account,
   // not the hardcoded ROLE_META name. Falls back only if somehow unauthed.
   const initials = (n: string) => {
@@ -105,6 +126,7 @@ export function DashboardShell() {
     profile: "Organization Profile",
     "talent-search": "Talent Search",
     team: "Team Members",
+    messages: "Messages",
     billing: "Billing",
   };
 
@@ -112,6 +134,10 @@ export function DashboardShell() {
   const crumb = `/ ${role === "admin" ? "placement office" : role}`;
 
   const renderActiveView = () => {
+    // Messaging is a workspace of its own, not a per-role screen, so it answers
+    // before the role switch below.
+    if (dash === "messages") return <MessagesView />;
+
     if (role === "admin") {
       switch (dash) {
         case "overview":
@@ -247,13 +273,14 @@ export function DashboardShell() {
           >
             <span className="n">{n}</span>
             <span>{label}</span>
+            {id === "messages" && unread > 0 && (
+              <span className="snav-badge" aria-label={`${unread} unread messages`}>
+                {unread > 99 ? "99+" : unread}
+              </span>
+            )}
           </a>
         ))}
       </nav>
-
-      <div className="chat-sidebar-wrapper" style={{ marginTop: "auto" }}>
-        <ChatSidebar />
-      </div>
 
       <div className="sfoot">
         <a

@@ -4,17 +4,20 @@ import React, { useState, useEffect } from "react";
 import { useApp } from "../../../context/AppContext";
 import { Icon } from "../../icons/Icons";
 import { Checkout } from "../common/checkout/Checkout";
+import { InvoicePayment } from "../common/checkout/InvoicePayment";
 import { BillingStatusBanner } from "../common/BillingStatusBanner";
 import {
   fetchInvoices,
   fetchTransactions,
   fetchGateways,
   fetchSubscription,
+  fetchEmployerBillingUsage,
   cancelSubscriptionApi,
   resumeSubscriptionApi,
   type InvoiceResponse,
   type TransactionResponse,
   type GatewayOption,
+  type EmployerBillingUsage,
 } from "../../../lib/api";
 
 const PLAN_PRICES: Record<string, { monthly: number; annual: number; limit: number }> = {
@@ -39,8 +42,12 @@ export function EmployerBilling() {
   const [transactions, setTransactions] = useState<TransactionResponse[]>([]);
   const [gateways, setGateways] = useState<GatewayOption[]>([]);
   const [subscription, setSubscription] = useState<any>(null);
+  const [placementUsage, setPlacementUsage] = useState<EmployerBillingUsage | null>(null);
   const [loading, setLoading] = useState(true);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [checkoutPlan, setCheckoutPlan] = useState<"Pro" | "Enterprise">("Pro");
+  const [checkoutCycle, setCheckoutCycle] = useState<"monthly" | "annual">("monthly");
+  const [selectedInvoice, setSelectedInvoice] = useState<InvoiceResponse | null>(null);
   const [canceling, setCanceling] = useState(false);
   const [resuming, setResuming] = useState(false);
 
@@ -50,6 +57,17 @@ export function EmployerBilling() {
       setTransactions([]);
       setGateways([]);
       setSubscription({ plan: "Free", billing_cycle: "monthly", status: "active", since: new Date().toISOString() });
+      setPlacementUsage({
+        plan: "Free",
+        billing_cycle: "monthly",
+        status: "active",
+        current_period_start: null,
+        current_period_end: null,
+        seats: 1,
+        current_placements: 0,
+        placement_limit: 3,
+        remaining_placements: 3,
+      });
       setLoading(false);
       return;
     }
@@ -58,11 +76,18 @@ export function EmployerBilling() {
 
   const loadData = async () => {
     try {
-      const [inv, txn, gw, sub] = await Promise.all([fetchInvoices(), fetchTransactions(), fetchGateways(), fetchSubscription()]);
+      const [inv, txn, gw, sub, usage] = await Promise.all([
+        fetchInvoices(),
+        fetchTransactions(),
+        fetchGateways(),
+        fetchSubscription(),
+        fetchEmployerBillingUsage(),
+      ]);
       setInvoices(Array.isArray(inv) ? inv : []);
       setTransactions(Array.isArray(txn) ? txn : []);
       setGateways(Array.isArray(gw) ? gw : []);
       setSubscription(sub);
+      setPlacementUsage(usage);
     } catch (e) {
       toast("Failed to load billing data");
       setInvoices([]); setTransactions([]); setGateways([]); setSubscription(null);
@@ -70,6 +95,12 @@ export function EmployerBilling() {
   };
 
   const handleUpgrade = async (plan: "Pro" | "Enterprise", billingCycle: "monthly" | "annual") => {
+    if (plan === "Enterprise") {
+      toast("Enterprise pricing requires a sales quote and is not available in self-serve checkout.");
+      return;
+    }
+    setCheckoutPlan(plan);
+    setCheckoutCycle(billingCycle);
     setCheckoutOpen(true);
   };
 
@@ -95,12 +126,16 @@ export function EmployerBilling() {
   };
 
   const handlePayInvoice = (invoice: InvoiceResponse) => {
-    setCheckoutOpen(true);
+    setSelectedInvoice(invoice);
   };
 
   const subPlan = subscription?.plan || "Free";
   const subBilling = subscription?.billing_cycle || "monthly";
   const subStatus = subscription?.status || "active";
+  const currentPlacements = placementUsage?.current_placements ?? 0;
+  const placementLimit = placementUsage?.placement_limit ?? getLimit(subPlan);
+  const remainingPlacements = placementUsage?.remaining_placements
+    ?? (placementLimit === -1 ? null : Math.max(0, placementLimit - currentPlacements));
   const overdue = invoices.some((inv) => inv.status === "open" && inv.due_date && new Date(inv.due_date) < new Date());
 
   if (loading) {
@@ -108,7 +143,7 @@ export function EmployerBilling() {
   }
 
   return (
-    <div className="dpane-h" style={{ maxWidth: "900px", margin: "0 auto", padding: "24px 16px" }}>
+    <div className="dpane-h" style={{ maxWidth: "1100px", margin: "0 auto", padding: "24px 16px" }}>
       <div className="dpane-h">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
           <div>
@@ -131,7 +166,7 @@ export function EmployerBilling() {
       <div className="panel" style={{ marginBottom: "20px", overflow: "hidden" }}>
         <div className="ph"><span className="lbl blue">Current plan</span></div>
         <div className="pb" style={{ padding: "16px 20px 20px" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "20px", alignItems: "start" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))", gap: "20px", alignItems: "start" }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", flexWrap: "wrap" }}>
                 <h3 style={{ margin: "0", fontSize: "18px", fontWeight: 800, color: "var(--ink)", fontFamily: "var(--sans)" }}>{subPlan}</h3>
@@ -144,7 +179,7 @@ export function EmployerBilling() {
                 {subPlan === "Free" && subscription?.since && <span>Free since {subscription.since}</span>}
               </div>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px", minWidth: "180px", flexShrink: 0 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px", minWidth: 0 }}>
               {subPlan === "Free" ? (
                 <>
                   <button className="btn btn-sm btn-blue" onClick={() => handleUpgrade("Pro", "monthly")} style={{ width: "100%", fontWeight: 700, fontSize: "11.5px" }}>Upgrade to Pro — $30/mo</button>
@@ -174,15 +209,15 @@ export function EmployerBilling() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "14px" }}>
             <div style={{ padding: "16px", border: "1px solid var(--rule)", borderRadius: "var(--r-md)", textAlign: "center", background: "var(--blue-tint)" }}>
               <div style={{ fontSize: "10px", color: "var(--blue)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.14em", fontWeight: 800, fontFamily: "var(--mono)" }}>Active placements</div>
-              <div style={{ fontSize: "22px", fontWeight: 800, color: "var(--blue)" }}>{subPlan === "Free" ? 0 : 0}</div>
+              <div style={{ fontSize: "22px", fontWeight: 800, color: "var(--blue)" }}>{currentPlacements}</div>
             </div>
             <div style={{ padding: "16px", border: "1px solid var(--rule)", borderRadius: "var(--r-md)", textAlign: "center", background: subPlan === "Free" ? "var(--blue-tint)" : "var(--green-tint)" }}>
               <div style={{ fontSize: "10px", color: subPlan === "Free" ? "var(--blue)" : "var(--green)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.14em", fontWeight: 800, fontFamily: "var(--mono)" }}>Limit</div>
-              <div style={{ fontSize: "22px", fontWeight: 800, color: subPlan === "Free" ? "var(--blue)" : "var(--green)" }}>{getLimit(subPlan) === -1 ? "Unlimited" : getLimit(subPlan)}</div>
+              <div style={{ fontSize: "22px", fontWeight: 800, color: subPlan === "Free" ? "var(--blue)" : "var(--green)" }}>{placementLimit === -1 ? "Unlimited" : placementLimit}</div>
             </div>
             <div style={{ padding: "16px", border: "1px solid var(--rule)", borderRadius: "var(--r-md)", textAlign: "center" }}>
               <div style={{ fontSize: "10px", color: "var(--blue)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.14em", fontWeight: 800, fontFamily: "var(--mono)" }}>Remaining</div>
-              <div style={{ fontSize: "22px", fontWeight: 800, color: getLimit(subPlan) === -1 ? "var(--green)" : "var(--ink)" }}>{getLimit(subPlan) === -1 ? "∞" : Math.max(0, getLimit(subPlan) - (subPlan === "Free" ? 0 : 0))}</div>
+              <div style={{ fontSize: "22px", fontWeight: 800, color: placementLimit === -1 ? "var(--green)" : "var(--ink)" }}>{remainingPlacements === null ? "∞" : remainingPlacements}</div>
             </div>
           </div>
           {subPlan === "Free" && (
@@ -294,8 +329,22 @@ export function EmployerBilling() {
       {/* Checkout (Amazon-style one-page flow) — replaces the old PaymentModal/stepper */}
       {checkoutOpen && (
         <Checkout
+          initialPlan={checkoutPlan}
+          initialBillingCycle={checkoutCycle}
           onClose={() => {
             setCheckoutOpen(false);
+            loadData();
+          }}
+        />
+      )}
+      {selectedInvoice && (
+        <InvoicePayment
+          invoice={selectedInvoice}
+          audience="employer"
+          onClose={() => setSelectedInvoice(null)}
+          onPaid={() => {
+            setSelectedInvoice(null);
+            toast("Invoice paid");
             loadData();
           }}
         />

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useApp } from "../../../context/AppContext";
 import { Icon } from "../../icons/Icons";
-import { Checkout } from "../common/checkout/Checkout";
+import { InvoicePayment } from "../common/checkout/InvoicePayment";
 import { BillingStatusBanner } from "../common/BillingStatusBanner";
 import {
   fetchStudentInvoices,
@@ -36,7 +36,7 @@ export function StudentBilling() {
   const [usage, setUsage] = useState<{ application_count: number; overage_apps: number; overage_cents: number; free_limit: number } | null>(null);
   const [invoices, setInvoices] = useState<StudentInvoiceResponse[]>([]);
   const [loading, setLoading] = useState(true);
-  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<StudentInvoiceResponse | null>(null);
 
   useEffect(() => {
     if (!isApiEnabled) {
@@ -58,7 +58,7 @@ export function StudentBilling() {
   };
 
   const handlePayInvoice = (invoice: StudentInvoiceResponse) => {
-    setCheckoutOpen(true);
+    setSelectedInvoice(invoice);
   };
 
   const used = usage?.application_count ?? 0;
@@ -72,7 +72,7 @@ export function StudentBilling() {
   }
 
   return (
-    <div className="dpane-h" style={{ maxWidth: "900px", margin: "0 auto", padding: "24px 16px" }}>
+    <div className="dpane-h" style={{ maxWidth: "1100px", margin: "0 auto", padding: "24px 16px" }}>
       <div className="dpane-h">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
           <div>
@@ -88,7 +88,6 @@ export function StudentBilling() {
         plan="Free"
         status={over > 0 ? "open" : "active"}
         overdue={overdue}
-        onUpgrade={() => setCheckoutOpen(true)}
       />
 
       {/* Application counter — usage meter */}
@@ -176,11 +175,14 @@ export function StudentBilling() {
         </div>
       </div>
 
-      {/* Checkout (Amazon-style one-page flow) — replaces the old PaymentModal/stepper */}
-      {checkoutOpen && (
-        <Checkout
-          onClose={() => {
-            setCheckoutOpen(false);
+      {selectedInvoice && (
+        <InvoicePayment
+          invoice={selectedInvoice}
+          audience="student"
+          onClose={() => setSelectedInvoice(null)}
+          onPaid={() => {
+            setSelectedInvoice(null);
+            toast("Invoice paid");
             loadData();
           }}
         />
