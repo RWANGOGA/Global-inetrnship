@@ -242,14 +242,17 @@ export function AdminDocuments() {
             <span className="lbl">Rejection reason</span>
           </div>
           <div className="pb" style={{ display: "grid", gap: "10px" }}>
-            <textarea
-              className="field"
-              rows={3}
-              required
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-              placeholder="Explain what the student must correct."
-            />
+            {/* .field on a bare control only sets display:grid, so this textarea had
+                no border, padding or height. The wrapper is what styles the child. */}
+            <div className="field">
+              <textarea
+                rows={3}
+                required
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                placeholder="Explain what the student must correct."
+              />
+            </div>
             <div style={{ display: "flex", gap: "8px" }}>
               <button
                 type="button"
