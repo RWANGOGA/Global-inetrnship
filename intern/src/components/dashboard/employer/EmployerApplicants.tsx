@@ -461,15 +461,14 @@ function KanbanBoard() {
 
   return (
     <>
-      <div className="page-header">
-        <div className="header-content">
-          <div>
-            <h1 className="page-title">Applicants</h1>
-            <p className="page-subtitle">
-              {totalApplicants} candidate{totalApplicants === 1 ? "" : "s"} · {shortlistedCount} shortlisted
-            </p>
-          </div>
-          <div className="header-actions">
+      <div className="dpane-h">
+        <div>
+          <h2>Applicants</h2>
+          <p>
+            {totalApplicants} candidate{totalApplicants === 1 ? "" : "s"} · {shortlistedCount} shortlisted
+          </p>
+        </div>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
             {selectedId && activeTab === "internships" && (
               <button type="button" className="btn btn-sm btn-ghost" onClick={() => handleExportPlacementApplicants(selectedId)}>
                 <Icon name="download" size={13} /> Export CSV
@@ -502,40 +501,37 @@ function KanbanBoard() {
             )}
           </div>
         </div>
-        
-        <div className="tab-bar">
-          <button 
-            type="button" 
-            className={`tab-btn ${activeTab === "internships" ? "active" : ""}`}
-            onClick={() => setActiveTab("internships")}
-          >
-            <Icon name="brief" size={14} /> Internships
-          </button>
-          <button 
-            type="button" 
-            className={`tab-btn ${activeTab === "jobs" ? "active" : ""}`}
-            onClick={() => setActiveTab("jobs")}
-          >
-            <Icon name="brief" size={14} /> Jobs
-          </button>
-          <button 
-            type="button" 
-            className={`tab-btn ${activeTab === "shortlisted" ? "active" : ""}`}
-            onClick={() => setActiveTab("shortlisted")}
-          >
-            <Icon name="check" size={14} /> Shortlisted
-            {totalShortlisted > 0 && <span className="tab-badge">{totalShortlisted}</span>}
-          </button>
-        </div>
+      <div className="seg">
+        <button
+          type="button"
+          className={activeTab === "internships" ? "on" : ""}
+          onClick={() => setActiveTab("internships")}
+        >
+          <Icon name="brief" size={14} /> Internships
+        </button>
+        <button
+          type="button"
+          className={activeTab === "jobs" ? "on" : ""}
+          onClick={() => setActiveTab("jobs")}
+        >
+          <Icon name="brief" size={14} /> Jobs
+        </button>
+        <button
+          type="button"
+          className={activeTab === "shortlisted" ? "on" : ""}
+          onClick={() => setActiveTab("shortlisted")}
+        >
+          <Icon name="check" size={14} /> Shortlisted
+          {totalShortlisted > 0 && <span className="n">{totalShortlisted}</span>}
+        </button>
       </div>
 
       {activeTab !== "shortlisted" && currentItems.length > 0 && (
-        <div className="selection-panel">
-          <label className="selection-label">Select {activeTab === "internships" ? "placement" : "job"}</label>
+        <div className="field" style={{ maxWidth: "420px", marginBottom: "14px" }}>
+          <label>Select {activeTab === "internships" ? "placement" : "job"}</label>
           <select
             value={selectedId}
             onChange={(e) => handleSelectionChange(e.target.value)}
-            className="select-field"
           >
             {currentItems.map((item) => (
               <option key={item.id} value={item.id}>
@@ -561,7 +557,7 @@ function KanbanBoard() {
         />
       )}
 
-      <div className="data-panel">
+      <div className="panel">
         {activeTab === "shortlisted" ? (
           <> 
             {loadingShortlisted ? (
@@ -573,7 +569,10 @@ function KanbanBoard() {
                 description="Shortlist applicants from your placements or jobs to see them here."
               />
             ) : (
-              <div className="shortlisted-grid">
+              <div
+                className="shortlisted-grid"
+                style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "14px" }}
+              >
                 {allShortlisted.map((app) => {
                   const isInternship = (app as ApplicationDto).placement_id !== undefined;
                   return (
