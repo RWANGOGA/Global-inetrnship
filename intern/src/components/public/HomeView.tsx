@@ -5,8 +5,20 @@ import { useApp } from "../../context/AppContext";
 import { Icon } from "../icons/Icons";
 import { PlacementCard } from "./PlacementCard";
 import { TestimonialCarousel } from "./TestimonialCarousel";
-import { fetchCatalog, fetchJobs, isApiEnabled, fetchPublicTestimonials, fetchHomeStats } from "../../lib/api";
+import { fetchCatalog, isApiEnabled, fetchPublicTestimonials, fetchHomeStats } from "../../lib/api";
+import type { Catalog, HomeStatsDto, TestimonialDto } from "../../lib/api";
 import type { Placement } from "../../types";
+
+function getOrganizationCount(stats: HomeStatsDto | null, type: string): number | null {
+  if (!stats) return null;
+  return Object.entries(stats.org_counts)
+    .filter(([name]) => name.toLowerCase().includes(type))
+    .reduce((total, [, count]) => total + count, 0);
+}
+
+function formatCount(count: number | null): string {
+  return count === null ? "—" : count.toLocaleString();
+}
 
 export function HomeView() {
   const {
@@ -20,8 +32,9 @@ export function HomeView() {
 
   const [heroType, setHeroType] = useState("All");
   const [heroQuery, setHeroQuery] = useState("");
-  const [testimonials, setTestimonials] = useState<any[]>([]);
-  const [stats, setStats] = useState<any>(null);
+  const [testimonials, setTestimonials] = useState<TestimonialDto[]>([]);
+  const [testimonialsLoading, setTestimonialsLoading] = useState(true);
+  const [stats, setStats] = useState<HomeStatsDto | null>(null);
 
   const handleHeroSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,61 +43,79 @@ export function HomeView() {
     go("placements");
   };
 
-  // Keep the home page up-to-date with the backend: refresh the catalogue and
-  // job listings on mount so no figure is hard-coded.
-  const [catalog, setCatalog] = useState<{ placements: Placement[]; orgs: any[] } | null>(null);
-  const [orgCounts, setOrgCounts] = useState<Record<string, number>>({});
-  const [jobs, setJobs] = useState<any[]>([]);
-
-  const latest = placements.slice(0, 6);
+  // Load published listings for the home page's current opportunities section.
+  const [catalog, setCatalog] = useState<Catalog | null>(null);
+  const availablePlacements = catalog?.placements ?? (isApiEnabled ? [] : placements);
+  const placementsById = new Map(availablePlacements.map((placement) => [placement.id, placement]));
+  const listedFromStats = (stats?.recent_placements ?? [])
+    .map((placement) => placementsById.get(placement.id))
+    .filter((placement): placement is Placement => Boolean(placement));
+  const currentPlacements = listedFromStats.length > 0
+    ? listedFromStats
+    : availablePlacements.filter((placement) => ["open", "closing"].includes(placement.status.toLowerCase()));
+  const latest = [...currentPlacements]
+    .sort((a, b) => Date.parse(b.publishedAt || "") - Date.parse(a.publishedAt || ""))
+    .slice(0, 6);
+  const totalPlacements = stats?.total_placements ?? (isApiEnabled
+    ? null
+    : placements.filter((placement) => ["open", "closing"].includes(placement.status.toLowerCase())).length);
+  const companyCount = getOrganizationCount(stats, "company");
+  const governmentCount = getOrganizationCount(stats, "government");
+  const ngoCount = getOrganizationCount(stats, "ngo");
+  const universityCount = getOrganizationCount(stats, "university");
+  const organizationTotal = stats?.total_organizations ?? null;
+  const studentTotal = stats?.total_students ?? null;
+  const applicationTotal = stats?.total_applications ?? null;
+  const ngoUniversityCount = ngoCount === null || universityCount === null
+    ? null
+    : ngoCount + universityCount;
 
   useEffect(() => {
-    if (!isApiEnabled || window.location.hash === "#") return;
-    (async () => {
-      try {
-        const cat = await fetchCatalog();
-        setCatalog(cat);
-        const typeMap = new Map<string, string>();
-        cat.orgs.forEach((o: any) => { typeMap.set(o.type, o.type); });
-        const counts: Record<string, number> = {};
-        cat.placements.forEach((p: Placement) => {
-          const t = typeMap.get(p.org?.id ?? "") || "Unknown";
-          counts[t] = (counts[t] || 0) + 1;
-        });
-        setOrgCounts(counts);
-        const jobList = await fetchJobs();
-        setJobs(jobList);
-      } catch (err) {
-        console.error("backend fetch error", err);
-      }
-    })();
-  }, []);
+    if (!isApiEnabled) return;
+    let active = true;
+    fetchCatalog()
+      .then((data) => {
+        if (active) setCatalog(data);
+      })
+      .catch((err) => console.error("Failed to fetch current placements", err));
+    return () => {
+      active = false;
+    };
+  }, [isApiEnabled]);
 
   // Fetch testimonials for carousel
   useEffect(() => {
-    if (!isApiEnabled) return;
-    (async () => {
-      try {
-        const data = await fetchPublicTestimonials(10);
-        setTestimonials(data);
-      } catch (err) {
-        console.error("Failed to fetch testimonials", err);
-      }
-    })();
-  }, []);
+    if (!isApiEnabled) {
+      setTestimonialsLoading(false);
+      return;
+    }
+    let active = true;
+    fetchPublicTestimonials(10)
+      .then((data) => {
+        if (active) setTestimonials(data);
+      })
+      .catch((err) => console.error("Failed to fetch testimonials", err))
+      .finally(() => {
+        if (active) setTestimonialsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [isApiEnabled]);
 
   // Fetch home stats
   useEffect(() => {
     if (!isApiEnabled) return;
-    (async () => {
-      try {
-        const data = await fetchHomeStats();
-        setStats(data);
-      } catch (err) {
-        console.error("Failed to fetch home stats", err);
-      }
-    })();
-  }, []);
+    let active = true;
+    fetchHomeStats()
+      .then((data) => {
+        if (active) setStats(data);
+      })
+      .catch((err) => console.error("Failed to fetch home stats", err));
+    return () => {
+      active = false;
+    };
+  }, [isApiEnabled]);
 
   return (
     <>
@@ -141,8 +172,8 @@ export function HomeView() {
               </div>
             <div className="search-meta">
               <span>No account needed to browse.</span>
-              <span><b>{catalog ? catalog.placements.length : placements.length}</b> open placements this term</span>
-              <span><b>100%</b> state their requirements</span>
+              <span><b>{formatCount(totalPlacements)}</b> current open placements</span>
+              <span>Requirements are stated before anyone applies</span>
             </div>
             </form>
           </div>
@@ -157,10 +188,10 @@ export function HomeView() {
               <div className="cap">Makerere University · placement briefing</div>
             </div>
             <div className="counts">
-              <div><b>620</b><span>Companies</span></div>
-              <div><b>214</b><span>Government</span></div>
-              <div><b>96</b><span>NGOs</span></div>
-              <div><b>38</b><span>University</span></div>
+              <div><b>{formatCount(totalPlacements)}</b><span>Open opportunities</span></div>
+              <div><b>{formatCount(organizationTotal)}</b><span>Organizations</span></div>
+              <div><b>{formatCount(studentTotal)}</b><span>Students</span></div>
+              <div><b>{formatCount(applicationTotal)}</b><span>Applications</span></div>
             </div>
           </div>
         </div>
@@ -218,7 +249,7 @@ export function HomeView() {
                   setType("Company");
                 }}
               >
-                620 placements <Icon name="arrow" size={11} />
+                {formatCount(companyCount)} organisations <Icon name="arrow" size={11} />
               </a>
             </div>
             <div className="orgcard">
@@ -233,7 +264,7 @@ export function HomeView() {
                   setType("Government");
                 }}
               >
-                214 placements <Icon name="arrow" size={11} />
+                {formatCount(governmentCount)} organisations <Icon name="arrow" size={11} />
               </a>
             </div>
             <div className="orgcard">
@@ -248,7 +279,7 @@ export function HomeView() {
                   setType("NGO");
                 }}
               >
-                134 placements <Icon name="arrow" size={11} />
+                {formatCount(ngoUniversityCount)} organisations <Icon name="arrow" size={11} />
               </a>
             </div>
           </div>
@@ -313,7 +344,7 @@ export function HomeView() {
       </section>
 
       {/* Testimonial Carousel */}
-      <TestimonialCarousel testimonials={testimonials} />
+      <TestimonialCarousel testimonials={testimonials} loading={testimonialsLoading} />
 
       <section className="sec" style={{ paddingTop: 0 }}>
         <div className="wrap">
@@ -421,9 +452,9 @@ export function HomeView() {
           <div className="sec-h">
             <div>
               <span className="lbl">03 — Latest</span>
-              <h2 style={{ marginTop: "14px" }}>Listed in the last seven days.</h2>
+              <h2 style={{ marginTop: "14px" }}>Current listed opportunities</h2>
             </div>
-            <p>Every row shows the organisation type, the eligible courses and the closing date. Nothing is hidden behind a sign-up.</p>
+            <p>Recently published, currently open opportunities from verified organisations. Every listing shows its requirements and closing date.</p>
           </div>
           <div className="jcards">
             {latest.map((p) => (
@@ -431,7 +462,7 @@ export function HomeView() {
             ))}
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: "16px", flexWrap: "wrap", gap: "10px" }}>
-            <span className="lbl">Showing 6 of live placements</span>
+            <span className="lbl">Showing {latest.length} of {formatCount(totalPlacements)} current opportunities</span>
             <button
               type="button"
               className="btn btn-sm"

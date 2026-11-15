@@ -2482,13 +2482,9 @@ export async function deleteLearningResource(id: string): Promise<void> {
 
 export interface TestimonialDto {
   id: string;
-  user_id: string;
-  filename: string;
-  document_type: string;
-  status: string;
-  is_public: boolean;
   uploaded_at: string;
   author_role: string;
+  testimonial_text: string;
 }
 
 export async function fetchPublicTestimonials(limit = 10, role?: string): Promise<TestimonialDto[]> {

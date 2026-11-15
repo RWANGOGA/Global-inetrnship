@@ -8,6 +8,7 @@ from collections import defaultdict
 from time import time
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+import jwt
 from sqlalchemy.orm import Session
 
 from app.ai.enrichment_service import GroqEnrichmentService
@@ -235,21 +236,32 @@ def get_auth_service(session: Session = Depends(get_session)) -> AuthService:
     )
 
 
-def get_current_user(
+def get_optional_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     service: AuthService = Depends(get_auth_service),
-) -> User:
-    """Resolve the caller from a valid Bearer token, or raise 401 if not authenticated."""
-    if credentials is None or credentials.scheme.lower() != "bearer":
-        raise HTTPException(status_code=401, detail="Not authenticated")
+) -> User | None:
+    """Resolve a bearer token when present, without requiring public callers to sign in."""
+    if credentials is None:
+        return None
+    if credentials.scheme.lower() != "bearer":
+        raise HTTPException(status_code=401, detail="Invalid authorization scheme")
     try:
         payload = decode_access_token(credentials.credentials)
-    except Exception as exc:  # jwt.InvalidTokenError and friends
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    except jwt.InvalidTokenError as exc:
+        raise HTTPException(status_code=401, detail="Invalid or expired token") from exc
     try:
         return service.get(payload["sub"])
     except UserNotFound as exc:
         raise HTTPException(status_code=401, detail="Account no longer exists") from exc
+
+
+def get_current_user(
+    current_user: User | None = Depends(get_optional_current_user),
+) -> User:
+    """Resolve the caller from a valid Bearer token, or raise 401 if not authenticated."""
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return current_user
 
 
 def require_roles(*allowed_roles: str):
