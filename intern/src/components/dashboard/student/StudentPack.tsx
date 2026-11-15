@@ -15,10 +15,18 @@ export function StudentPack() {
     getOrg,
     previewPack,
     editPack,
+    editPackTargets,
     go,
     toast,
   } = useApp();
   const attached = docs.filter((d) => d.status !== "missing");
+  const missingDocs = docs.filter((d) => d.status === "missing");
+  const pendingDocs = docs.filter((d) => d.status === "pending");
+  const hasStatement = pack.statement.trim().length > 0;
+  // "Ready to send" was a static green chip, so a pack with no statement or
+  // unverified documents still advertised itself as sendable.
+  const readyToSend =
+    hasStatement && missingDocs.length === 0 && pendingDocs.length === 0;
   const averageMatch = recommendations?.items.length
     ? Math.round(
         recommendations.items.reduce((sum, item) => sum + item.match.score, 0) /
@@ -48,10 +56,24 @@ export function StudentPack() {
         <div className="pack-doc">
           <div className="ph">
             <div>
-              <span className="lbl">Pack · version 3</span>
+              <span className="lbl">
+                Pack · {attached.length} of {docs.length} documents
+              </span>
               <h3 style={{ marginTop: "6px" }}>{student.name} — {student.course || "Student"}</h3>
             </div>
-            <span className="tg green">Ready to send</span>
+            {readyToSend ? (
+              <span className="tg green">Ready to send</span>
+            ) : missingDocs.length > 0 ? (
+              <span className="tg red">
+                {missingDocs.length} document{missingDocs.length === 1 ? "" : "s"} missing
+              </span>
+            ) : pendingDocs.length > 0 ? (
+              <span className="tg gold">
+                {pendingDocs.length} awaiting verification
+              </span>
+            ) : (
+              <span className="tg gold">Statement empty</span>
+            )}
           </div>
           <div className="lbl" style={{ marginTop: "16px" }}>
             Statement
@@ -133,7 +155,7 @@ export function StudentPack() {
               <button
                 type="button"
                 className="lbl blue"
-                onClick={() => toast("Role preferences saved")}
+                onClick={editPackTargets}
               >
                 Edit
               </button>

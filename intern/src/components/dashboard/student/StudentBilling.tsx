@@ -12,8 +12,10 @@ import {
   type StudentInvoiceResponse,
 } from "../../../lib/api";
 
-const STUDENT_FREE_APPS = 30;
-const STUDENT_OVERAGE_CENTS = 50;
+// Only used when the API is switched off; the live values come from
+// GET /billing/student/usage so the tier can change without a front-end deploy.
+const DEMO_FREE_APPS = 30;
+const DEMO_OVERAGE_CENTS = 50;
 
 function formatCents(cents: number) {
   return `$${(cents / 100).toFixed(2)}`;
@@ -41,7 +43,7 @@ export function StudentBilling() {
 
   useEffect(() => {
     if (!isApiEnabled) {
-      setUsage({ application_count: 0, overage_apps: 0, overage_cents: STUDENT_OVERAGE_CENTS, free_limit: STUDENT_FREE_APPS });
+      setUsage({ application_count: 0, overage_apps: 0, overage_cents: DEMO_OVERAGE_CENTS, free_limit: DEMO_FREE_APPS });
       setLoading(false);
       return;
     }
@@ -63,7 +65,8 @@ export function StudentBilling() {
   };
 
   const used = usage?.application_count ?? 0;
-  const limit = usage?.free_limit ?? STUDENT_FREE_APPS;
+  const limit = usage?.free_limit ?? DEMO_FREE_APPS;
+  const overageCents = usage?.overage_cents ?? DEMO_OVERAGE_CENTS;
   const over = Math.max(0, used - limit);
   const pct = Math.min(100, (used / limit) * 100);
   const overdue = invoices.some((inv) => inv.status === "open" && inv.due_date && new Date(inv.due_date) < new Date());
@@ -96,14 +99,14 @@ export function StudentBilling() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "14px", marginBottom: "14px" }}>
             <UsageRow label="Used" value={used} sub={`of ${limit} free applications`} color={used >= limit ? "var(--red)" : "var(--blue)"} tint={used >= limit ? "var(--red-tint)" : "var(--blue-tint)"} />
             <UsageRow label="Limit" value={limit} sub="Free tier resets monthly" color="var(--green)" tint="var(--green-tint)" />
-            <UsageRow label="Overage" value={over} sub={`${formatCents(STUDENT_OVERAGE_CENTS)} per app`} color={over > 0 ? "var(--red)" : "var(--ink-2)"} tint="var(--paper)" />
+            <UsageRow label="Overage" value={over} sub={`${formatCents(overageCents)} per app`} color={over > 0 ? "var(--red)" : "var(--ink-2)"} tint="var(--paper)" />
           </div>
 
           <div style={{ height: "6px", background: "var(--rule-2)", borderRadius: "var(--r-pill)", overflow: "hidden", marginBottom: "10px" }}>
             <div style={{ height: "100%", width: `${pct}%`, background: used >= limit ? "var(--red)" : used >= limit * 0.8 ? "var(--blue)" : "var(--green)", transition: "width 0.3s ease", borderRadius: "var(--r-pill)" }} />
           </div>
 
-          <p style={{ margin: "0", fontSize: "12px", color: "var(--muted)", textAlign: "center", fontFamily: "var(--sans)" }}>{used < limit ? `${limit - used} free applications remaining this month.` : `Free limit exceeded. Overage: ${over} application${over !== 1 ? "s" : ""} at ${formatCents(STUDENT_OVERAGE_CENTS)} each.`}</p>
+          <p style={{ margin: "0", fontSize: "12px", color: "var(--muted)", textAlign: "center", fontFamily: "var(--sans)" }}>{used < limit ? `${limit - used} free applications remaining this month.` : `Free limit exceeded. Overage: ${over} application${over !== 1 ? "s" : ""} at ${formatCents(overageCents)} each.`}</p>
 
           {over > 0 && (
             <div style={{ marginTop: "14px", padding: "14px", background: "var(--blue-tint)", border: "1px solid var(--blue)", borderRadius: "var(--r-md)" }}>
@@ -164,9 +167,11 @@ export function StudentBilling() {
       <div className="panel" style={{ overflow: "hidden" }}>
         <div className="ph"><span className="lbl blue">How student billing works</span></div>
         <div className="pb" style={{ padding: "16px 20px 20px" }}>
-          <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "12px", color: "var(--ink-2)", lineHeight: 1.8, fontWeight: 500 }}>
-            <li>First <b>{STUDENT_FREE_APPS} applications</b> each month are free.</li>
-            <li>After that, <b>{formatCents(STUDENT_OVERAGE_CENTS)} per application</b>.</li>
+          {/* The global reset sets list-style:none, so the bullets have to be
+              asked for explicitly. */}
+          <ul style={{ margin: 0, paddingLeft: "22px", listStyleType: "disc", fontSize: "12px", color: "var(--ink-2)", lineHeight: 1.8, fontWeight: 500 }}>
+            <li>First <b>{limit} applications</b> each month are free.</li>
+            <li>After that, <b>{formatCents(overageCents)} per application</b>.</li>
             <li>Overage invoices are generated automatically when you exceed the limit.</li>
             <li>Pay the invoice to unlock further applications for that month.</li>
             <li>Limit resets on the 1st of each month.</li>

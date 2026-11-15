@@ -112,18 +112,8 @@ export function StudentLearning() {
         }}
       >
         <div style={{ flex: 1, minWidth: "280px" }}>
-          <h1
-            style={{
-              fontWeight: 800,
-              fontSize: "32px",
-              marginBottom: "8px",
-              color: "var(--ink)",
-              letterSpacing: "-0.5px",
-            }}
-          >
-            Learning resources
-          </h1>
-          <p style={{ color: "var(--ink-2)", fontSize: "15px", fontWeight: 500 }}>
+          <h2>Learning resources</h2>
+          <p>
             Courses and guides for the skills placements ask for — curated by
             your placement office
           </p>

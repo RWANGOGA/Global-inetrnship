@@ -2,13 +2,15 @@
 
 import React from "react";
 import { useApp } from "../../../context/AppContext";
-import { ApplicationInput } from "../../../lib/api";
+import { ApplicationInput, ApiFailure, describeApiError } from "../../../lib/api";
 import { Icon } from "../../icons/Icons";
 
 interface ApplicationFormProps {
   placementId: string;
   onClose: () => void;
   onSubmit: (input: ApplicationInput) => Promise<void>;
+  /** Offered when the server rejects the application for quota reasons. */
+  onResolveLimit?: () => void;
 }
 
 function FileUpload({ label, accept, onChange, maxSizeMB = 5 }: { label: string; accept: string; onChange: (file: File | null) => void; maxSizeMB?: number }) {
@@ -139,8 +141,9 @@ function ReferenceFieldset({ index, form, handleChange }: { index: 1 | 2; form: 
   );
 }
 
-export function ApplicationForm({ placementId, onClose, onSubmit }: ApplicationFormProps) {
+export function ApplicationForm({ placementId, onClose, onSubmit, onResolveLimit }: ApplicationFormProps) {
   const [submitting, setSubmitting] = React.useState(false);
+  const [failure, setFailure] = React.useState<ApiFailure | null>(null);
   const [form, setForm] = React.useState<ApplicationInput>({
     statement: "",
     cover_letter: "",
@@ -173,6 +176,7 @@ export function ApplicationForm({ placementId, onClose, onSubmit }: ApplicationF
     e.preventDefault();
     if (!form.statement.trim()) return;
     setSubmitting(true);
+    setFailure(null);
     try {
       const input: ApplicationInput = {
         ...form,
@@ -182,8 +186,12 @@ export function ApplicationForm({ placementId, onClose, onSubmit }: ApplicationF
       };
       await onSubmit(input);
       onClose();
-    } catch {
-      // Error handled by parent
+    } catch (error) {
+      // Stay open so nothing the student typed is thrown away, and show the
+      // server's own reason instead of a generic failure.
+      setFailure(
+        describeApiError(error, "We could not submit this application.")
+      );
     } finally {
       setSubmitting(false);
     }
@@ -311,6 +319,34 @@ export function ApplicationForm({ placementId, onClose, onSubmit }: ApplicationF
           }}
         />
       </SectionTitle>
+
+      {failure && (
+        <div
+          role="alert"
+          style={{
+            border: "1px solid var(--red)",
+            background: "var(--red-tint)",
+            borderRadius: "var(--r-md)",
+            padding: "12px 14px",
+            display: "grid",
+            gap: "10px",
+          }}
+        >
+          <span style={{ fontSize: "12.5px", lineHeight: 1.6, color: "var(--ink)" }}>
+            {failure.message}
+          </span>
+          {failure.code === "application_limit_exceeded" && onResolveLimit && (
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={onResolveLimit}
+              style={{ justifySelf: "start" }}
+            >
+              Manage billing
+            </button>
+          )}
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", borderTop: "1px solid var(--rule)", paddingTop: "16px", marginTop: "8px" }}>
         <button

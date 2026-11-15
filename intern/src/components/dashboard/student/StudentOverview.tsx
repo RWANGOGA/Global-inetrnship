@@ -1,8 +1,24 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useApp } from "../../../context/AppContext";
+import { fetchStudentUsage, isApiEnabled } from "../../../lib/api";
 import { Icon } from "../../icons/Icons";
+
+// Fallback only; the live limit comes from GET /billing/student/usage.
+const DEMO_FREE_LIMIT = 30;
+
+const APPLICATION_STEPS = ["Submitted", "Documents", "Review", "Decision"];
+
+// Furthest stage each backend status has actually reached. Statuses are Title
+// Case and come from the API (APPLICATION_STATUSES on the server).
+const STEP_BY_STATUS: Record<string, number> = {
+  Submitted: 0,
+  "In Review": 2,
+  Accepted: 3,
+  Rejected: 3,
+  Withdrawn: 0,
+};
 
 export function StudentOverview() {
   const {
@@ -15,12 +31,39 @@ export function StudentOverview() {
     getOrg,
   } = useApp();
   
-  // Simple monthly application counter (current month only)
+  // The server counts applications for the billing period and is the only
+  // authority on the free limit; the calendar-month tally below is a fallback
+  // for when the API is switched off.
+  const [usage, setUsage] = useState<{
+    application_count: number;
+    free_limit: number;
+  } | null>(null);
+  useEffect(() => {
+    if (!isApiEnabled || !session) return;
+    let alive = true;
+    fetchStudentUsage()
+      .then((value) => {
+        if (alive) {
+          setUsage({
+            application_count: value.application_count,
+            free_limit: value.free_limit,
+          });
+        }
+      })
+      .catch(() => {
+        /* keep the local fallback */
+      });
+    return () => {
+      alive = false;
+    };
+  }, [session, applications.length]);
+
   const currentMonth = new Date().toISOString().slice(0, 7);
-  const monthlyApps = applications.filter(a => 
+  const localMonthlyApps = applications.filter(a => 
     a.created_at?.startsWith(currentMonth)
   ).length;
-  const FREE_LIMIT = 30;
+  const monthlyApps = usage?.application_count ?? localMonthlyApps;
+  const FREE_LIMIT = usage?.free_limit ?? DEMO_FREE_LIMIT;
   const overLimit = monthlyApps >= FREE_LIMIT;
   if (dashboardDataStatus === "loading" || dashboardDataStatus === "idle") {
     return (
@@ -43,18 +86,27 @@ export function StudentOverview() {
     );
   }
   const firstName = (session?.name || "").trim().split(/\s+/)[0];
+  // The header said "Good morning" all day. Computed after the loading guard
+  // above, so the server render never disagrees with the client.
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const currentApplication = applications[0];
   const currentPlacement = currentApplication
     ? getPlacement(currentApplication.placement_id)
     : undefined;
   const currentOrg = currentPlacement ? getOrg(currentPlacement.orgId) : undefined;
   const matches = recommendations?.items || [];
+  // The tracker used to be hardcoded to "two steps green". Drive it off the
+  // application's real status so a rejected or withdrawn application stops
+  // looking like it is still moving forward.
+  const reachedStep = STEP_BY_STATUS[currentApplication?.status ?? ""] ?? 0;
+  const declined = currentApplication?.status === "Rejected";
 
   return (
     <>
       <div className="dpane-h">
         <div>
-          <h2>{firstName ? `Good morning, ${firstName}` : "Good morning"}</h2>
+          <h2>{firstName ? `${greeting}, ${firstName}` : greeting}</h2>
           <p>
             {applications.length} live application{applications.length === 1 ? "" : "s"} ·{" "}
             {matches.length} recommended internship{matches.length === 1 ? "" : "s"}
@@ -147,20 +199,29 @@ export function StudentOverview() {
                 paddingTop: "14px",
               }}
               >
-                {["Submitted", "Documents", "Review", "Decision"].map(
-                  (s, i) => (
+                {APPLICATION_STEPS.map((s, i) => {
+                  const reached = i <= reachedStep;
+                  const tone = !reached
+                    ? "var(--faint)"
+                    : declined && i === reachedStep
+                    ? "var(--red)"
+                    : "var(--green)";
+                  return (
                   <div
                     key={s}
                     style={{
                       flex: 1,
-                      borderRight: i < 3 ? "1px solid var(--rule)" : 0,
+                      borderRight:
+                        i < APPLICATION_STEPS.length - 1
+                          ? "1px solid var(--rule)"
+                          : 0,
                       paddingRight: "10px",
                     }}
                   >
                     <div
                       className="lbl"
                       style={{
-                        color: i < 2 ? "var(--green)" : "var(--faint)",
+                        color: tone,
                       }}
                     >
                       0{i + 1}
@@ -169,14 +230,14 @@ export function StudentOverview() {
                       style={{
                         fontSize: "11.5px",
                         marginTop: "3px",
-                        color: i < 2 ? "var(--ink)" : "var(--muted)",
+                        color: reached ? "var(--ink)" : "var(--muted)",
                       }}
                     >
                       {s}
                     </div>
                   </div>
-                  )
-                )}
+                  );
+                })}
               </div>
             )}
           </div>

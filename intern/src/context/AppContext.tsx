@@ -283,6 +283,7 @@ interface AppContextType {
   uploadDocumentFile: (documentType: string, file: File) => Promise<void>;
   withdrawApplication: (applicationId: string) => Promise<void>;
   editPack: () => void;
+  editPackTargets: () => void;
   previewPack: () => void;
   showEmbed: () => void;
   planAction: (tier: string) => void;
@@ -1158,6 +1159,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         <ApplicationForm
           placementId={id}
           onClose={() => closeModal()}
+          onResolveLimit={() => {
+            closeModal();
+            dashGo("billing");
+          }}
           onSubmit={async (input) => {
             if (!isApiEnabled) {
               toast(`Application sent to ${orgName}`);
@@ -1168,19 +1173,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
               go("signin");
               return;
             }
-            await applyToPlacement(id, input)
-              .then(() => {
-                toast(`Application sent to ${orgName}`);
-                closeModal();
-              })
-              .catch(() => toast("Couldn't submit right now — please try again"));
+            // The form closes itself once this resolves, and surfaces the
+            // thrown error in place when it does not.
+            const application = await applyToPlacement(id, input);
+            setApplications((current) => [
+              application,
+              ...current.filter((item) => item.id !== application.id),
+            ]);
+            toast(`Application sent to ${orgName}`);
           }}
         />,
         null,
         null
       );
     },
-    [getPlacement, getOrg, openModal, closeModal, toast, session, go, isApiEnabled]
+    [
+      getPlacement,
+      getOrg,
+      openModal,
+      closeModal,
+      toast,
+      session,
+      go,
+      dashGo,
+      isApiEnabled,
+    ]
   );
 
   const reviewStudent = useCallback(
@@ -1958,6 +1975,48 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   }, [pack, openModal, toast]);
 
+  const editPackTargets = useCallback(() => {
+    let currentVal = pack.targets.join(", ");
+    openModal(
+      "Edit target roles",
+      <div className="form">
+        <div className="field">
+          <label>Roles, separated by commas</label>
+          <input
+            id="packTargets"
+            defaultValue={currentVal}
+            onChange={(e) => {
+              currentVal = e.target.value;
+            }}
+          />
+        </div>
+        <div style={{ fontSize: "11px", color: "var(--muted)" }}>
+          Used to rank your recommendations. Up to eight roles.
+        </div>
+      </div>,
+      "Save roles",
+      () => {
+        const targets = currentVal
+          .split(",")
+          .map((role) => role.trim())
+          .filter(Boolean)
+          .slice(0, 8);
+        if (!targets.length) {
+          toast("Add at least one role.");
+          return;
+        }
+        updateApplicationPack({ ...pack, targets })
+          .then((saved) => {
+            setPack({ statement: saved.statement, targets: saved.targets });
+            toast("Target roles saved · pack updated");
+          })
+          .catch((error) => {
+            toast(error instanceof Error ? error.message : "Pack update failed.");
+          });
+      }
+    );
+  }, [pack, openModal, toast]);
+
   const previewPack = useCallback(() => {
     const attached = docs.filter((d) => d.status !== "missing");
     const averageMatch = recommendations?.items.length
@@ -2195,6 +2254,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         uploadDocumentFile,
         withdrawApplication,
         editPack,
+        editPackTargets,
         previewPack,
         showEmbed,
         planAction,
