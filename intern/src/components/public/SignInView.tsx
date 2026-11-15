@@ -267,7 +267,7 @@ export function SignInView() {
           <a
             href="#home"
             className="btn"
-            style={{ borderColor: "#4A5D77", color: "#EDEAE0" }}
+            style={{ borderColor: "var(--on-dark-rule)", color: "var(--on-dark)" }}
             onClick={(e) => {
               e.preventDefault();
               go("home");

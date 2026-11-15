@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React from "react";
 import { AppProvider, useApp } from "../context/AppContext";
 import { SvgDefs } from "../components/icons/Icons";
 import { PublicSite } from "../components/public/PublicSite";
@@ -13,12 +13,9 @@ function MainApp() {
   const { route } = useApp();
   const isDash = route === "dashboard";
 
-  useEffect(() => {
-    if (typeof document !== "undefined") {
-      document.body.style.background = isDash ? "#FAF9F5" : "var(--paper)";
-    }
-  }, [isDash]);
-
+  // Both surfaces are painted by the stylesheet: body takes --paper, and the
+  // dashboard shell paints its own white. The inline override used to set a
+  // third colour (#FAF9F5) directly on body, which fought the header and footer.
   return (
     <>
       <SvgDefs />
