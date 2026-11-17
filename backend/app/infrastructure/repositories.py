@@ -438,6 +438,19 @@ class SqlAlchemyApplicationRepository(ApplicationRepository):
         self._session.commit()
         return self._to_domain(row)
 
+    def reactivate(self, user_id: str, application_id: str) -> Optional[Application]:
+        row = (
+            self._session.query(ApplicationORM)
+            .filter_by(id=application_id, user_id=user_id)
+            .first()
+        )
+        if row is None:
+            return None
+        row.status = "Submitted"
+        row.updated_at = datetime.utcnow().isoformat()
+        self._session.commit()
+        return self._to_domain(row)
+
     def list_for_user(self, user_id: str) -> list[Application]:
         rows = (
             self._session.query(ApplicationORM)

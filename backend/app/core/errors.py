@@ -44,3 +44,12 @@ class UserNotFound(DomainError):
 class LearningResourceNotFound(DomainError):
     """No learning resource exists with the requested id."""
 
+
+class NotEligible(DomainError):
+    """The student does not meet a placement's eligibility requirements."""
+
+    def __init__(self, placement_id: str, reasons: str) -> None:
+        self.placement_id = placement_id
+        self.reasons = reasons
+        super().__init__(f"Not eligible for placement {placement_id}: {reasons}")
+

@@ -146,6 +146,8 @@ def get_application_service(
         SqlAlchemyPlacementRepository(session),
         SqlAlchemyApplicationRepository(session),
         billing,
+        SqlAlchemyStudentProfileRepository(session),
+        SqlAlchemyStudentDocumentRepository(session),
     )
 
 
