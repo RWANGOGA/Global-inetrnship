@@ -170,7 +170,7 @@ export function ContactView() {
                     }}
                   >
                     Plot 9, Nkrumah Road<br />
-                    +256 414 000 000
+                    +256 756348528
                   </div>
                 </div>
                 <div>
@@ -183,7 +183,7 @@ export function ContactView() {
                     }}
                   >
                     Riverside Drive<br />
-                    +254 20 000 0000
+                    +254 756348528
                   </div>
                 </div>
                 <div>
@@ -196,7 +196,7 @@ export function ContactView() {
                     }}
                   >
                     Torstraße 14<br />
-                    +49 30 0000 0000
+                    +49 756348528
                   </div>
                 </div>
               </div>
