@@ -149,6 +149,9 @@ class ApplicationRepository(ABC):
     @abstractmethod
     def withdraw(self, user_id: str, application_id: str) -> Optional[Application]: ...
 
+    @abstractmethod
+    def reactivate(self, user_id: str, application_id: str) -> Optional[Application]: ...
+
 
 class JobApplicationRepository(ABC):
     """Submissions jobseekers make to job postings."""

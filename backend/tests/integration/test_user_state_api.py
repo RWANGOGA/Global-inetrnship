@@ -23,6 +23,45 @@ def _user_id(client, email: str) -> str:
     return client.get("/auth/me", headers=_login(client, email)).json()["id"]
 
 
+# Placement eligibility requirements (course, min CGPA, required document types).
+# Mirrors backend/app/infrastructure/seed.py so apply tests can opt into the
+# new eligibility check (P0#2).
+PLACEMENT_REQS: dict[str, tuple[str, float, list[str]]] = {
+    "p1": ("Computer Science", 3.5, ["transcript", "student_id", "portfolio"]),
+    "p2": ("Computer Science", 3.5, ["transcript", "national_id", "recommendation"]),
+    "p3": ("Computer Science", 3.5, ["transcript", "portfolio"]),
+}
+
+
+def _eligible_student(client, placement_id: str) -> dict:
+    """Log in as the demo student, save a qualifying profile and upload the
+    placement's required documents so the application passes eligibility."""
+    course, cgpa, docs = PLACEMENT_REQS[placement_id]
+    h = _login(client, STUDENT)
+    client.put(
+        "/profile",
+        json={"course": course, "cgpa": cgpa, "university": "Makerere University"},
+        headers=h,
+    )
+    for doc_type in docs:
+        client.put(
+            f"/documents/{doc_type}",
+            files={"file": (f"{doc_type}.pdf", b"doc content", "application/pdf")},
+            headers=h,
+        )
+    return h
+
+
+def _sandbox_payment_method(client, headers: dict) -> str:
+    response = client.post(
+        "/billing/payment-methods",
+        json={"type": "card", "details": {"sandbox": True}},
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    return response.json()["id"]
+
+
 # ---- Auth enforcement ------------------------------------------------------
 
 
@@ -64,7 +103,7 @@ def test_saved_is_per_account(client):
 
 
 def test_apply_persists_and_is_idempotent(client):
-    h = _login(client, STUDENT)
+    h = _eligible_student(client, "p1")
     uid = _user_id(client, STUDENT)
     resp = client.post(
         "/applications", json={"placement_id": "p1", "statement": "keen"}, headers=h
@@ -85,7 +124,7 @@ def test_apply_persists_and_is_idempotent(client):
 
 
 def test_ignored_body_user_id_cannot_spoof_another_account(client):
-    h = _login(client, STUDENT)
+    h = _eligible_student(client, "p2")
     uid = _user_id(client, STUDENT)
     resp = client.post(
         "/applications", json={"placement_id": "p2", "user_id": "someone-else"}, headers=h
@@ -110,7 +149,7 @@ def test_apply_unknown_placement_is_404(client):
 
 
 def test_student_can_track_and_withdraw_own_application(client):
-    h = _login(client, STUDENT)
+    h = _eligible_student(client, "p2")
     created = client.post(
         "/applications", json={"placement_id": "p2"}, headers=h
     ).json()
@@ -126,7 +165,7 @@ def test_student_can_track_and_withdraw_own_application(client):
 
 
 def test_student_cannot_withdraw_another_account_application(client):
-    owner = _login(client, STUDENT)
+    owner = _eligible_student(client, "p3")
     created = client.post(
         "/applications", json={"placement_id": "p3"}, headers=owner
     ).json()
@@ -446,9 +485,17 @@ def test_subscription_derives_org_from_the_employer_token(client):
 
     activated = client.post(
         "/billing/subscriptions",
-        json={"plan": "Pro", "billing_cycle": "monthly", "payment_gateway": "stripe"},
+        json={
+            "plan": "Pro",
+            "billing_cycle": "monthly",
+            "payment_gateway": "stripe",
+            "payment_method_id": _sandbox_payment_method(client, h),
+            "terms_accepted": True,
+        },
         headers=h,
-    ).json()
+    )
+    assert activated.status_code == 200, activated.text
+    activated = activated.json()
     assert activated["plan"] == "Pro"
     assert activated["is_premium"] is True
     assert activated["seats"] == 1
@@ -458,8 +505,9 @@ def test_subscription_derives_org_from_the_employer_token(client):
     assert client.get("/billing/subscriptions/current", headers=h).json()["plan"] == "Pro"
 
     cancelled = client.post("/billing/subscriptions/current/cancel", json={}, headers=h).json()
-    assert cancelled["plan"] == "Free"
-    assert cancelled["is_premium"] is False
+    assert cancelled["plan"] == "Pro"
+    assert cancelled["is_premium"] is True
+    assert cancelled["cancel_at_period_end"] is True
 
 
 def test_student_cannot_access_subscription(client):

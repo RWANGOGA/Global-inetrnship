@@ -1,7 +1,10 @@
 """Organization internship publishing workflow integration tests."""
 
+from app.core.security import hash_password
+from app.infrastructure.orm import OrganisationORM, UserORM
+
 STUDENT = "amina@makerere.ac.ug"
-EMPLOYER = "hiring@lumenlabs.example"
+EMPLOYER = "hiring@lumenlabs.example"  # org o4 — at its Free placement limit of 3
 ADMIN = "office@makerere.ac.ug"
 PASSWORD = "password123"
 
@@ -12,8 +15,39 @@ def _login(client, email: str) -> dict:
     return {"Authorization": f"Bearer {resp.json()['access_token']}"}
 
 
-def test_employer_can_submit_internship_for_review(client):
-    employer = _login(client, EMPLOYER)
+def _fresh_employer(client, session, org_id: str = "o99") -> dict:
+    """A brand-new employer org under its Free placement limit, so tests can
+    post placements without hitting Lumen Labs' Free limit of 3."""
+    email = f"employer-{org_id}@example.com"
+    session.add(
+        OrganisationORM(
+            id=org_id,
+            name=f"Employer {org_id}",
+            type="Company",
+            sector="Tech",
+            loc="Kampala",
+            seal="EE",
+            about="Fresh employer for limit-headroom tests",
+        )
+    )
+    session.add(
+        UserORM(
+            id=f"u-{org_id}",
+            email=email,
+            name="Fresh Employer",
+            role="employer",
+            password_hash=hash_password(PASSWORD),
+            org_id=org_id,
+        )
+    )
+    session.commit()
+    return _login(client, email)
+
+
+def test_employer_can_submit_internship_for_review(client, session):
+    # Lumen Labs (o4) is at its Free placement limit of 3, so use a fresh
+    # employer org with headroom instead.
+    employer = _fresh_employer(client, session, org_id="o99")
     payload = {
         "title": "Cybersecurity Internship",
         "courses": ["Computer Science", "Information Technology"],
@@ -47,8 +81,8 @@ def test_employer_can_submit_internship_for_review(client):
     assert any(item["id"] == body["id"] for item in listed.json()["items"])
 
 
-def test_public_catalog_hides_pending_review_internships(client):
-    employer = _login(client, EMPLOYER)
+def test_public_catalog_hides_pending_review_internships(client, session):
+    employer = _fresh_employer(client, session, org_id="o98")
     created = client.post(
         "/organization/internships",
         json={

@@ -24,7 +24,12 @@ from app.application.ports import (
     StudentUsageRepository,
     PaymentMethodRepository,
 )
-from app.core.errors import LearningResourceNotFound, PlacementNotFound, PlacementNotOpen
+from app.core.errors import (
+    LearningResourceNotFound,
+    NotEligible,
+    PlacementNotFound,
+    PlacementNotOpen,
+)
 from app.domain.entities import (
     Application, LearningResource, Placement, Resume, StudentDocument,
     StudentProfile, Subscription, Invoice, Transaction, StudentUsage
@@ -168,6 +173,15 @@ class SavedService:
         return now_saved, self._repo.list(user_id)
 
 
+def _parse_deadline(v):
+    for fmt in ("%Y-%m-%d", "%d %b %Y"):
+        try:
+            return datetime.strptime(v, fmt).date()
+        except (ValueError, TypeError):
+            pass
+    return None  # unparsable -> skip the check
+
+
 class ApplicationService:
     """Use cases for applying to placements.
 
@@ -180,10 +194,14 @@ class ApplicationService:
         placements: PlacementRepository,
         apps: ApplicationRepository,
         billing: BillingService = None,
+        student_profiles: StudentProfileRepository = None,
+        student_documents: StudentDocumentRepository = None,
     ) -> None:
         self._placements = placements
         self._apps = apps
         self._billing = billing
+        self._student_profiles = student_profiles
+        self._student_documents = student_documents
 
     def apply(
         self,
@@ -213,19 +231,28 @@ class ApplicationService:
         if placement.status == "Closed" or placement.review_status != "approved":
             raise PlacementNotOpen(placement_id)
 
-        # Check deadline
-        if placement.deadline and date.fromisoformat(placement.deadline) < date.today():
+        # Check deadline (unparsable dates are skipped, not hard-failed)
+        deadline = _parse_deadline(placement.deadline) if placement.deadline else None
+        if deadline is not None and deadline < date.today():
             raise HTTPException(status_code=409, detail="Application deadline has passed")
 
-        # Check slots
+        # Slots is the number of hires, so count only accepted applications.
         if placement.slots and placement.slots > 0:
-            current_applications = len(self._apps.list_for_placement(placement_id))
-            if current_applications >= placement.slots:
+            accepted = len(
+                [a for a in self._apps.list_for_placement(placement_id) if a.status == "Accepted"]
+            )
+            if accepted >= placement.slots:
                 raise HTTPException(status_code=409, detail="No slots available for this placement")
 
         existing = self._apps.find(user_id, placement_id)
         if existing is not None:
+            if existing.status == "Withdrawn":
+                # A withdrawn application can be replaced: reactivate the row.
+                existing = self._apps.reactivate(user_id, existing.id)
             return existing  # idempotent: no duplicate applications
+
+        # Eligibility: course, CGPA (grade rank) and required documents.
+        self._check_eligibility(user_id, placement)
 
         # Check student application limit (billing gate)
         if self._billing:
@@ -275,6 +302,30 @@ class ApplicationService:
             self._billing.record_student_application(user_id)
 
         return application
+
+    def _check_eligibility(self, user_id: str, placement: Placement) -> None:
+        reasons: list[str] = []
+        profile = self._student_profiles.get(user_id) if self._student_profiles else None
+        course = profile.course if profile else ""
+        cgpa = profile.cgpa if profile else 0.0
+
+        if placement.courses and course and course not in placement.courses:
+            reasons.append(f"course '{course}' not accepted for this placement")
+        if placement.grade and profile and profile.cgpa is not None:
+            threshold = GRADE_RANK.get(placement.grade)
+            if threshold is not None and cgpa < threshold:
+                reasons.append(f"CGPA {cgpa} below required {placement.grade} ({threshold})")
+        if placement.docs and self._student_documents:
+            allowed = {
+                t.lower().replace(" ", "_") for t in StudentDocumentService.ALLOWED_TYPES
+            }
+            required = {d.lower().replace(" ", "_") for d in placement.docs} & allowed
+            uploaded = {d.document_type for d in self._student_documents.list_for_user(user_id)}
+            missing = required - uploaded
+            if missing:
+                reasons.append(f"missing required documents: {', '.join(sorted(missing))}")
+        if reasons:
+            raise NotEligible(placement.id, "; ".join(reasons))
 
     def list_for_user(self, user_id: str) -> list[Application]:
         return self._apps.list_for_user(user_id)

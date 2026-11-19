@@ -103,6 +103,7 @@ def ensure_schema() -> None:
             "billing_address": "JSON DEFAULT '{}'",
             "owner_id": "VARCHAR",
             "created_at": "VARCHAR DEFAULT ''",
+            "is_active": "BOOLEAN DEFAULT TRUE",
         }
         statements.extend(
             f"ALTER TABLE organisations ADD COLUMN {name} {definition}"

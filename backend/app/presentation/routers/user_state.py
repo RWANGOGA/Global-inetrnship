@@ -27,7 +27,7 @@ from app.application.services import (
     LearningService,
     ContactInfoService,
 )
-from app.core.errors import PlacementNotFound, PlacementNotOpen
+from app.core.errors import NotEligible, PlacementNotFound, PlacementNotOpen
 from app.domain.entities import User
 from app.infrastructure.db import get_session, SessionLocal
 from app.infrastructure.orm import (
@@ -127,53 +127,48 @@ def list_saved(
 ) -> SavedListResponse:
     return SavedListResponse(saved_ids=service.list(current_user.id))
 
-@router.post("/apply/{placement_id}", response_model=ApplicationRead)
-def apply_to_placement_legacy(
-    payload: ApplyRequest,
-    current_user: User = Depends(require_roles("student")),
-    service: ApplicationService = Depends(get_application_service),
-) -> ApplicationRead:
-    """Legacy endpoint for applying with placement_id in body."""
-    if payload.user_id and payload.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Cannot apply on behalf of another user")
-    if not payload.placement_id:
-        raise HTTPException(status_code=422, detail="placement_id is required")
-    try:
-        app = service.apply(
-            user_id=current_user.id,
-            placement_id=payload.placement_id,
-            statement=payload.statement,
-        )
-    except PlacementNotFound:
-        raise HTTPException(status_code=404, detail="Placement not found")
-    except PlacementNotOpen:
-        raise HTTPException(status_code=409, detail="Placement is not open for applications")
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to submit application")
-    return ApplicationRead.model_validate(app, from_attributes=True)
-
-
+@router.post("/applications", status_code=201, response_model=ApplicationRead)
 @router.post("/apply/{placement_id}", response_model=ApplicationRead)
 def apply_to_placement(
-    placement_id: str,
-    payload: ApplyRequest,
+    placement_id: Optional[str] = None,
+    payload: ApplyRequest = Body(...),
     current_user: User = Depends(require_roles("student")),
     service: ApplicationService = Depends(get_application_service),
 ) -> ApplicationRead:
-    if payload.user_id and payload.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Cannot apply on behalf of another user")
+    """Apply to a placement. Take the id from the path when present, otherwise
+    from the request body. Every ApplyRequest field is passed to the service."""
+    pid = placement_id or (payload.placement_id if payload else None)
+    if not pid:
+        raise HTTPException(status_code=422, detail="placement_id is required")
+    # R1d: the applicant is the authenticated user from the token; a user_id
+    # sent in the body is ignored (never honored, never a spoof vector).
     try:
         app = service.apply(
             user_id=current_user.id,
-            placement_id=placement_id,
+            placement_id=pid,
             statement=payload.statement,
+            cover_letter=payload.cover_letter,
+            cv_url=payload.cv_url,
+            github_url=payload.github_url,
+            linkedin_url=payload.linkedin_url,
+            portfolio_url=payload.portfolio_url,
+            academic_papers=payload.academic_papers,
+            reference_1_name=payload.reference_1_name,
+            reference_1_email=payload.reference_1_email,
+            reference_1_phone=payload.reference_1_phone,
+            reference_1_relationship=payload.reference_1_relationship,
+            reference_2_name=payload.reference_2_name,
+            reference_2_email=payload.reference_2_email,
+            reference_2_phone=payload.reference_2_phone,
+            reference_2_relationship=payload.reference_2_relationship,
+            document_ids=payload.document_ids,
         )
     except PlacementNotFound:
         raise HTTPException(status_code=404, detail="Placement not found")
     except PlacementNotOpen:
         raise HTTPException(status_code=409, detail="Placement is not open for applications")
+    except NotEligible as exc:
+        raise HTTPException(status_code=403, detail=exc.reasons)
     return ApplicationRead.model_validate(app, from_attributes=True)
 
 @router.get("/applications", response_model=ApplicationsResponse)
@@ -545,7 +540,7 @@ def get_profile_alias(
 
 @router.put("/profile", response_model=StudentProfileRead, include_in_schema=False)
 def update_profile_alias(
-    payload: Optional[dict] = Body(None),
+    payload: StudentProfileUpdate,
     service: StudentProfileService = Depends(get_student_profile_service),
     current_user: User = Depends(get_current_user),
 ) -> StudentProfileRead:
@@ -553,66 +548,35 @@ def update_profile_alias(
     if current_user.role != "student":
         raise HTTPException(status_code=403, detail="Only students can update profile")
     
-    # Update the profile
-    if payload and isinstance(payload, dict) and len(payload) > 0:
-        # Validate and return the payload using StudentProfileUpdate (partial update)
-        try:
-            update_data = StudentProfileUpdate.model_validate(payload)
-            # Get current profile
-            profile = service.get(current_user.id)
-            if profile is None:
-                # Create new profile with the update data
-                profile = service.save(
-                    user_id=current_user.id,
-                    course=update_data.course if update_data.course is not None else "",
-                    year=update_data.year if update_data.year is not None else "",
-                    cgpa=update_data.cgpa if update_data.cgpa is not None else 0.0,
-                    university=update_data.university if update_data.university is not None else "",
-                    skills=update_data.skills if update_data.skills is not None else [],
-                    talent_search_opt_in=update_data.talent_search_opt_in if update_data.talent_search_opt_in is not None else False,
-                    skills_confidence=update_data.skills_confidence if update_data.skills_confidence is not None else {},
-                    skills_source=update_data.skills_source if update_data.skills_source is not None else {},
-                )
-            else:
-                # Update existing profile with provided values (including empty lists/False)
-                course = update_data.course if update_data.course is not None else profile.course
-                year = update_data.year if update_data.year is not None else profile.year
-                cgpa = update_data.cgpa if update_data.cgpa is not None else profile.cgpa
-                university = update_data.university if update_data.university is not None else profile.university
-                skills = update_data.skills if update_data.skills is not None else profile.skills
-                talent_search_opt_in = update_data.talent_search_opt_in if update_data.talent_search_opt_in is not None else profile.talent_search_opt_in
-                skills_confidence = update_data.skills_confidence if update_data.skills_confidence is not None else profile.skills_confidence
-                skills_source = update_data.skills_source if update_data.skills_source is not None else profile.skills_source
-                
-                profile = service.save(
-                    user_id=current_user.id,
-                    course=course,
-                    year=year,
-                    cgpa=cgpa,
-                    university=university,
-                    skills=skills,
-                    talent_search_opt_in=talent_search_opt_in,
-                    skills_confidence=skills_confidence,
-                    skills_source=skills_source,
-                )
-            return StudentProfileRead.model_validate(profile, from_attributes=True)
-        except Exception:
-            # If validation fails, return current profile
-            pass
-    
-    # If no payload provided or validation fails, return current profile
+    # Get current profile (for fields not provided in the partial update)
     profile = service.get(current_user.id)
+
+    update_data = payload.model_dump(exclude_unset=True)
     if profile is None:
-        return StudentProfileRead(
+        # Create new profile with the update data
+        profile = service.save(
             user_id=current_user.id,
-            course="",
-            year="",
-            cgpa=0.0,
-            university="",
-            skills=[],
-            talent_search_opt_in=False,
-            skills_confidence={},
-            skills_source={},
+            course=update_data.get("course", ""),
+            year=update_data.get("year", ""),
+            cgpa=update_data.get("cgpa", 0.0),
+            university=update_data.get("university", ""),
+            skills=update_data.get("skills", []),
+            talent_search_opt_in=update_data.get("talent_search_opt_in", False),
+            skills_confidence=update_data.get("skills_confidence", {}),
+            skills_source=update_data.get("skills_source", {}),
+        )
+    else:
+        # Update existing profile with provided values (including empty lists/False)
+        profile = service.save(
+            user_id=current_user.id,
+            course=update_data.get("course", profile.course),
+            year=update_data.get("year", profile.year),
+            cgpa=update_data.get("cgpa", profile.cgpa),
+            university=update_data.get("university", profile.university),
+            skills=update_data.get("skills", profile.skills),
+            talent_search_opt_in=update_data.get("talent_search_opt_in", profile.talent_search_opt_in),
+            skills_confidence=update_data.get("skills_confidence", profile.skills_confidence),
+            skills_source=update_data.get("skills_source", profile.skills_source),
         )
     return StudentProfileRead.model_validate(profile, from_attributes=True)
 

@@ -96,6 +96,38 @@ class InMemoryApplicationRepository(ApplicationRepository):
     def list_for_placement(self, placement_id: str) -> list[Application]:
         return [a for a in self._items if a.placement_id == placement_id]
 
+    def reactivate(self, user_id: str, application_id: str) -> Optional[Application]:
+        application = self.find_by_id(application_id)
+        if application is None or application.user_id != user_id:
+            return None
+        updated = Application(
+            id=application.id,
+            user_id=application.user_id,
+            placement_id=application.placement_id,
+            status="Submitted",
+            statement=application.statement,
+            cover_letter=application.cover_letter,
+            cv_url=application.cv_url,
+            github_url=application.github_url,
+            linkedin_url=application.linkedin_url,
+            portfolio_url=application.portfolio_url,
+            academic_papers=application.academic_papers,
+            reference_1_name=application.reference_1_name,
+            reference_1_email=application.reference_1_email,
+            reference_1_phone=application.reference_1_phone,
+            reference_1_relationship=application.reference_1_relationship,
+            reference_2_name=application.reference_2_name,
+            reference_2_email=application.reference_2_email,
+            reference_2_phone=application.reference_2_phone,
+            reference_2_relationship=application.reference_2_relationship,
+            document_ids=application.document_ids,
+            shortlisted=application.shortlisted,
+            created_at=application.created_at,
+            updated_at=datetime.utcnow().isoformat(),
+        )
+        self._items[self._items.index(application)] = updated
+        return updated
+
 
 class InMemorySavedRepository(SavedRepository):
     def __init__(self) -> None:
@@ -162,6 +194,20 @@ class InMemoryInvoiceRepository(InvoiceRepository):
                 return inv
         return None
 
+    def list_for_user(self, user_id: str, status: Optional[str] = None) -> list[Invoice]:
+        items = [inv for inv in self._items.values() if inv.user_id == user_id]
+        if status:
+            items = [inv for inv in items if inv.status == status]
+        return items
+
+    def list_all(self, status: Optional[str] = None, org_id: Optional[str] = None) -> list[Invoice]:
+        items = list(self._items.values())
+        if status:
+            items = [inv for inv in items if inv.status == status]
+        if org_id is not None:
+            items = [inv for inv in items if inv.org_id == org_id]
+        return items
+
     def save(self, invoice: Invoice) -> Invoice:
         self._items[invoice.id] = invoice
         return invoice
@@ -178,6 +224,14 @@ class InMemoryTransactionRepository(TransactionRepository):
         items = [txn for txn in self._items.values() if txn.org_id == org_id]
         if status:
             items = [txn for txn in items if txn.status == status]
+        return items
+
+    def list_all(self, status: Optional[str] = None, org_id: Optional[str] = None) -> list[Transaction]:
+        items = list(self._items.values())
+        if status:
+            items = [txn for txn in items if txn.status == status]
+        if org_id is not None:
+            items = [txn for txn in items if txn.org_id == org_id]
         return items
 
     def find_by_idempotency_key(self, key: str) -> Optional[Transaction]:
