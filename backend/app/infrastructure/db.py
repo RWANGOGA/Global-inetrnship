@@ -95,6 +95,18 @@ def ensure_schema() -> None:
             for name, definition in job_additions.items()
             if name not in job_columns
         )
+    if "direct_chats" in inspector.get_table_names():
+        dc_columns = {c["name"] for c in inspector.get_columns("direct_chats")}
+        dc_additions = {
+            "user1_last_read_at": "VARCHAR",
+            "user2_last_read_at": "VARCHAR",
+        }
+        statements.extend(
+            f"ALTER TABLE direct_chats ADD COLUMN {name} {definition}"
+            for name, definition in dc_additions.items()
+            if name not in dc_columns
+        )
+
     if "organisations" in inspector.get_table_names():
         org_columns = {c["name"] for c in inspector.get_columns("organisations")}
         org_additions = {

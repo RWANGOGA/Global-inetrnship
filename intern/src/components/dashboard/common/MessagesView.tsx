@@ -642,7 +642,11 @@ export function MessagesView() {
                               <>
                                 <time>{timeOf(message.created_at)}</time>
                                 {mine && (
-                                  <span className="wa-ticks" aria-label="Delivered">
+                                  <span
+                                    className={`wa-ticks ${message.read ? "read" : ""}`}
+                                    aria-label={message.read ? "Read" : "Delivered"}
+                                    style={message.read ? { color: "var(--blue)" } : undefined}
+                                  >
                                     <Icon name="check" size={11} />
                                     <Icon name="check" size={11} />
                                   </span>

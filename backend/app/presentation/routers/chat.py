@@ -713,14 +713,41 @@ def get_direct_messages(
     # Auto-translate
     import asyncio
     names = _names(session, {msg.sender_id for msg in messages})
+    from app.infrastructure.orm import DirectChatORM
+    from sqlalchemy import and_, or_
+    dc = (
+        session.query(DirectChatORM)
+        .filter(
+            or_(
+                and_(
+                    DirectChatORM.user1_id == current_user.id,
+                    DirectChatORM.user2_id == other_user_id,
+                ),
+                and_(
+                    DirectChatORM.user1_id == other_user_id,
+                    DirectChatORM.user2_id == current_user.id,
+                ),
+            )
+        )
+        .first()
+    )
+    recipient_read_at = ""
+    if dc is not None:
+        if dc.user1_id == current_user.id:
+            recipient_read_at = dc.user2_last_read_at or ""
+        else:
+            recipient_read_at = dc.user1_last_read_at or ""
     translated = []
     for msg in messages:
         t = asyncio.run(service.translate_to_user_language(msg, current_user.id))
+        is_mine = msg.sender_id == current_user.id
+        read = is_mine and (recipient_read_at >= msg.created_at) if recipient_read_at else False
         translated.append(
             {
                 **msg.__dict__,
                 "translated_content": t,
                 "sender_name": names.get(msg.sender_id, "Member"),
+                "read": read,
             }
         )
     
@@ -937,6 +964,24 @@ def mark_thread_read(
     if participant is not None:
         participant.last_read_at = now
         session.commit()
+    else:
+        # Direct chat: store the read cursor on the matching side of the row.
+        from app.infrastructure.orm import DirectChatORM
+        dc = (
+            session.query(DirectChatORM)
+            .filter(
+                DirectChatORM.id == thread_id,
+                (DirectChatORM.user1_id == current_user.id)
+                | (DirectChatORM.user2_id == current_user.id),
+            )
+            .first()
+        )
+        if dc is not None:
+            if dc.user1_id == current_user.id:
+                dc.user1_last_read_at = now
+            else:
+                dc.user2_last_read_at = now
+            session.commit()
     return {"thread_id": thread_id, "read_at": now}
 
 

@@ -58,6 +58,7 @@ export interface ChatMessage {
   updated_at: string | null;
   deleted_at: string | null;
   is_edited: boolean;
+  read?: boolean;
   reply_to_id: string | null;
   translations: Record<string, string>;
   translated_content: string | null;

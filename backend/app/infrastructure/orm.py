@@ -486,6 +486,8 @@ class DirectChatORM(Base):
     user2_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
     created_at: Mapped[str] = mapped_column(String, default="")
     last_message_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    user1_last_read_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    user2_last_read_at: Mapped[str | None] = mapped_column(String, nullable=True)
 
     __table_args__ = (UniqueConstraint('user1_id', 'user2_id', name='uq_direct_chat'),)
 
