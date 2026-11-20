@@ -184,6 +184,9 @@ export function HomeView() {
                 src="./img/hero.jpg"
                 alt="Students working together on a laptop in a university library"
                 loading="eager"
+                fetchPriority="high"
+                width={900}
+                height={900}
               />
               <div className="cap">Makerere University · placement briefing</div>
             </div>
@@ -289,7 +292,14 @@ export function HomeView() {
       <section className="sec" style={{ paddingTop: 0 }}>
         <div className="wrap placed">
           <div className="photo-frame wide">
-            <img src="./img/students.jpg" alt="Five students sitting together on campus" loading="lazy" />
+            <img
+              src="./img/students.jpg"
+              alt="Five students sitting together on campus"
+              loading="lazy"
+              decoding="async"
+              width={1024}
+              height={576}
+            />
           </div>
           <div>
             <span className="lbl">Students</span>
@@ -317,7 +327,14 @@ export function HomeView() {
               <p>“I knew I qualified before I applied. That had never happened.”</p>
               <div className="who">
                 <span className="av">
-                  <img src="./img/portrait.jpg" alt="" />
+                  <img
+                    src="./img/portrait.jpg"
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    width={400}
+                    height={600}
+                  />
                 </span>
                 <span>Amina Nakato · Design · Lumen Labs</span>
               </div>
@@ -326,7 +343,14 @@ export function HomeView() {
               <p>“The office verified my transcript in a day and the ministry called that week.”</p>
               <div className="who">
                 <span className="av">
-                  <img src="./img/hero.jpg" alt="" />
+                  <img
+                    src="./img/hero.jpg"
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    width={900}
+                    height={900}
+                  />
                 </span>
                 <span>Joel Mwangi · Statistics · NITA</span>
               </div>
@@ -535,7 +559,14 @@ export function HomeView() {
         <div className="quote">
           <div>
             <div className="portrait" style={{ width: "96px", height: "96px" }}>
-              <img src="./img/portrait.jpg" alt="Portrait of Amina Nakato" />
+              <img
+                src="./img/portrait.jpg"
+                alt="Portrait of Amina Nakato"
+                loading="lazy"
+                decoding="async"
+                width={400}
+                height={600}
+              />
             </div>
             <div className="seal" style={{ marginTop: "14px" }}>
               Verified<br />placement<br />2026
