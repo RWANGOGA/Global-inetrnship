@@ -191,6 +191,29 @@ export async function leaveGroup(groupId: string): Promise<void> {
   await request(`/chat/groups/${groupId}/leave`, { method: "POST" });
 }
 
+export interface ChatSettings {
+  preferred_language: string;
+  auto_translate: boolean;
+  show_original: boolean;
+  notification_sound: boolean;
+  desktop_notifications: boolean;
+  theme: string;
+  font_size: number;
+}
+
+export async function getChatSettings(): Promise<ChatSettings> {
+  const data = await request<{ settings: ChatSettings }>("/chat/settings");
+  return data.settings;
+}
+
+export async function updateChatSettings(patch: Partial<ChatSettings>): Promise<ChatSettings> {
+  const data = await request<{ settings: ChatSettings }>("/chat/settings", {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+  return data.settings;
+}
+
 // ---- Presentation helpers --------------------------------------------------
 
 export function timeOf(iso: string): string {

@@ -12,6 +12,7 @@ import { useApp } from "../../../context/AppContext";
 import { Icon } from "../../icons/Icons";
 import {
   ChatMessage,
+  type ChatSettings,
   ChatPerson,
   ChatThread,
   GROUP_TYPES,
@@ -19,6 +20,8 @@ import {
   addMember,
   chatAvailable,
   createGroup,
+  getChatSettings,
+  updateChatSettings,
   dayLabel,
   deleteGroup,
   leaveGroup,
@@ -75,6 +78,7 @@ export function MessagesView() {
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [chatSettings, setChatSettings] = useState<ChatSettings | null>(null);
   const [draftThread, setDraftThread] = useState<ChatThread | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
@@ -105,6 +109,15 @@ export function MessagesView() {
   activeIdRef.current = active?.id ?? null;
 
   const totalUnread = threads.reduce((sum, t) => sum + (t.unread_count || 0), 0);
+
+  useEffect(() => {
+    if (!canChat) return;
+    let cancelled = false;
+    getChatSettings()
+      .then((s) => { if (!cancelled) setChatSettings(s); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [canChat]);
 
   // ---- data loading --------------------------------------------------------
 
@@ -699,6 +712,42 @@ export function MessagesView() {
           </div>
 
           {active.description && <p className="wa-info-about">{active.description}</p>}
+
+          <div className="wa-info-block">
+            <div className="wa-info-head">
+              <span>Language</span>
+            </div>
+            <select
+              value={chatSettings?.preferred_language || "en"}
+              onChange={(e) => {
+                const next = e.target.value;
+                setChatSettings((s) => (s ? { ...s, preferred_language: next } : s));
+                updateChatSettings({ preferred_language: next }).catch(() => undefined);
+              }}
+              style={{ width: "100%", height: "32px", borderRadius: "var(--r-sm)", border: "1px solid var(--rule-2)", padding: "0 8px", fontSize: "12px" }}
+            >
+              <option value="en">English</option>
+              <option value="sw">Swahili</option>
+              <option value="fr">French</option>
+              <option value="es">Spanish</option>
+              <option value="ar">Arabic</option>
+              <option value="pt">Portuguese</option>
+              <option value="de">German</option>
+              <option value="zh">Chinese</option>
+            </select>
+            <label style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "8px", fontSize: "11px", color: "var(--muted)" }}>
+              <input
+                type="checkbox"
+                checked={chatSettings?.auto_translate ?? true}
+                onChange={(e) => {
+                  const next = e.target.checked;
+                  setChatSettings((s) => (s ? { ...s, auto_translate: next } : s));
+                  updateChatSettings({ auto_translate: next }).catch(() => undefined);
+                }}
+              />
+              Auto-translate incoming messages
+            </label>
+          </div>
 
           <div className="wa-info-block">
             <div className="wa-info-head">
