@@ -126,19 +126,38 @@ export async function listMessages(thread: ChatThread, limit = 60): Promise<Chat
   return data.messages || [];
 }
 
-export async function sendToThread(thread: ChatThread, content: string): Promise<void> {
+export async function sendToThread(
+  thread: ChatThread,
+  content: string,
+  options?: {
+    type?: ChatMessageType;
+    file_name?: string | null;
+    file_size?: number | null;
+    mime_type?: string | null;
+    duration_seconds?: number | null;
+  }
+): Promise<void> {
+  const type = options?.type || "text";
+  const payload = {
+    content,
+    type,
+    file_name: options?.file_name ?? null,
+    file_size: options?.file_size ?? null,
+    mime_type: options?.mime_type ?? null,
+    duration_seconds: options?.duration_seconds ?? null,
+  };
   if (thread.kind === "direct") {
     const otherId = thread.other_user?.id;
     if (!otherId) throw new Error("This conversation has no recipient");
     await request("/chat/direct", {
       method: "POST",
-      body: JSON.stringify({ recipient_id: otherId, content, type: "text" }),
+      body: JSON.stringify({ recipient_id: otherId, ...payload }),
     });
     return;
   }
   await request(`/chat/groups/${thread.id}/messages`, {
     method: "POST",
-    body: JSON.stringify({ content, type: "text" }),
+    body: JSON.stringify(payload),
   });
 }
 
@@ -190,6 +209,31 @@ export async function deleteGroup(groupId: string): Promise<void> {
 
 export async function leaveGroup(groupId: string): Promise<void> {
   await request(`/chat/groups/${groupId}/leave`, { method: "POST" });
+}
+
+export interface ChatUploadResult {
+  url: string;
+  file_name: string;
+  file_size: number;
+  mime_type: string;
+  kind: string;
+}
+
+export async function uploadChatFile(file: Blob, kind: string, fileName?: string): Promise<ChatUploadResult> {
+  const token = getToken();
+  const form = new FormData();
+  form.append("file", file, fileName || (file instanceof File ? file.name : "upload"));
+  form.append("kind", kind);
+  const res = await fetch(`${API_BASE}/chat/upload`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  if (!res.ok) {
+    const payload = await res.json().catch(() => null);
+    throw new ApiError(res.status, payload?.detail ?? `HTTP ${res.status}`);
+  }
+  return (await res.json()) as ChatUploadResult;
 }
 
 export interface ChatSettings {

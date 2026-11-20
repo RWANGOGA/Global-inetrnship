@@ -23,6 +23,7 @@ export type IconName =
   | "user"
   | "clock"
   | "bell"
+  | "mic"
   | "x"
   | "plus"
   | "menu"
@@ -121,6 +122,10 @@ export function SvgDefs() {
         <symbol id="i-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
           <path d="M6 16V10a6 6 0 0112 0v6l2 2H4z" />
           <path d="M10 20h4" />
+        </symbol>
+        <symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <rect x="9" y="3" width="6" height="11" rx="3" />
+          <path d="M5 11a7 7 0 0014 0M12 18v3" />
         </symbol>
         <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
           <path d="M6 6l12 12M18 6L6 18" />

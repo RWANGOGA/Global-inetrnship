@@ -22,6 +22,7 @@ import {
   createGroup,
   getChatSettings,
   updateChatSettings,
+  uploadChatFile,
   dayLabel,
   deleteGroup,
   leaveGroup,
@@ -92,6 +93,11 @@ export function MessagesView() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordStartRef = useRef<number>(0);
+  const [recording, setRecording] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const activeRef = useRef<ChatThread | null>(null);
   const activeIdRef = useRef<string | null>(null);
   const readRef = useRef<Set<string>>(new Set());
@@ -327,6 +333,126 @@ export function MessagesView() {
     } finally {
       setSending(false);
       composerRef.current?.focus();
+    }
+  };
+
+  const sendAttachment = async (file: File) => {
+    if (!active || uploading) return;
+    setUploading(true);
+    try {
+      const kind = file.type.startsWith("image/")
+        ? "image"
+        : file.type.startsWith("audio/")
+        ? "voice"
+        : "file";
+      const uploaded = await uploadChatFile(file, kind, file.name);
+      const isVoice = kind === "voice";
+      const optimistic: ChatMessage = {
+        id: `local-${Date.now()}`,
+        group_id: active.kind === "group" ? active.id : null,
+        sender_id: session?.id || "me",
+        recipient_id: active.other_user?.id || null,
+        type: isVoice ? "voice" : kind === "image" ? "image" : "file",
+        content: uploaded.url,
+        original_language: "en",
+        duration_seconds: null,
+        file_name: uploaded.file_name,
+        file_size: uploaded.file_size,
+        mime_type: uploaded.mime_type,
+        created_at: new Date().toISOString(),
+        updated_at: null,
+        deleted_at: null,
+        is_edited: false,
+        reply_to_id: null,
+        translations: {},
+        translated_content: null,
+        sender_name: session?.name || "You",
+      };
+      setMessages((list) => [...list, optimistic]);
+      await sendToThread(active, uploaded.url, {
+        type: optimistic.type as any,
+        file_name: uploaded.file_name,
+        file_size: uploaded.file_size,
+        mime_type: uploaded.mime_type,
+      });
+      setMessages(await listMessages(active));
+      await refreshThreads();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Could not send file");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const toggleRecording = async () => {
+    if (recording) {
+      mediaRecorderRef.current?.stop();
+      return;
+    }
+    if (!active) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+      recordStartRef.current = Date.now();
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setRecording(false);
+        const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+        if (blob.size === 0) return;
+        if (blob.size > 3 * 1024 * 1024) {
+          toast("Recording too large (max 3 MB)");
+          return;
+        }
+        const duration = Math.round((Date.now() - recordStartRef.current) / 1000);
+        setUploading(true);
+        try {
+          const uploaded = await uploadChatFile(blob, "voice", "voice-note.webm");
+          const optimistic: ChatMessage = {
+            id: `local-${Date.now()}`,
+            group_id: active.kind === "group" ? active.id : null,
+            sender_id: session?.id || "me",
+            recipient_id: active.other_user?.id || null,
+            type: "voice",
+            content: uploaded.url,
+            original_language: "en",
+            duration_seconds: duration,
+            file_name: uploaded.file_name,
+            file_size: uploaded.file_size,
+            mime_type: uploaded.mime_type,
+            created_at: new Date().toISOString(),
+            updated_at: null,
+            deleted_at: null,
+            is_edited: false,
+            reply_to_id: null,
+            translations: {},
+            translated_content: null,
+            sender_name: session?.name || "You",
+          };
+          setMessages((list) => [...list, optimistic]);
+          await sendToThread(active, uploaded.url, {
+            type: "voice",
+            file_name: uploaded.file_name,
+            file_size: uploaded.file_size,
+            mime_type: uploaded.mime_type,
+            duration_seconds: duration,
+          });
+          setMessages(await listMessages(active));
+          await refreshThreads();
+        } catch (e) {
+          toast(e instanceof Error ? e.message : "Could not send voice note");
+        } finally {
+          setUploading(false);
+        }
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setRecording(true);
+    } catch (e) {
+      toast("Microphone access denied");
     }
   };
 
@@ -630,6 +756,31 @@ export function MessagesView() {
                         )}
                         <div className={`wa-bubble ${mine ? "mine" : ""}`}>
                           <p>{messageBody(message)}</p>
+                          {(message.type === "image" || message.type === "file" || message.type === "voice") && message.content && (
+                            <div style={{ marginTop: "6px" }}>
+                              {message.type === "image" && (
+                                <img
+                                  src={message.content}
+                                  alt={message.file_name || "image"}
+                                  style={{ maxWidth: "100%", borderRadius: "var(--r-sm)", display: "block" }}
+                                />
+                              )}
+                              {message.type === "voice" && (
+                                <audio controls src={message.content} style={{ width: "100%", maxWidth: "260px" }} />
+                              )}
+                              {message.type === "file" && (
+                                <a
+                                  href={message.content}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{ fontSize: "12px", color: "var(--blue)", textDecoration: "underline" }}
+                                >
+                                  {message.file_name || "Download file"}
+                                  {message.file_size ? ` (${Math.round(message.file_size / 1024)} KB)` : ""}
+                                </a>
+                              )}
+                            </div>
+                          )}
                           {message.translated_content &&
                             message.translated_content !== message.content && (
                               <p className="wa-translated">{message.translated_content}</p>
@@ -663,6 +814,44 @@ export function MessagesView() {
             </div>
 
             <div className="wa-composer">
+              <input
+                ref={fileInputRef}
+                type="file"
+                style={{ display: "none" }}
+                accept="image/*,audio/*,.pdf,.doc,.docx,.txt"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    if (file.size > 3 * 1024 * 1024) {
+                      toast("File must be 3 MB or smaller");
+                    } else {
+                      void sendAttachment(file);
+                    }
+                  }
+                  e.target.value = "";
+                }}
+              />
+              <button
+                type="button"
+                className="wa-icon-btn"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                aria-label="Attach file"
+                title="Attach file (max 3 MB)"
+              >
+                <Icon name="upload" size={15} />
+              </button>
+              <button
+                type="button"
+                className={`wa-icon-btn ${recording ? "on" : ""}`}
+                onClick={() => void toggleRecording()}
+                disabled={uploading}
+                aria-label={recording ? "Stop recording" : "Record voice note"}
+                title={recording ? "Stop recording" : "Record voice note"}
+                style={recording ? { color: "var(--red)" } : undefined}
+              >
+                <Icon name={recording ? "x" : "mic"} size={15} />
+              </button>
               <textarea
                 ref={composerRef}
                 value={text}
@@ -681,10 +870,10 @@ export function MessagesView() {
                 type="button"
                 className="wa-send"
                 onClick={() => void send()}
-                disabled={!text.trim() || sending}
+                disabled={(!text.trim() && !uploading) || sending || uploading}
                 aria-label="Send message"
               >
-                <Icon name={sending ? "spinner" : "send"} size={16} />
+                <Icon name={sending || uploading ? "spinner" : "send"} size={16} />
               </button>
             </div>
           </>

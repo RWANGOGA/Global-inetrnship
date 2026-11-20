@@ -2,8 +2,11 @@
 
 from typing import Optional, Dict, Set
 import json
+import os
+import uuid
+from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, WebSocket, WebSocketDisconnect, Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -1035,6 +1038,54 @@ async def detect_language(
 # ---- User Settings ------------------------------------------------------------
 
 @router.get("/settings", response_model=dict)
+@router.post("/upload", response_model=dict)
+async def upload_chat_file(
+    file: UploadFile = File(...),
+    kind: str = Form("file"),
+    current_user: User = Depends(get_current_user),
+):
+    """Store a chat attachment on the server filesystem (never in the DB).
+
+    Only metadata (name, size, mime type, resulting path) is returned; the
+    bytes live on disk and are served back through /chat/files/{name}.
+    """
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="File is empty")
+    if len(content) > 3 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File must be 3 MB or smaller")
+
+    original = file.filename or "upload"
+    ext = Path(original).suffix.lower()
+    if len(ext) > 10:
+        ext = ""
+    stored_name = f"{uuid.uuid4().hex}{ext}"
+
+    upload_dir = Path(os.getenv("CHAT_UPLOAD_DIR", "uploads/chat"))
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    (upload_dir / stored_name).write_bytes(content)
+
+    return {
+        "url": f"/chat/files/{stored_name}",
+        "file_name": original,
+        "file_size": len(content),
+        "mime_type": file.content_type or "application/octet-stream",
+        "kind": kind,
+    }
+
+
+@router.get("/files/{filename}")
+def get_chat_file(filename: str):
+    """Serve a previously uploaded chat attachment."""
+    if not filename or "/" in filename or "\\" in filename or ".." in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    upload_dir = Path(os.getenv("CHAT_UPLOAD_DIR", "uploads/chat"))
+    path = upload_dir / filename
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(path, filename=filename)
+
+
 def get_settings(
     service: ChatService = Depends(get_chat_service),
     current_user: User = Depends(get_current_user),
