@@ -2198,6 +2198,7 @@ export interface UserRead {
   org_id: string | null;
   created_at: string;
   is_active: boolean;
+  deleted?: boolean;
 }
 
 export interface UserListResponse {
@@ -2338,7 +2339,7 @@ export async function fetchUserDetail(
 
 export async function userAction(
   userId: string,
-  payload:  { action: "suspend" | "activate" | "change_role" | "delete"; reason: string; new_role?: string 
+  payload:  { action: "suspend" | "activate" | "change_role" | "delete" | "restore"; reason: string; new_role?: string 
 }
 ): Promise<UserActionResponse> {
   return patchJson<UserActionResponse>(`/admin/users/${userId}/action`, payload);

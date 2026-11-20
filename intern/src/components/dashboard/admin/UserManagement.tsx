@@ -16,6 +16,24 @@ import {
 
 type Tab = "list" | "detail" | "action";
 
+type UserActionType = "suspend" | "activate" | "change_role" | "delete" | "restore";
+
+const ACTION_LABELS: Record<UserActionType, string> = {
+  suspend: "suspended",
+  activate: "activated",
+  change_role: "role changed",
+  delete: "deleted",
+  restore: "restored",
+};
+
+const ACTION_BUTTON_LABELS: Record<UserActionType, string> = {
+  suspend: "Suspend",
+  activate: "Activate",
+  change_role: "Change role",
+  delete: "Delete",
+  restore: "Restore",
+};
+
 interface OrgStats {
   active_placements: number;
   total_hired: number;
@@ -49,7 +67,7 @@ export function UserManagement() {
   const [deletedFilter, setDeletedFilter] = useState<"false" | "true" | "all">("false");
   const [search, setSearch] = useState("");
   const [view, setView] = useState<"list" | "detail" | "action">("list");
-  const [actionType, setActionType] = useState<"suspend" | "activate" | "change_role" | "delete">("suspend");
+  const [actionType, setActionType] = useState<UserActionType>("suspend");
   const [actionReason, setActionReason] = useState("");
   const [newRole, setNewRole] = useState<string>("");
   const [actionLoading, setActionLoading] = useState(false);
@@ -107,7 +125,7 @@ export function UserManagement() {
         reason: actionReason,
         new_role: newRole || undefined,
       });
-      toast(`User ${actionType}d successfully`);
+      toast(`User ${ACTION_LABELS[actionType]} successfully`);
       setView("list");
       setSelectedUser(null);
       setActionReason("");
@@ -344,7 +362,14 @@ export function UserManagement() {
             <button type="button" className="btn btn-sm" onClick={() => setView("list")}>
               Back to list
             </button>
-            <button type="button" className="btn btn-sm" onClick={() => setView("action")}>
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => {
+                setActionType(u.deleted ? "restore" : "suspend");
+                setView("action");
+              }}
+            >
               Manage
             </button>
           </div>
@@ -364,8 +389,8 @@ export function UserManagement() {
             <span className="lbl">testimonials</span>
           </div>
           <div className="kpi">
-            <span className={`tg ${u.is_active ? "green" : "red"}`}>
-              {u.is_active ? "Active" : "Inactive"}
+            <span className={`tg ${u.deleted ? "red" : u.is_active ? "green" : "red"}`}>
+              {u.deleted ? "Deleted" : u.is_active ? "Active" : "Inactive"}
             </span>
             <span className="lbl">status</span>
           </div>
@@ -573,7 +598,7 @@ export function UserManagement() {
           </div>
           <div className="pb">
             <div className="row2" style={{ display: "flex", gap: "12px", marginBottom: "16px" }}>
-              {(["suspend", "activate", "change_role", "delete"] as const).map((action) => (
+              {(["suspend", "activate", "change_role", "delete", "restore"] as const).map((action) => (
                 <button
                   key={action}
                   type="button"
@@ -581,10 +606,15 @@ export function UserManagement() {
                   onClick={() => setActionType(action)}
                   style={{ flex: 1 }}
                 >
-                  {action.charAt(0).toUpperCase() + action.slice(1)}
+                  {ACTION_BUTTON_LABELS[action]}
                 </button>
               ))}
             </div>
+            {actionType === "restore" && (
+              <p style={{ fontSize: "12px", color: "var(--ink-2)", marginBottom: "16px" }}>
+                Restoring re-activates the account and lets the user sign in again.
+              </p>
+            )}
             {actionType === "change_role" && (
               <div className="field" style={{ marginBottom: "16px" }}>
                 <label>New Role</label>
@@ -618,7 +648,7 @@ export function UserManagement() {
                 disabled={actionLoading || !actionReason.trim() || (actionType === "change_role" && !newRole)}
                 onClick={handleAction}
               >
-                {actionLoading ? "Processing…" : `Apply ${actionType.charAt(0).toUpperCase() + actionType.slice(1)}`}
+                {actionLoading ? "Processing…" : `Apply ${ACTION_BUTTON_LABELS[actionType]}`}
               </button>
               <button
                 type="button"
