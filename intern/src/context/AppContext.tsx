@@ -1665,7 +1665,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // whenever the signed-in account changes (login, logout, switch).
   useEffect(() => {
     if (!isApiEnabled) return;
-    if (!session) {
+    // /saved is student/jobseeker-only. Calling it for an admin or employer
+    // only produced a 403 in the console on every dashboard load.
+    if (!session || (session.role !== "student" && session.role !== "jobseeker")) {
       setSaved([]);
       return;
     }

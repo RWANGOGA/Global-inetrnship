@@ -152,6 +152,9 @@ export function StudentBilling() {
       toast(action === "cancel" ? "Cancellation scheduled for the end of this billing period" : "Student Plus subscription resumed");
       await loadData();
     } catch (error) {
+      // The plan may have lapsed in another tab; resync so the buttons match
+      // the account instead of offering an action the server will keep rejecting.
+      await loadData();
       toast(error instanceof Error ? error.message : "Could not update your subscription");
     } finally {
       setPlanBusy(false);

@@ -1002,8 +1002,13 @@ class BillingService:
     def cancel_student_subscription(self, user_id: str) -> dict:
         """Schedule Student Plus cancellation at the end of the paid period."""
         subscription = self._student_subscription_row(user_id)
-        if not subscription or self.get_student_plan(user_id)["plan"] != "Student Plus":
+        plan = self.get_student_plan(user_id)
+        if not subscription or plan["plan"] != "Student Plus":
             raise ValueError("No active Student Plus subscription")
+        # Cancelling twice (retry, double click, second tab) must not turn a
+        # scheduled cancellation into a 409 for the student.
+        if subscription.cancel_at_period_end:
+            return plan
         if subscription.gateway_subscription_id:
             gateway = self._gateways.get(subscription.payment_gateway or "stripe")
             gateway.cancel_subscription(subscription.gateway_subscription_id, at_period_end=True)

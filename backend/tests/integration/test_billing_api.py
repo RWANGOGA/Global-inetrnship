@@ -317,6 +317,12 @@ def test_student_plus_limit_cancellation_and_resume(client: TestClient, session)
     cancelled = client.post("/billing/student/subscription/cancel", headers=headers)
     assert cancelled.status_code == 200, cancelled.text
     assert cancelled.json()["cancel_at_period_end"] is True
+
+    # Cancelling again (retry or second tab) is idempotent, not a 409.
+    cancelled_again = client.post("/billing/student/subscription/cancel", headers=headers)
+    assert cancelled_again.status_code == 200, cancelled_again.text
+    assert cancelled_again.json()["cancel_at_period_end"] is True
+
     resumed = client.post("/billing/student/subscription/resume", headers=headers)
     assert resumed.status_code == 200, resumed.text
     assert resumed.json()["cancel_at_period_end"] is False
