@@ -1192,6 +1192,38 @@ rhythm survives descenders and longer labels. */
 .freebar div:last-child{border-right:0;padding-right:0}
 .freebar b{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink)}
 .freebar span{display:block;font-size:11.5px;color:var(--muted);margin-top:4px;line-height:1.5}
+
+/* The stat, trust and free-tier copy sits on the near-black hero band. The
+   default muted tokens were tuned for white paper, so they fell to ~3.6:1 here.
+   Raise them to zinc-200/300 at 600 weight (13:1+) and soften the hairlines. */
+.hero .counts div{border-right-color:rgba(255,255,255,.16)}
+.hero .counts span{
+  color:#E4E4E7;
+  font-size:10.5px;
+  font-weight:600;
+  letter-spacing:.1em;
+  line-height:1.45;
+  margin-top:5px;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+.hero .trust span{
+  color:#E4E4E7;
+  font-weight:600;
+  letter-spacing:.11em;
+  -webkit-font-smoothing:antialiased;
+}
+.hero .freebar{border-top-color:rgba(255,255,255,.16)}
+.hero .freebar div{border-right-color:rgba(255,255,255,.16)}
+.hero .freebar b{
+  color:#FAFAFA;
+  font-size:10px;
+  font-weight:600;
+  letter-spacing:.1em;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+.hero .freebar span{color:#D4D4D8}
 @media (max-width:800px){.freebar{grid-template-columns:1fr}.freebar div{border-right:0;border-bottom:1px solid var(--rule);padding-right:0}.freebar div:last-child{border-bottom:0}}
 .tier .tier-cta{margin-top:auto;display:block}
 .tier .tier-cta .btn{display:flex;width:100%;height:46px;min-height:46px;max-height:46px;flex:none;border-radius:var(--r-sm);background:var(--white);color:var(--ink);border:1px solid var(--rule-2);box-sizing:border-box;align-items:center;justify-content:center}
