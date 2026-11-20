@@ -7,10 +7,11 @@ is the anchor the frontend uses to restore a session on load.
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 from app.application.auth import AuthService
+from app.application.chat import ChatService
 from app.core.errors import EmailAlreadyExists, InvalidCredentials
 from app.core.security import create_access_token
 from app.domain.entities import User
-from app.presentation.deps import get_auth_service, get_current_user
+from app.presentation.deps import get_auth_service, get_chat_service, get_current_user
 from app.presentation.schemas import (
     AuthResponse,
     LoginRequest,
@@ -30,7 +31,9 @@ def _auth_response(user: User) -> AuthResponse:
 
 @router.post("/register", response_model=AuthResponse, status_code=201)
 def register(
-    payload: RegisterRequest, service: AuthService = Depends(get_auth_service)
+    payload: RegisterRequest,
+    service: AuthService = Depends(get_auth_service),
+    chat_service: ChatService = Depends(get_chat_service),
 ) -> AuthResponse:
     try:
         user = service.register(
@@ -48,6 +51,14 @@ def register(
         raise HTTPException(status_code=409, detail="Email already registered")
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
+
+    # New accounts join the channels that match their role automatically; admins
+    # join every channel. Membership failures must not block registration.
+    try:
+        chat_service.auto_join_for_user(user.id, user.role)
+    except Exception:
+        pass
+
     return _auth_response(user)
 
 

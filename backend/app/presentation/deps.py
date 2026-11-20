@@ -13,8 +13,9 @@ from sqlalchemy.orm import Session
 
 from app.ai.enrichment_service import GroqEnrichmentService
 from app.application.advisor import AdvisorService
+from app.application.chat import ChatService
 from app.application.auth import AuthService
-from app.application.ports import LLMClient, VoiceClient, TranslationClient
+from app.application.ports import ChatGroupRepository, GroupParticipantRepository, ChatMessageRepository, DirectChatRepository, UserChatSettingsRepository, LLMClient, VoiceClient, TranslationClient, UserRepository
 from app.application.services import (
     ApplicationService,
     BillingService,
@@ -202,6 +203,24 @@ def get_user_chat_settings_repository(session: Session = Depends(get_session)):
     return SqlAlchemyUserChatSettingsRepository(session)
 
 
+def get_chat_service(
+    groups: ChatGroupRepository = Depends(get_chat_group_repository),
+    participants: GroupParticipantRepository = Depends(get_group_participant_repository),
+    messages: ChatMessageRepository = Depends(get_chat_message_repository),
+    direct_chats: DirectChatRepository = Depends(get_direct_chat_repository),
+    settings_repo: UserChatSettingsRepository = Depends(get_user_chat_settings_repository),
+    translator: TranslationClient = Depends(get_translation_client),
+) -> ChatService:
+    return ChatService(
+        groups=groups,
+        participants=participants,
+        messages=messages,
+        direct_chats=direct_chats,
+        settings_repo=settings_repo,
+        translator=translator,
+    )
+
+
 # ---- Job Applications --------------------------------------------------------
 
 def get_job_application_repository(
@@ -225,6 +244,10 @@ def get_admin_action_log_repository(
 # ---- Auth ------------------------------------------------------------------
 
 bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def get_user_repository(session: Session = Depends(get_session)) -> UserRepository:
+    return SqlAlchemyUserRepository(session)
 
 
 def get_learning_service(session: Session = Depends(get_session)) -> LearningService:

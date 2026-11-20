@@ -14,6 +14,7 @@ from app.application.ports import (
     ChatMessageRepository,
     DirectChatRepository,
     UserChatSettingsRepository,
+    UserRepository,
     TranslationClient,
 )
 from app.core.security import decode_access_token
@@ -26,7 +27,7 @@ from app.infrastructure.repositories import (
     SqlAlchemyDirectChatRepository,
     SqlAlchemyUserChatSettingsRepository,
 )
-from app.presentation.deps import get_current_user, get_translation_client, require_roles
+from app.presentation.deps import get_current_user, get_translation_client, get_user_repository, require_roles
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -290,6 +291,7 @@ class SettingsUpdate(BaseModel):
 def create_group(
     payload: GroupCreate,
     service: ChatService = Depends(get_chat_service),
+    users: UserRepository = Depends(get_user_repository),
     current_user: User = Depends(require_roles("admin")),
 ):
     try:
@@ -306,6 +308,15 @@ def create_group(
         org_id=payload.org_id,
         member_ids=payload.member_ids,
     )
+
+    # Admins monitor every channel: make sure all of them are participants of
+    # the new group, even if they were created after it.
+    try:
+        admin_ids = [u.id for u in users.list_by_role("admin")]
+        service.ensure_admins_in_group(group.id, admin_ids)
+    except Exception:
+        pass
+
     return {"group": group}
 
 

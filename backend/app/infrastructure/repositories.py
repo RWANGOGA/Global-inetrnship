@@ -1151,6 +1151,10 @@ class SqlAlchemyUserRepository(UserRepository):
         row = self._session.query(UserORM).filter_by(id=user_id).first()
         return self._to_domain(row) if row is not None else None
 
+    def list_by_role(self, role: str) -> list[User]:
+        rows = self._session.query(UserORM).filter_by(role=role).all()
+        return [self._to_domain(row) for row in rows]
+
     def update(self, user_id: str, **fields) -> Optional[User]:
         row = self._session.query(UserORM).filter_by(id=user_id).first()
         if not row:
@@ -1415,6 +1419,30 @@ class SqlAlchemyChatGroupRepository(ChatGroupRepository):
                 org_id=r.org_id,
             )
             for r in rows
+        ]
+
+    def list_all(self) -> list[ChatGroup]:
+        rows = (
+            self._session.query(ChatGroupORM)
+            .filter(ChatGroupORM.is_active == True)
+            .order_by(ChatGroupORM.name)
+            .all()
+        )
+        return [
+            ChatGroup(
+                id=row.id,
+                name=row.name,
+                type=GroupType(row.type),
+                description=row.description,
+                avatar_url=row.avatar_url,
+                created_by=row.created_by,
+                created_at=row.created_at,
+                updated_at=row.updated_at,
+                is_active=row.is_active,
+                placement_id=row.placement_id,
+                org_id=row.org_id,
+            )
+            for row in rows
         ]
 
     def list_by_type(self, group_type: str, org_id: Optional[str] = None) -> list[ChatGroup]:

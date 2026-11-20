@@ -107,6 +107,41 @@ class ChatService:
     ) -> list[ChatGroup]:
         return self._groups.list_by_type(group_type.value, org_id)
 
+    def list_all_groups(self) -> list[ChatGroup]:
+        return self._groups.list_all()
+
+    def ensure_member(self, group_id: str, user_id: str, role: str = "member") -> GroupParticipant:
+        """Add a user to a group if they are not already a member (idempotent)."""
+        existing = self._participants.get(group_id, user_id)
+        if existing is not None:
+            return existing
+        now = datetime.utcnow().isoformat()
+        participant = GroupParticipant(
+            id=f"gp_{uuid4().hex[:10]}",
+            group_id=group_id,
+            user_id=user_id,
+            role=role,
+            joined_at=now,
+        )
+        return self._participants.add(participant)
+
+    def ensure_admins_in_group(self, group_id: str, admin_user_ids: list[str]) -> None:
+        """Make sure every admin is a participant (as admin) of the group."""
+        for uid in admin_user_ids:
+            self.ensure_member(group_id, uid, "admin")
+
+    def auto_join_for_user(self, user_id: str, role: str) -> None:
+        """On account creation, join the channels that match the user's role.
+
+        Admins join every channel; everyone else joins channels whose type
+        matches their role plus the mixed channels.
+        """
+        for group in self.list_all_groups():
+            if role == "admin":
+                self.ensure_member(group.id, user_id, "admin")
+            elif group.type.value == role or group.type.value == "mixed":
+                self.ensure_member(group.id, user_id, "member")
+
     def add_member(
         self, group_id: str, user_id: str, role: str = "member"
     ) -> GroupParticipant:

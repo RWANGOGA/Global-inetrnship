@@ -452,6 +452,9 @@ class UserRepository(ABC):
     @abstractmethod
     def update(self, user_id: str, **fields) -> Optional[User]: ...
 
+    @abstractmethod
+    def list_by_role(self, role: str) -> list[User]: ...
+
 
 class OrganisationRepository(ABC):
     """Organisation persistence."""
@@ -527,6 +530,9 @@ class ChatGroupRepository(ABC):
 
     @abstractmethod
     def list_by_type(self, group_type: str, org_id: Optional[str] = None) -> list[ChatGroup]: ...
+
+    @abstractmethod
+    def list_all(self) -> list[ChatGroup]: ...
 
     @abstractmethod
     def update(self, group_id: str, **fields) -> Optional[ChatGroup]: ...
