@@ -1124,6 +1124,8 @@ class SqlAlchemyUserRepository(UserRepository):
             password_hash=row.password_hash,
             created_at=row.created_at or "",
             org_id=row.org_id or None,
+            deleted=bool(row.deleted),
+            deleted_at=row.deleted_at or None,
         )
 
     def add(self, user: User) -> User:

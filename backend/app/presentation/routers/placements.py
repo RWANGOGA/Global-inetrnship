@@ -8,14 +8,16 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.application.services import PlacementService
+from app.application.services import ApplicationService, PlacementService
 from app.domain.entities import User
 from app.infrastructure.db import get_session
 from app.infrastructure.orm import PlacementORM
-from app.presentation.deps import get_current_user, get_placement_service
+from app.presentation.deps import get_application_service, get_current_user, get_placement_service
 from app.presentation.schemas import (
+    ApplicationRead,
     CatalogMetaRead,
     InternshipPostingRead,
+    PlacementApplicantsRead,
     PlacementListResponse,
     PlacementRead,
     PlacementRequirementsUpdate,
@@ -58,6 +60,34 @@ def get_placement(
     if placement is None or placement.review_status != "approved":
         raise HTTPException(status_code=404, detail="Placement not found")
     return PlacementRead.model_validate(placement)
+
+
+@router.get("/{placement_id}/applicants", response_model=PlacementApplicantsRead)
+def list_placement_applicants(
+    placement_id: str,
+    current_user: User = Depends(get_current_user),
+    placement_service: PlacementService = Depends(get_placement_service),
+    application_service: ApplicationService = Depends(get_application_service),
+) -> PlacementApplicantsRead:
+    """List applicants for a placement — employer of the placement's
+    organisation only; everyone else (including students) is denied."""
+    placement = placement_service.get_placement(placement_id)
+    if placement is None:
+        raise HTTPException(status_code=404, detail="Placement not found")
+    if (
+        current_user.role != "employer"
+        or not current_user.org_id
+        or placement.org_id != current_user.org_id
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Not authorized to view applicants for this placement",
+        )
+    applications = application_service.list_for_placement(placement_id)
+    return PlacementApplicantsRead(
+        total=len(applications),
+        items=[ApplicationRead.model_validate(a) for a in applications],
+    )
 
 
 @router.patch(

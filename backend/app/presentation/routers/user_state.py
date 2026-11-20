@@ -122,7 +122,7 @@ def toggle_saved(
 
 @router.get("/saved", response_model=SavedListResponse)
 def list_saved(
-    current_user: User = Depends(require_roles("student")),
+    current_user: User = Depends(require_roles("student", "jobseeker")),
     service: SavedService = Depends(get_saved_service),
 ) -> SavedListResponse:
     return SavedListResponse(saved_ids=service.list(current_user.id))
@@ -182,15 +182,6 @@ def list_my_applications(
         items=[ApplicationRead.model_validate(a, from_attributes=True) for a in apps]
     )
 
-@router.get("/saved", response_model=dict[str, list[str]])
-def list_saved_placements(
-    current_user: User = Depends(require_roles("student", "jobseeker")),
-    service: ApplicationService = Depends(get_application_service),
-) -> dict[str, list[str]]:
-    apps = service.list_for_user(current_user.id)
-    return {"saved_ids": [a.placement_id for a in apps]}
-
-
 @router.post("/applications/{application_id}/withdraw", response_model=ApplicationRead)
 def withdraw_application(
     application_id: str,
@@ -201,6 +192,32 @@ def withdraw_application(
     if app is None:
         raise HTTPException(status_code=404, detail="Application not found or already processed")
     return ApplicationRead.model_validate(app, from_attributes=True)
+
+
+@router.patch("/applications/{application_id}/shortlist", response_model=ApplicationRead)
+def toggle_application_shortlist(
+    application_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_roles("employer")),
+) -> ApplicationRead:
+    """Toggle the employer shortlist flag on an internship application.
+
+    Employers of the placement's organisation only; students are denied 403,
+    unknown applications 404.
+    """
+    application = session.query(ApplicationORM).filter_by(id=application_id).first()
+    if application is None:
+        raise HTTPException(status_code=404, detail="Application not found")
+    placement = session.get(PlacementORM, application.placement_id)
+    if placement is None or placement.org_id != current_user.org_id:
+        raise HTTPException(
+            status_code=403, detail="Not authorized to shortlist this application"
+        )
+    application.shortlisted = not application.shortlisted
+    application.updated_at = datetime.utcnow().isoformat()
+    session.commit()
+    session.refresh(application)
+    return ApplicationRead.model_validate(application, from_attributes=True)
 
 
 # ---- Application Pack -------------------------------------------------------

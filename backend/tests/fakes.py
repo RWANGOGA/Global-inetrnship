@@ -8,6 +8,7 @@ from app.application.ports import (
     ApplicationRepository,
     InvoiceRepository,
     LLMClient,
+    PaymentMethodRepository,
     PlacementRepository,
     SavedRepository,
     StudentUsageRepository,
@@ -320,6 +321,52 @@ class InMemorySubscriptionRepository(SubscriptionRepository):
     def save(self, subscription: Subscription) -> Subscription:
         self._by_org[subscription.org_id] = subscription
         return subscription
+
+
+class InMemoryPaymentMethodRepository(PaymentMethodRepository):
+    """PaymentMethodRepository double, keyed by (org_id, payment_method_id)."""
+
+    def __init__(self) -> None:
+        self._by_org: dict[tuple[str, str], dict] = {}
+        self._seq = 0
+
+    def _new_id(self, prefix: str) -> str:
+        self._seq += 1
+        return f"{prefix}_{self._seq:04d}"
+
+    def list(self, org_id: str) -> list[dict]:
+        return [m for (org, _), m in self._by_org.items() if org == org_id]
+
+    def get(self, org_id: str, payment_method_id: str) -> Optional[dict]:
+        return self._by_org.get((org_id, payment_method_id))
+
+    def add(
+        self,
+        org_id: str,
+        type: str,
+        details: dict,
+        gateway_payment_method_id: Optional[str] = None,
+    ) -> dict:
+        method = {
+            "org_id": org_id,
+            "payment_method_id": self._new_id("pm"),
+            "type": type,
+            "details": details or {},
+            "gateway_payment_method_id": gateway_payment_method_id
+            or self._new_id("pm_mock"),
+        }
+        self._by_org[(org_id, method["payment_method_id"])] = method
+        return method
+
+    def delete(self, org_id: str, payment_method_id: str) -> bool:
+        return self._by_org.pop((org_id, payment_method_id), None) is not None
+
+    def set_default(self, org_id: str, payment_method_id: str) -> bool:
+        method = self.get(org_id, payment_method_id)
+        if method is None:
+            return False
+        method["is_default"] = True
+        return True
 
 
 class InMemoryUserRepository(UserRepository):

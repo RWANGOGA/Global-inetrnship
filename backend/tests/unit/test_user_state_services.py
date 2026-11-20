@@ -13,6 +13,7 @@ from tests.fakes import (
     InMemoryPlacementRepository,
     InMemorySavedRepository,
     InMemorySubscriptionRepository,
+    InMemoryPaymentMethodRepository,
 )
 
 
@@ -103,7 +104,9 @@ def test_saved_toggle_returns_state_and_ids():
 # ---- BillingService --------------------------------------------------------
 
 
-def make_billing_service() -> BillingService:
+def make_billing_service(
+    payment_methods: "InMemoryPaymentMethodRepository | None" = None,
+) -> BillingService:
     from tests.fakes import (
         InMemorySubscriptionRepository,
         InMemoryInvoiceRepository,
@@ -118,6 +121,7 @@ def make_billing_service() -> BillingService:
         transaction_repo=InMemoryTransactionRepository(),
         gateway_factory=FakeGatewayFactory(),
         student_usage_repo=InMemoryStudentUsageRepository(),
+        payment_method_repo=payment_methods or InMemoryPaymentMethodRepository(),
     )
 
 
@@ -129,8 +133,17 @@ def test_billing_defaults_to_free_for_unknown_org():
 
 
 def test_billing_activate_marks_premium_and_clamps_seats():
-    service = make_billing_service()
-    sub = service.create_subscription("o1", plan="Pro", billing_cycle="monthly")
+    payment_methods = InMemoryPaymentMethodRepository()
+    service = make_billing_service(payment_methods=payment_methods)
+    method = payment_methods.add("o1", type="card", details={})
+
+    sub = service.create_subscription(
+        "o1",
+        plan="Pro",
+        billing_cycle="monthly",
+        payment_gateway="stripe",
+        payment_method_id=method["payment_method_id"],
+    )
 
     assert sub.plan == "Pro"
     assert sub.is_premium is True
@@ -140,8 +153,16 @@ def test_billing_activate_marks_premium_and_clamps_seats():
 
 
 def test_billing_cancel_sets_cancel_at_period_end():
-    service = make_billing_service()
-    service.create_subscription("o1", plan="Pro", billing_cycle="monthly")
+    payment_methods = InMemoryPaymentMethodRepository()
+    service = make_billing_service(payment_methods=payment_methods)
+    method = payment_methods.add("o1", type="card", details={})
+    service.create_subscription(
+        "o1",
+        plan="Pro",
+        billing_cycle="monthly",
+        payment_gateway="stripe",
+        payment_method_id=method["payment_method_id"],
+    )
 
     sub = service.cancel_subscription("o1")
     # Cancellation is at period end: the paid plan stays active until then

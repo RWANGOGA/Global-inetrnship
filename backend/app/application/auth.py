@@ -71,6 +71,10 @@ class AuthService:
         # Same error for unknown email and wrong password: don't leak existence.
         if user is None or not verify_password(password, user.password_hash):
             raise InvalidCredentials()
+        if user.deleted:
+            # A deleted account can no longer log in; the admin recovers it
+            # with PATCH /users/{id}/action, action=restore.
+            raise InvalidCredentials()
         return user
 
     def get(self, user_id: str) -> User:

@@ -12,7 +12,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.application.services import StudentDocumentService
-from app.domain.entities import User
+from app.domain.entities import AdminActionLog, User
 from app.infrastructure.db import get_session
 from app.infrastructure.orm import (
     AdminActionLogORM,
@@ -1016,8 +1016,16 @@ def user_action(
         user.deleted_at = datetime.utcnow().isoformat()
         user.is_active = False
         message = f"User deleted: {reason}"
+    elif action == "restore":
+        user.deleted = False
+        user.deleted_at = None
+        user.is_active = True
+        message = f"User account restored: {user.email}"
     else:
-        raise HTTPException(status_code=422, detail="Invalid action. Must be: suspend, activate, change_role, or delete")
+        raise HTTPException(
+            status_code=422,
+            detail="Invalid action. Must be: suspend, activate, change_role, delete, or restore",
+        )
     
     session.commit()
     session.refresh(user)

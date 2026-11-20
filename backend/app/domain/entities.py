@@ -248,6 +248,10 @@ class User:
     password_hash: str
     created_at: str = ""
     org_id: Optional[str] = None
+    # Account recovery: a deleted account cannot log in until the admin
+    # restores it (PATCH /users/{id}/action, action=restore).
+    deleted: bool = False
+    deleted_at: Optional[str] = None
 
 
 @dataclass(frozen=True)

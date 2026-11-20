@@ -1,5 +1,8 @@
 """Jobs Portal catalogue integration tests."""
 
+from app.core.security import hash_password
+from app.infrastructure.orm import OrganisationORM, UserORM
+
 
 def test_jobs_catalogue_is_live_and_embeds_organisation(client):
     response = client.get("/jobs")
@@ -34,6 +37,39 @@ def _login(client, email: str) -> dict:
     response = client.post("/auth/login", json={"username": email, "password": PASSWORD})
     assert response.status_code == 200, response.text
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+
+def _fresh_employer(client, session_factory, org_id: str = "o99") -> dict:
+    """A brand-new employer org with Free-plan headroom, so the internship
+    posting tests are not blocked by Lumen Labs' Free placement limit of 3."""
+    email = f"employer-{org_id}@example.com"
+    session = session_factory()
+    try:
+        session.add(
+            OrganisationORM(
+                id=org_id,
+                name=f"Employer {org_id}",
+                type="Company",
+                sector="Tech",
+                loc="Kampala",
+                seal="EE",
+                about="Fresh employer for limit-headroom tests",
+            )
+        )
+        session.add(
+            UserORM(
+                id=f"u-{org_id}",
+                email=email,
+                name="Fresh Employer",
+                role="employer",
+                password_hash=hash_password(PASSWORD),
+                org_id=org_id,
+            )
+        )
+        session.commit()
+    finally:
+        session.close()
+    return _login(client, email)
 
 
 def test_employer_job_requires_admin_approval_before_public_visibility(client):
@@ -168,9 +204,9 @@ def test_job_application_shortlist_toggle_employer_only(client):
     assert student_attempt.status_code == 403
 
 
-def test_internship_application_shortlist_toggle_employer_only(client):
+def test_internship_application_shortlist_toggle_employer_only(client, session_factory):
     """Employer can shortlist/remove shortlist for internship applications."""
-    employer = _login(client, EMPLOYER)
+    employer = _fresh_employer(client, session_factory)
     admin = _login(client, ADMIN)
 
     # Create and approve a placement

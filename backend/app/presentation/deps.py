@@ -252,9 +252,13 @@ def get_optional_current_user(
     except jwt.InvalidTokenError as exc:
         raise HTTPException(status_code=401, detail="Invalid or expired token") from exc
     try:
-        return service.get(payload["sub"])
+        user = service.get(payload["sub"])
     except UserNotFound as exc:
         raise HTTPException(status_code=401, detail="Account no longer exists") from exc
+    if user.deleted:
+        # Deleted accounts lose their sessions until the admin restores them.
+        raise HTTPException(status_code=401, detail="Account has been deleted")
+    return user
 
 
 def get_current_user(

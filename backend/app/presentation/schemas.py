@@ -339,6 +339,11 @@ class ApplicationRead(BaseModel):
     shortlisted: bool = False
 
 
+class PlacementApplicantsRead(BaseModel):
+    total: int
+    items: list[ApplicationRead]
+
+
 class AdminApplicationRead(BaseModel):
     """Extended application schema for admin views with user/placement/job details."""
     model_config = ConfigDict(from_attributes=True)
@@ -823,6 +828,7 @@ class UserRead(BaseModel):
     org_id: Optional[str] = None
     created_at: str
     is_active: bool = True
+    deleted: bool = False
 
 
 class UserListResponse(BaseModel):
@@ -843,7 +849,7 @@ class UserDetailResponse(BaseModel):
 
 
 class UserActionRequest(BaseModel):
-    action: str  # "suspend" | "activate" | "change_role"
+    action: str  # "suspend" | "activate" | "change_role" | "delete" | "restore"
     reason: str
     new_role: Optional[str] = None
 
