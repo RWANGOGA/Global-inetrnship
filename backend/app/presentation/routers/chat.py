@@ -26,7 +26,7 @@ from app.infrastructure.repositories import (
     SqlAlchemyDirectChatRepository,
     SqlAlchemyUserChatSettingsRepository,
 )
-from app.presentation.deps import get_current_user, get_translation_client
+from app.presentation.deps import get_current_user, get_translation_client, require_roles
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -290,7 +290,7 @@ class SettingsUpdate(BaseModel):
 def create_group(
     payload: GroupCreate,
     service: ChatService = Depends(get_chat_service),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles("admin")),
 ):
     try:
         group_type = GroupType(payload.type)

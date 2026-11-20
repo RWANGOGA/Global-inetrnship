@@ -371,15 +371,17 @@ export function MessagesView() {
             >
               <Icon name="user" size={15} />
             </button>
-            <button
-              type="button"
-              className="wa-icon-btn"
-              title="New group"
-              aria-label="New group"
-              onClick={() => void openPicker("group")}
-            >
-              <Icon name="plus" size={15} />
-            </button>
+            {role === "admin" && (
+              <button
+                type="button"
+                className="wa-icon-btn"
+                title="New group (admin only)"
+                aria-label="New group"
+                onClick={() => void openPicker("group")}
+              >
+                <Icon name="plus" size={15} />
+              </button>
+            )}
           </div>
         </header>
 
@@ -477,7 +479,7 @@ export function MessagesView() {
                   ? "No conversations yet. Start a group for a placement cohort."
                   : "Nothing matches this filter."}
               </span>
-              {threads.length === 0 && (
+              {threads.length === 0 && role === "admin" && (
                 <button type="button" className="wa-btn" onClick={() => void openPicker("group")}>
                   <Icon name="plus" size={13} /> New group
                 </button>
@@ -500,9 +502,11 @@ export function MessagesView() {
               on the left, or start a new group.
             </p>
             <div className="wa-blank-actions">
-              <button type="button" className="wa-btn" onClick={() => void openPicker("group")}>
-                <Icon name="plus" size={13} /> New group
-              </button>
+              {role === "admin" && (
+                <button type="button" className="wa-btn" onClick={() => void openPicker("group")}>
+                  <Icon name="plus" size={13} /> New group
+                </button>
+              )}
               <button
                 type="button"
                 className="wa-btn ghost"
