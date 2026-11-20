@@ -402,11 +402,12 @@ def delete_group(
     if not group:
         raise HTTPException(404, "Group not found")
     
-    # Only owner can delete
+    # Owner or admin can delete a channel.
     participants = service.get_participants(group_id)
     me = next((p for p in participants if p.user_id == current_user.id), None)
-    if not me or me.role != "owner":
-        raise HTTPException(403, "Only owner can delete group")
+    is_admin = current_user.role == "admin"
+    if not (is_admin or (me and me.role == "owner")):
+        raise HTTPException(403, "Only owner or admin can delete group")
     
     service._groups.delete(group_id)
     return {"deleted": True}

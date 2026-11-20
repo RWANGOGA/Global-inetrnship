@@ -20,6 +20,7 @@ import {
   chatAvailable,
   createGroup,
   dayLabel,
+  deleteGroup,
   leaveGroup,
   listContacts,
   listMembers,
@@ -28,6 +29,7 @@ import {
   markThreadRead,
   messageBody,
   previewText,
+  removeMember,
   sendToThread,
   senderTint,
   threadStamp,
@@ -719,6 +721,24 @@ export function MessagesView() {
                     <b>{member.name}</b>
                     <em>{member.role}</em>
                   </span>
+                  {role === "admin" && member.user_id !== session?.id && member.role !== "owner" && (
+                    <button
+                      type="button"
+                      className="wa-link"
+                      style={{ marginLeft: "auto", color: "var(--red)" }}
+                      onClick={() => void (async () => {
+                        try {
+                          await removeMember(active.id, member.user_id);
+                          setMembers(await listMembers(active.id));
+                          toast(`${member.name} removed`);
+                        } catch (e) {
+                          toast(e instanceof Error ? e.message : "Could not remove member");
+                        }
+                      })()}
+                    >
+                      Remove
+                    </button>
+                  )}
                 </li>
               ))}
               {members.length === 0 && (
@@ -727,6 +747,26 @@ export function MessagesView() {
             </ul>
           </div>
 
+          {role === "admin" && (
+            <button
+              type="button"
+              className="wa-btn danger"
+              onClick={() => void (async () => {
+                if (!active) return;
+                if (!window.confirm(`Delete channel "${active.title}"? This cannot be undone.`)) return;
+                try {
+                  await deleteGroup(active.id);
+                  toast("Channel deleted");
+                  await refreshThreads();
+                  setActiveId(null);
+                } catch (e) {
+                  toast(e instanceof Error ? e.message : "Could not delete channel");
+                }
+              })()}
+            >
+              <Icon name="trash" size={13} /> Delete channel
+            </button>
+          )}
           <button type="button" className="wa-btn danger" onClick={() => void onLeaveGroup()}>
             <Icon name="x" size={13} /> Leave group
           </button>
