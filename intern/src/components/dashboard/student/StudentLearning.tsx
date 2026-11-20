@@ -39,9 +39,6 @@ export function StudentLearning() {
   const [scope, setScope] = useState<Scope>("all");
   const [skillFilter, setSkillFilter] = useState("");
   const [search, setSearch] = useState("");
-  // The resource a student chose to read. It opens here, in the pane, so the
-  // catalogue and its filters are exactly where they were when they come back.
-  const [viewing, setViewing] = useState<LearningResource | null>(null);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -73,17 +70,6 @@ export function StudentLearning() {
       cancelled = true;
     };
   }, [attempt]);
-
-  // Escape closes the reader. It fills the pane, so without a key to leave it a
-  // student who is not using a mouse is stuck in it.
-  useEffect(() => {
-    if (!viewing) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setViewing(null);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [viewing]);
 
   const owned = useMemo(
     () => new Set(student.skills.map((s) => s.toLowerCase())),
@@ -125,186 +111,6 @@ export function StudentLearning() {
   }, [resources, scope, skillFilter, search, owned]);
 
   const placementFor = (id: string) => placements.find((p) => p.id === id);
-
-  // ---- Reader -------------------------------------------------------------
-  // The resource is read inside the dashboard: the sidebar, the catalogue and
-  // every filter survive, and the only action that does leave the app (a
-  // provider that refuses to be framed) says so on its face.
-  if (viewing) {
-    const url = externalUrl(viewing.url);
-    const placement = viewing.placementId
-      ? placementFor(viewing.placementId)
-      : undefined;
-    const matched = ownsSkill(viewing.skill);
-
-    return (
-      <>
-        <div
-          className="dpane-h"
-          style={{
-            flexWrap: "wrap",
-            gap: "20px",
-            alignItems: "center",
-            marginBottom: "8px",
-            paddingBottom: "20px",
-            borderBottom: "2px solid var(--rule)",
-          }}
-        >
-          <div style={{ flex: 1, minWidth: "280px" }}>
-            <h2>{viewing.title}</h2>
-            <p>
-              {viewing.provider || "Independent"}
-              {viewing.duration ? ` · ${viewing.duration}` : ""}
-            </p>
-          </div>
-          <button
-            type="button"
-            className="btn btn-sm"
-            onClick={() => setViewing(null)}
-          >
-            <Icon name="chevron-left" size={13} /> Back to catalogue
-          </button>
-        </div>
-
-        <div
-          style={{
-            display: "flex",
-            gap: "5px",
-            flexWrap: "wrap",
-            marginBottom: "14px",
-          }}
-        >
-          <span className="tg dark" style={{ fontSize: "9px" }}>
-            {viewing.resourceType || "Course"}
-          </span>
-          {viewing.level && (
-            <span className={`tg ${levelTone(viewing.level)}`} style={{ fontSize: "9px" }}>
-              {viewing.level}
-            </span>
-          )}
-          {viewing.skill && (
-            <span
-              className={`tg ${matched ? "green" : "blue"}`}
-              style={{ fontSize: "9px" }}
-            >
-              {viewing.skill}
-            </span>
-          )}
-          {placement && (
-            <span className="tg" style={{ fontSize: "9px" }}>
-              For {placement.title}
-            </span>
-          )}
-        </div>
-
-        {viewing.description && (
-          <p
-            style={{
-              fontSize: "12.5px",
-              color: "var(--ink-2)",
-              lineHeight: 1.6,
-              marginBottom: "14px",
-              maxWidth: "70ch",
-            }}
-          >
-            {viewing.description}
-          </p>
-        )}
-
-        {url ? (
-          <div className="panel" style={{ overflow: "hidden" }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-                padding: "9px 14px",
-                borderBottom: "1px solid var(--rule)",
-                background: "var(--paper-2)",
-              }}
-            >
-              <span
-                className="mono"
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  fontSize: "10px",
-                  color: "var(--muted)",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {url}
-              </span>
-              <a
-                className="btn btn-sm"
-                href={url}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ height: "26px", padding: "0 10px", fontSize: "10.5px" }}
-              >
-                New tab <Icon name="arrow" size={11} />
-              </a>
-            </div>
-            <iframe
-              src={url}
-              title={viewing.title}
-              referrerPolicy="no-referrer"
-              allow="fullscreen"
-              style={{
-                display: "block",
-                width: "100%",
-                height: "66vh",
-                minHeight: "420px",
-                border: 0,
-                background: "var(--white)",
-              }}
-            />
-            <p
-              style={{
-                padding: "10px 14px",
-                borderTop: "1px solid var(--rule)",
-                fontSize: "11px",
-                color: "var(--muted)",
-                lineHeight: 1.5,
-              }}
-            >
-              Some providers refuse to be shown inside another site. If the
-              frame stays blank, use <b>New tab</b> — your place here is kept.
-            </p>
-          </div>
-        ) : (
-          <div className="panel" style={{ borderColor: "var(--red)" }}>
-            <div className="pb">
-              <b style={{ fontSize: "14px", color: "var(--red)" }}>
-                This resource has no usable link
-              </b>
-              <p
-                style={{
-                  fontSize: "12.5px",
-                  color: "var(--ink-2)",
-                  marginTop: "6px",
-                  lineHeight: 1.6,
-                }}
-              >
-                It was saved without a web address, so there is nothing to open
-                yet. The rest of the catalogue is still there.
-              </p>
-              <button
-                type="button"
-                className="btn btn-sm"
-                style={{ marginTop: "12px" }}
-                onClick={() => setViewing(null)}
-              >
-                Back to catalogue
-              </button>
-            </div>
-          </div>
-        )}
-      </>
-    );
-  }
 
   return (
     <>
@@ -630,18 +436,21 @@ export function StudentLearning() {
                       : "Open to all students"}
                   </span>
                   {externalUrl(r.url) ? (
-                    <button
-                      type="button"
+                    <a
                       className="btn btn-sm btn-blue"
+                      href={externalUrl(r.url)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={`Opens ${r.provider || "the provider"} in a new tab`}
                       style={{
                         height: "28px",
                         padding: "0 10px",
                         fontSize: "10.5px",
+                        textDecoration: "none",
                       }}
-                      onClick={() => setViewing(r)}
                     >
                       Open <Icon name="arrow" size={11} />
-                    </button>
+                    </a>
                   ) : (
                     <span
                       className="tg"
