@@ -918,6 +918,9 @@ export function SkillProfile() {
               ) : (
                 matches.map(({ placement: p, match }) => {
                   const org = p.org;
+                  const eligibleCourses = Array.isArray(p.courses)
+                    ? p.courses.filter(Boolean)
+                    : [];
                   return (
                     <button
                       key={p.id}
@@ -1010,7 +1013,7 @@ export function SkillProfile() {
                           </span>
                         )}
                       </div>
-                      {!match.courseFit && (
+                      {!match.courseFit && (student.course || "").trim() && (
                         <div
                           style={{
                             fontSize: "10.5px",
@@ -1018,8 +1021,13 @@ export function SkillProfile() {
                             marginTop: "7px",
                           }}
                         >
-                          Your course ({student.course}) is not on their eligible
-                          list.
+                          Your course ({(student.course || "").trim()}) is not on
+                          their eligible list
+                          {eligibleCourses.length > 0
+                            ? ` — they accept ${eligibleCourses
+                                .slice(0, 3)
+                                .join(", ")}${eligibleCourses.length > 3 ? "…" : ""}.`
+                            : "."}
                         </div>
                       )}
                     </button>
