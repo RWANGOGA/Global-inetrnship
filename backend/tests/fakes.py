@@ -299,6 +299,9 @@ class InMemoryUserRepository(UserRepository):
     def get_by_id(self, user_id: str) -> User | None:
         return self._by_id.get(user_id)
 
+    def list_by_role(self, role: str) -> list[User]:
+        return [u for u in self._by_id.values() if u.role == role]
+
     def update(self, user_id: str, **fields) -> User | None:
         existing = self._by_id.get(user_id)
         if existing is None:
@@ -384,6 +387,9 @@ class InMemoryUserRepository(UserRepository):
 
     def get_by_id(self, user_id: str) -> User | None:
         return self._by_id.get(user_id)
+
+    def list_by_role(self, role: str) -> list[User]:
+        return [u for u in self._by_id.values() if u.role == role]
 
     def update(self, user_id: str, **fields) -> User | None:
         existing = self._by_id.get(user_id)
