@@ -1,5 +1,6 @@
 """Platform administrator internship review workflow."""
-from datetime import date, datetime
+from collections import Counter
+from datetime import date, datetime, timedelta
 from io import BytesIO
 from urllib.parse import quote
 from uuid import uuid4
@@ -8,7 +9,7 @@ from xml.etree import ElementTree
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
-from sqlalchemy import func
+from sqlalchemy import and_, false, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.application.services import StudentDocumentService
@@ -2071,6 +2072,48 @@ def export_all_applications_csv(
 
 
 # ---- Hiring Funnel Analytics (Admin) -------------------------------------------
+#
+# Every figure below is computed from live rows (placements, jobs and their
+# applications). The funnel is cumulative: a hire also counts as reviewed and
+# received, so each stage can never exceed the one before it.
+
+# A terminal state can only be reached after a human review, so accepted and
+# rejected applications belong to the "reviewed" stage as well.
+_REVIEWED_STATUSES = ("In Review", "Accepted", "Rejected")
+_APPROVED_REVIEW_STATES = ("approved", "")
+
+
+def _parse_analytics_period(period_start: str, period_end: str) -> tuple[date, date]:
+    try:
+        start = date.fromisoformat(period_start)
+        end = date.fromisoformat(period_end)
+    except (TypeError, ValueError):
+        raise HTTPException(
+            status_code=422,
+            detail="period_start and period_end must be ISO dates (YYYY-MM-DD)",
+        )
+    if start > end:
+        raise HTTPException(
+            status_code=422,
+            detail="period_start must be on or before period_end",
+        )
+    return start, end
+
+
+def _percentage(part: int, whole: int) -> float:
+    return round((part / whole) * 100, 2) if whole > 0 else 0.0
+
+
+def _days_between(started: str | None, finished: str | None) -> float | None:
+    if not started or not finished:
+        return None
+    try:
+        start_dt = datetime.fromisoformat(started)
+        end_dt = datetime.fromisoformat(finished)
+    except (TypeError, ValueError):
+        return None
+    return max((end_dt - start_dt).total_seconds() / 86400, 0.0)
+
 
 @router.get("/analytics/hiring-funnel", response_model=AdminHiringFunnelAnalytics)
 def get_admin_hiring_funnel_analytics(
@@ -2081,178 +2124,305 @@ def get_admin_hiring_funnel_analytics(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ) -> AdminHiringFunnelAnalytics:
-    """Get platform-wide hiring funnel analytics."""
+    """Platform-wide hiring funnel, computed from live database rows."""
     _require_admin(current_user)
-    
-    start = date.fromisoformat(period_start)
-    end = date.fromisoformat(period_end)
-    
-    # Base queries filtered by date range
-    placements_query = session.query(PlacementORM).filter(
-        PlacementORM.published_at >= start.isoformat(),
-        PlacementORM.published_at <= end.isoformat()
-    )
-    jobs_query = session.query(JobORM).filter(
-        JobORM.published_at >= start.isoformat(),
-        JobORM.published_at <= end.isoformat()
-    )
-    internship_apps_query = session.query(ApplicationORM).filter(
-        ApplicationORM.created_at >= start.isoformat(),
-        ApplicationORM.created_at <= end.isoformat()
-    )
-    job_apps_query = session.query(JobApplicationORM).filter(
-        JobApplicationORM.created_at >= start.isoformat(),
-        JobApplicationORM.created_at <= end.isoformat()
-    )
-    
+
+    start, end = _parse_analytics_period(period_start, period_end)
+    start_iso = start.isoformat()
+    # Rows store full ISO timestamps, so an inclusive end date is the half-open
+    # range [start, end + 1 day) — otherwise the whole final day is dropped.
+    end_exclusive = (end + timedelta(days=1)).isoformat()
+
+    org_filter_ids: list[str] | None = None
     if org_type:
-        org_ids = [o.id for o in session.query(OrganisationORM.id).filter(OrganisationORM.type == org_type).all()]
-        placements_query = placements_query.filter(PlacementORM.org_id.in_(org_ids))
-        jobs_query = jobs_query.filter(JobORM.org_id.in_(org_ids))
-        internship_apps_query = internship_apps_query.filter(ApplicationORM.placement_id.in_(
-            session.query(PlacementORM.id).filter(PlacementORM.org_id.in_(org_ids))
-        ))
-        job_apps_query = job_apps_query.filter(JobApplicationORM.job_id.in_(
-            session.query(JobORM.id).filter(JobORM.org_id.in_(org_ids))
-        ))
-    
-    if opportunity_type:
-        if opportunity_type == "internship":
-            jobs_query = jobs_query.filter(False)
-            job_apps_query = job_apps_query.filter(False)
-        elif opportunity_type == "job":
-            placements_query = placements_query.filter(False)
-            internship_apps_query = internship_apps_query.filter(False)
-        elif opportunity_type in ["gig", "entry_level"]:
-            # Filter placements by opportunity_type
-            placements_query = placements_query.filter(PlacementORM.opportunity_type == opportunity_type)
-            internship_apps_query = internship_apps_query.filter(ApplicationORM.placement_id.in_(
-                session.query(PlacementORM.id).filter(PlacementORM.opportunity_type == opportunity_type)
-            ))
-            jobs_query = jobs_query.filter(False)
-            job_apps_query = job_apps_query.filter(False)
-    
-    placements = placements_query.all()
-    jobs = jobs_query.all()
-    internship_apps = internship_apps_query.all()
-    job_apps = job_apps_query.all()
-    
-    # Count applications by type
-    apps_by_type = {
-        "internship": len(internship_apps),
-        "job": len(job_apps),
-    }
-    # Count by opportunity type from placements
-    for p in placements:
-        ot = p.opportunity_type or "internship"
-        if ot in ["gig", "entry_level"]:
-            apps_by_type[ot] = apps_by_type.get(ot, 0)
-    
-    # Count applications by status
+        org_filter_ids = [
+            row_id
+            for (row_id,) in session.query(OrganisationORM.id)
+            .filter(OrganisationORM.type == org_type)
+            .all()
+        ]
+
+    # Filters that describe the target posting itself. These also scope
+    # application counts, so an application is still included when its posting
+    # was published before the reporting window.
+    placement_predicates = []
+    job_predicates = []
+    if org_filter_ids is not None:
+        placement_predicates.append(PlacementORM.org_id.in_(org_filter_ids))
+        job_predicates.append(JobORM.org_id.in_(org_filter_ids))
+    if opportunity_type == "job":
+        placement_predicates.append(false())
+    elif opportunity_type == "internship":
+        placement_predicates.append(
+            or_(
+                PlacementORM.opportunity_type == "internship",
+                PlacementORM.opportunity_type.is_(None),
+                PlacementORM.opportunity_type == "",
+            )
+        )
+    elif opportunity_type in ("gig", "entry_level"):
+        placement_predicates.append(PlacementORM.opportunity_type == opportunity_type)
+    if opportunity_type in ("internship", "gig", "entry_level"):
+        job_predicates.append(false())
+
+    approved_placement = or_(
+        PlacementORM.review_status == "approved",
+        PlacementORM.review_status.is_(None),
+        PlacementORM.review_status == "",
+    )
+    approved_job = or_(
+        JobORM.review_status == "approved",
+        JobORM.review_status.is_(None),
+        JobORM.review_status == "",
+    )
+    # Legacy rows predate the published_at column and carry an empty string;
+    # they are live catalogue entries, so keep them instead of silently hiding
+    # organisations that only have pre-migration postings.
+    published_placement = or_(
+        and_(
+            PlacementORM.published_at >= start_iso,
+            PlacementORM.published_at < end_exclusive,
+        ),
+        PlacementORM.published_at.is_(None),
+        PlacementORM.published_at == "",
+    )
+    published_job = or_(
+        and_(JobORM.published_at >= start_iso, JobORM.published_at < end_exclusive),
+        JobORM.published_at.is_(None),
+        JobORM.published_at == "",
+    )
+
+    placements = (
+        session.query(PlacementORM)
+        .filter(*placement_predicates, approved_placement, published_placement)
+        .all()
+    )
+    jobs = (
+        session.query(JobORM)
+        .filter(*job_predicates, approved_job, published_job)
+        .all()
+    )
+
+    internship_query = session.query(ApplicationORM).filter(
+        ApplicationORM.created_at >= start_iso,
+        ApplicationORM.created_at < end_exclusive,
+    )
+    if placement_predicates:
+        internship_query = internship_query.filter(
+            ApplicationORM.placement_id.in_(
+                select(PlacementORM.id).where(*placement_predicates)
+            )
+        )
+    internship_apps = internship_query.all()
+
+    job_query = session.query(JobApplicationORM).filter(
+        JobApplicationORM.created_at >= start_iso,
+        JobApplicationORM.created_at < end_exclusive,
+    )
+    if job_predicates:
+        job_query = job_query.filter(
+            JobApplicationORM.job_id.in_(select(JobORM.id).where(*job_predicates))
+        )
+    job_apps = job_query.all()
     all_apps = internship_apps + job_apps
-    apps_by_status = {}
-    for app in all_apps:
-        apps_by_status[app.status] = apps_by_status.get(app.status, 0) + 1
-    
-    # Overall funnel stages
+
+    # Prefetch every referenced row once: the previous implementation queried
+    # placements/jobs/orgs inside per-application loops (N+1) and crashed with
+    # an AttributeError when an application pointed at a deleted posting.
+    target_placement_ids = {a.placement_id for a in internship_apps}
+    target_job_ids = {a.job_id for a in job_apps}
+    target_placements = (
+        {
+            row.id: row
+            for row in session.query(PlacementORM)
+            .filter(PlacementORM.id.in_(target_placement_ids))
+            .all()
+        }
+        if target_placement_ids
+        else {}
+    )
+    target_jobs = (
+        {
+            row.id: row
+            for row in session.query(JobORM)
+            .filter(JobORM.id.in_(target_job_ids))
+            .all()
+        }
+        if target_job_ids
+        else {}
+    )
+
+    referenced_org_ids = {p.org_id for p in placements} | {j.org_id for j in jobs}
+    referenced_org_ids |= {p.org_id for p in target_placements.values()}
+    referenced_org_ids |= {j.org_id for j in target_jobs.values()}
+    organisations = (
+        {
+            row.id: row
+            for row in session.query(OrganisationORM)
+            .filter(OrganisationORM.id.in_(referenced_org_ids))
+            .all()
+        }
+        if referenced_org_ids
+        else {}
+    )
+
+    def target_for(application):
+        placement_id = getattr(application, "placement_id", None)
+        if placement_id:
+            return "placement", target_placements.get(placement_id)
+        job_id = getattr(application, "job_id", None)
+        if job_id:
+            return "job", target_jobs.get(job_id)
+        return None, None
+
+    def organisation_for(application):
+        _, target = target_for(application)
+        return organisations.get(target.org_id) if target is not None else None
+
     total_apps = len(all_apps)
-    submitted = len([a for a in all_apps if a.status in ["Submitted", "Pending"]])
-    in_review = len([a for a in all_apps if a.status == "In Review"])
-    accepted = len([a for a in all_apps if a.status == "Accepted"])
-    rejected = len([a for a in all_apps if a.status == "Rejected"])
-    withdrawn = len([a for a in all_apps if a.status == "Withdrawn"])
-    
-    stages = []
-    prev_count = total_apps
-    for stage_name, count in [
-        ("Submitted", submitted),
-        ("In Review", in_review),
-        ("Accepted", accepted),
-    ]:
-        rate = round((count / prev_count * 100) if prev_count > 0 else 0, 2)
-        stages.append(FunnelStageMetrics(
-            stage=stage_name,
-            count=count,
-            conversion_rate=rate,
-            avg_days_in_stage=None
-        ))
-        prev_count = count
-    
-    overall_rate = round((accepted / total_apps * 100) if total_apps > 0 else 0, 2)
-    
-    # Top organizations by hires
-    org_hires = {}
-    for app in all_apps:
-        if app.status == "Accepted":
-            if hasattr(app, 'placement_id') and app.placement_id:
-                p = session.query(PlacementORM).filter_by(id=app.placement_id).first()
-                if p:
-                    org_hires[p.org_id] = org_hires.get(p.org_id, 0) + 1
-            elif hasattr(app, 'job_id') and app.job_id:
-                j = session.query(JobORM).filter_by(id=app.job_id).first()
-                if j:
-                    org_hires[j.org_id] = org_hires.get(j.org_id, 0) + 1
-    
-    top_orgs = []
-    for org_id, hires in sorted(org_hires.items(), key=lambda x: -x[1])[:10]:
-        org = session.query(OrganisationORM).filter_by(id=org_id).first()
-        if org:
-            top_orgs.append({"organization_id": org_id, "organization_name": org.name, "hires": hires})
-    
-    # Top skills platform-wide
-    skill_counts = {}
-    for app in all_apps:
-        if hasattr(app, 'placement_id') and app.placement_id:
-            p = session.query(PlacementORM).filter_by(id=app.placement_id).first()
-            if p and p.skills_required:
-                for skill in p.skills_required:
-                    skill_counts[skill] = skill_counts.get(skill, 0) + 1
-        elif hasattr(app, 'job_id') and app.job_id:
-            j = session.query(JobORM).filter_by(id=app.job_id).first()
-            if j and j.requirements:
-                for skill in j.requirements:
-                    skill_counts[skill] = skill_counts.get(skill, 0) + 1
-    
-    top_skills = [{"skill": s, "count": c} for s, c in sorted(skill_counts.items(), key=lambda x: -x[1])[:15]]
-    
-    # Conversion by org type
-    org_type_conversion = {}
-    for org_type_key in ["Company", "Government", "NGO", "University"]:
-        org_ids = [o.id for o in session.query(OrganisationORM.id).filter(OrganisationORM.type == org_type_key).all()]
-        if not org_ids:
-            continue
-        type_apps = [a for a in all_apps if 
-            (hasattr(a, 'placement_id') and a.placement_id and session.query(PlacementORM).filter_by(id=a.placement_id).first().org_id in org_ids) or
-            (hasattr(a, 'job_id') and a.job_id and session.query(JobORM).filter_by(id=a.job_id).first().org_id in org_ids)]
-        type_accepted = len([a for a in type_apps if a.status == "Accepted"])
-        type_total = len(type_apps)
-        org_type_conversion[org_type_key] = round((type_accepted / type_total * 100) if type_total > 0 else 0, 2)
-    
-    # Conversion by opportunity type
-    opp_type_conversion = {}
-    for opp in ["internship", "job", "gig", "entry_level"]:
-        if opp in ["gig", "entry_level"]:
-            opp_apps = [a for a in internship_apps if a.placement_id and session.query(PlacementORM).filter_by(id=a.placement_id).first().opportunity_type == opp]
-        elif opp == "internship":
-            opp_apps = [a for a in internship_apps if a.placement_id and (session.query(PlacementORM).filter_by(id=a.placement_id).first().opportunity_type or "internship") == "internship"]
+
+    # Applications by type: internship applications are split by the posting's
+    # real opportunity_type, so gigs and entry-level roles are not folded into
+    # "internship" (which is what the old implementation did).
+    apps_by_type: dict[str, int] = {}
+    for application in all_apps:
+        kind, target = target_for(application)
+        if kind == "job":
+            type_key = "job"
+        elif target is not None:
+            type_key = target.opportunity_type or "internship"
         else:
-            opp_apps = job_apps
-        opp_accepted = len([a for a in opp_apps if a.status == "Accepted"])
-        opp_total = len(opp_apps)
-        opp_type_conversion[opp] = round((opp_accepted / opp_total * 100) if opp_total > 0 else 0, 2)
-    
+            # The posting was deleted after the application was filed. Keep the
+            # application in the totals instead of hiding it, but don't mislabel
+            # it as an internship when its type is no longer knowable.
+            type_key = "unknown"
+        apps_by_type[type_key] = apps_by_type.get(type_key, 0) + 1
+    apps_by_type = dict(sorted(apps_by_type.items(), key=lambda item: -item[1]))
+
+    status_counts = Counter((app.status or "Unknown") for app in all_apps)
+    apps_by_status = dict(status_counts.most_common())
+
+    accepted = status_counts.get("Accepted", 0)
+    reviewed = sum(
+        count for status, count in status_counts.items() if status in _REVIEWED_STATUSES
+    )
+    # A shortlisted application has also been reviewed, even if its status was
+    # never advanced past Submitted.
+    reviewed += sum(
+        1
+        for app in all_apps
+        if getattr(app, "shortlisted", False)
+        and (app.status or "") not in _REVIEWED_STATUSES
+    )
+    reviewed = min(reviewed, total_apps)
+
+    stages = [
+        FunnelStageMetrics(
+            stage="Applications",
+            count=total_apps,
+            conversion_rate=_percentage(total_apps, total_apps),
+            avg_days_in_stage=None,
+        ),
+        FunnelStageMetrics(
+            stage="Reviewed",
+            count=reviewed,
+            conversion_rate=_percentage(reviewed, total_apps),
+            avg_days_in_stage=None,
+        ),
+        FunnelStageMetrics(
+            stage="Accepted",
+            count=accepted,
+            conversion_rate=_percentage(accepted, reviewed),
+            avg_days_in_stage=None,
+        ),
+    ]
+
+    hire_durations = [
+        duration
+        for app in all_apps
+        if (app.status or "") == "Accepted"
+        for duration in [_days_between(app.created_at, app.updated_at)]
+        if duration is not None
+    ]
+    avg_time_to_hire = (
+        round(sum(hire_durations) / len(hire_durations), 1) if hire_durations else None
+    )
+
+    hires_by_org: Counter[str] = Counter()
+    for app in all_apps:
+        if (app.status or "") != "Accepted":
+            continue
+        organisation = organisation_for(app)
+        if organisation is not None:
+            hires_by_org[organisation.id] += 1
+    top_orgs = [
+        {
+            "organization_id": org_id,
+            "organization_name": organisations[org_id].name,
+            "hires": hires,
+        }
+        for org_id, hires in hires_by_org.most_common(10)
+    ]
+
+    # Skill demand = how many distinct postings in the window ask for a skill.
+    skill_postings: dict[str, set[str]] = {}
+    for placement in placements:
+        for skill in {s for s in (placement.skills_required or []) if s}:
+            skill_postings.setdefault(skill, set()).add(f"placement:{placement.id}")
+    for job in jobs:
+        for skill in {s for s in (job.requirements or []) if s}:
+            skill_postings.setdefault(skill, set()).add(f"job:{job.id}")
+    top_skills = [
+        {"skill": skill, "count": len(posting_ids)}
+        for skill, posting_ids in sorted(
+            skill_postings.items(), key=lambda item: (-len(item[1]), item[0].lower())
+        )[:15]
+    ]
+
+    def conversion_by(key_for) -> dict[str, float]:
+        totals: Counter[str] = Counter()
+        accepted_by: Counter[str] = Counter()
+        for app in all_apps:
+            key = key_for(app)
+            if not key:
+                continue
+            totals[key] += 1
+            if (app.status or "") == "Accepted":
+                accepted_by[key] += 1
+        # Only groups that actually received applications; a hardcoded 0.0%
+        # row for an empty group reads like a measured result when it is not.
+        return {
+            key: _percentage(accepted_by[key], totals[key]) for key in sorted(totals)
+        }
+
+    def org_type_for(app):
+        organisation = organisation_for(app)
+        return organisation.type if organisation is not None else None
+
+    def opportunity_type_for(app):
+        kind, target = target_for(app)
+        if kind == "job":
+            return "job"
+        if target is not None:
+            return target.opportunity_type or "internship"
+        return None
+
     return AdminHiringFunnelAnalytics(
         period_start=period_start,
         period_end=period_end,
-        total_organizations=len(set(p.org_id for p in placements) | set(j.org_id for j in jobs)),
+        # An organisation counts as active if it published a posting in the
+        # window or received an application in the window. Counting only
+        # publications would show "0 organisations" beside live applications
+        # whenever the postings themselves predate the selected dates.
+        total_organizations=len(organisations),
         total_postings=len(placements) + len(jobs),
         total_applications=total_apps,
         applications_by_type=apps_by_type,
         applications_by_status=apps_by_status,
         overall_stages=stages,
-        avg_time_to_hire_days=None,
+        avg_time_to_hire_days=avg_time_to_hire,
         top_organizations_by_hires=top_orgs,
         top_skills_platform=top_skills,
-        conversion_by_org_type=org_type_conversion,
-        conversion_by_opportunity_type=opp_type_conversion,
+        conversion_by_org_type=conversion_by(org_type_for),
+        conversion_by_opportunity_type=conversion_by(opportunity_type_for),
     )

@@ -7,7 +7,7 @@ SENSITIVE DATA (passwords, real emails) are loaded from environment variables.
 This file only contains non-sensitive demo data for development.
 """
 import os
-from datetime import date
+from datetime import date, timedelta
 from uuid import uuid4
 import os
 
@@ -73,12 +73,18 @@ DEMO_USERS: list[dict] = [
 
 
 def seed_if_empty(session: Session) -> None:
+    # Seeded catalogue rows get a real publish date so period filters and
+    # analytics include them. Legacy rows created before this column existed
+    # stay empty and are handled as live catalogue entries.
+    seed_published_at = (date.today() - timedelta(days=45)).isoformat()
     if session.query(OrganisationORM).count() == 0:
         session.add_all([OrganisationORM(**org) for org in ORGS])
-        session.add_all([PlacementORM(**p) for p in PLACEMENTS])
+        session.add_all(
+            [PlacementORM(**{"published_at": seed_published_at, **p}) for p in PLACEMENTS]
+        )
         session.commit()
     if session.query(JobORM).count() == 0:
-        session.add_all([JobORM(**job) for job in JOBS])
+        session.add_all([JobORM(**{"published_at": seed_published_at, **job}) for job in JOBS])
         session.commit()
     if session.query(UserORM).count() == 0:
         today = date.today().isoformat()
