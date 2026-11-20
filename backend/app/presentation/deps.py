@@ -34,6 +34,7 @@ from app.domain.entities import User
 from app.infrastructure.db import get_session, SessionLocal
 from app.infrastructure.groq import GroqClient
 from app.infrastructure.deepl import DeepLClient
+from app.infrastructure.ai_translation import AITranslationClient
 from app.infrastructure.translation import DeepLTranslationClient
 from app.infrastructure.payment_gateways.factory import get_gateway_factory
 from app.infrastructure.repositories import (
@@ -110,7 +111,11 @@ def get_voice_client() -> VoiceClient:
 
 
 def get_translation_client() -> TranslationClient:
-    """Production binds DeepL; tests override this to a deterministic fake."""
+    """Production prefers the AI (Groq) translator; falls back to DeepL when
+    no Groq key is configured. Tests override this to a deterministic fake."""
+    ai = AITranslationClient()
+    if ai._client is not None:
+        return ai
     return DeepLTranslationClient()
 
 
