@@ -679,6 +679,34 @@ export function MessagesView() {
                     : active.other_user?.role || "Direct message"}
                 </span>
               </div>
+              <select
+                value={chatSettings?.preferred_language || "en"}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setChatSettings((s) => (s ? { ...s, preferred_language: next } : s));
+                  updateChatSettings({ preferred_language: next }).catch(() => undefined);
+                }}
+                aria-label="Preferred language"
+                title="Translate incoming messages into this language"
+                style={{
+                  height: "30px",
+                  borderRadius: "var(--r-sm)",
+                  border: "1px solid var(--rule-2)",
+                  background: "var(--white)",
+                  padding: "0 6px",
+                  fontSize: "11px",
+                  color: "var(--ink-2)",
+                }}
+              >
+                <option value="en">EN</option>
+                <option value="sw">SW</option>
+                <option value="fr">FR</option>
+                <option value="es">ES</option>
+                <option value="ar">AR</option>
+                <option value="pt">PT</option>
+                <option value="de">DE</option>
+                <option value="zh">ZH</option>
+              </select>
               {active.kind === "group" && !active.id.startsWith("draft:") && (
                 <button
                   type="button"
