@@ -550,6 +550,52 @@ export async function exportOrgJobApplicantsCsv(jobId: string): Promise<Blob> {
   return res.blob();
 }
 
+export interface InterviewDto {
+  id: string;
+  org_id: string;
+  user_id: string;
+  placement_id: string | null;
+  job_id: string | null;
+  scheduled_at: string;
+  duration_minutes: number;
+  mode: string;
+  location: string;
+  status: string;
+  notes: string;
+  created_at: string;
+}
+
+export async function fetchOrgInterviews(): Promise<InterviewDto[]> {
+  const data = await getJson<{ interviews: InterviewDto[] }>("/organization/interviews");
+  return data.interviews || [];
+}
+
+export async function createOrgInterview(input: {
+  user_id: string;
+  placement_id?: string | null;
+  job_id?: string | null;
+  scheduled_at: string;
+  duration_minutes?: number;
+  mode?: string;
+  location?: string;
+  notes?: string;
+}): Promise<InterviewDto> {
+  const data = await postJson<{ interview: InterviewDto }>("/organization/interviews", input);
+  return data.interview;
+}
+
+export async function updateOrgInterview(
+  interviewId: string,
+  patch: Partial<Pick<InterviewDto, "scheduled_at" | "duration_minutes" | "mode" | "location" | "status" | "notes">>
+): Promise<InterviewDto> {
+  const data = await patchJson<{ interview: InterviewDto }>(`/organization/interviews/${interviewId}`, patch);
+  return data.interview;
+}
+
+export function interviewIcsUrl(interviewId: string): string {
+  return `${API_BASE}/organization/interviews/${interviewId}/ics`;
+}
+
 // Admin Applications
 export interface AdminApplicationsParams {
   type?: "internship" | "job";

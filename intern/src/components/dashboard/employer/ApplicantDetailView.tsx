@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useApp } from "../../../context/AppContext";
-import { fetchApplicantDetail, ApplicantDetail } from "../../../lib/api";
+import { fetchApplicantDetail, ApplicantDetail, createOrgInterview, interviewIcsUrl } from "../../../lib/api";
 import { Icon, IconName } from "../../icons/Icons";
 import { sendDirectMessage } from "../../../lib/chat";
 
@@ -73,6 +73,14 @@ export function ApplicantDetailView({ applicationId, onClose }: { applicationId:
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState<"overview" | "documents" | "match" | "references">("overview");
+  const [interviewOpen, setInterviewOpen] = useState(false);
+  const [interviewWhen, setInterviewWhen] = useState("");
+  const [interviewDuration, setInterviewDuration] = useState(30);
+  const [interviewMode, setInterviewMode] = useState("online");
+  const [interviewLocation, setInterviewLocation] = useState("");
+  const [interviewNotes, setInterviewNotes] = useState("");
+  const [interviewBusy, setInterviewBusy] = useState(false);
+  const [lastInterviewId, setLastInterviewId] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -458,6 +466,91 @@ export function ApplicantDetailView({ applicationId, onClose }: { applicationId:
           marginBottom: 4px;
         }
       `}</style>
+      {interviewOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "20px",
+          }}
+          onClick={() => setInterviewOpen(false)}
+        >
+          <div
+            style={{ background: "var(--white)", borderRadius: "var(--r-xl)", padding: "24px", width: "100%", maxWidth: "480px", boxShadow: "var(--shadow-lg)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: "0 0 16px", fontSize: "18px", fontWeight: 700 }}>Schedule interview</h3>
+            <div className="field" style={{ marginBottom: "12px" }}>
+              <label>Date & time</label>
+              <input type="datetime-local" value={interviewWhen} onChange={(e) => setInterviewWhen(e.target.value)} />
+            </div>
+            <div className="field" style={{ marginBottom: "12px" }}>
+              <label>Duration (minutes)</label>
+              <input type="number" value={interviewDuration} onChange={(e) => setInterviewDuration(Number(e.target.value))} />
+            </div>
+            <div className="field" style={{ marginBottom: "12px" }}>
+              <label>Mode</label>
+              <select value={interviewMode} onChange={(e) => setInterviewMode(e.target.value)}>
+                <option value="online">Online</option>
+                <option value="onsite">On-site</option>
+                <option value="phone">Phone</option>
+              </select>
+            </div>
+            <div className="field" style={{ marginBottom: "12px" }}>
+              <label>Location / link</label>
+              <input value={interviewLocation} onChange={(e) => setInterviewLocation(e.target.value)} placeholder="Zoom link or room" />
+            </div>
+            <div className="field" style={{ marginBottom: "16px" }}>
+              <label>Notes</label>
+              <textarea value={interviewNotes} onChange={(e) => setInterviewNotes(e.target.value)} rows={3} />
+            </div>
+            <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+              <button type="button" className="btn btn-ghost" onClick={() => setInterviewOpen(false)}>Cancel</button>
+              <button
+                type="button"
+                className="btn btn-blue"
+                disabled={interviewBusy || !interviewWhen}
+                onClick={async () => {
+                  setInterviewBusy(true);
+                  try {
+                    const iv = await createOrgInterview({
+                      user_id: d.student_id,
+                      placement_id: d.application_type === "internship" ? d.placement_id : null,
+                      job_id: d.application_type === "job" ? d.job_id : null,
+                      scheduled_at: new Date(interviewWhen).toISOString(),
+                      duration_minutes: interviewDuration,
+                      mode: interviewMode,
+                      location: interviewLocation,
+                      notes: interviewNotes,
+                    });
+                    setLastInterviewId(iv.id);
+                    toast("Interview scheduled");
+                    setInterviewOpen(false);
+                  } catch (e) {
+                    toast(e instanceof Error ? e.message : "Could not schedule interview");
+                  } finally {
+                    setInterviewBusy(false);
+                  }
+                }}
+              >
+                {interviewBusy ? "Scheduling..." : "Schedule"}
+              </button>
+            </div>
+            {lastInterviewId && (
+              <div style={{ marginTop: "12px", fontSize: "12px" }}>
+                <a href={interviewIcsUrl(lastInterviewId)} target="_blank" rel="noopener" className="btn btn-sm btn-ghost">
+                  Download .ics (calendar)
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

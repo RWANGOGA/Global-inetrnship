@@ -28,6 +28,10 @@ export function SignInView() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    if (mode === "signup" && (role === "lecturer" || role === "university") && !isAcademicEmail) {
+      setError("Lecturer and university accounts require an academic email (.ac.ug / .edu).");
+      return;
+    }
     setBusy(true);
     try {
       if (mode === "signin") await signIn(email.trim(), password);
