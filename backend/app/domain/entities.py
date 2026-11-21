@@ -231,7 +231,7 @@ class Subscription:
 
 
 # Account roles. Mirrors the four dashboards the product exposes.
-USER_ROLES = ("student", "jobseeker", "employer", "admin")
+USER_ROLES = ("student", "jobseeker", "employer", "admin", "lecturer", "university", "alumni")
 
 
 @dataclass(frozen=True)

@@ -16,6 +16,7 @@ export function SignInView() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<UserRole>("student");
+  const isAcademicEmail = /@(.*\.)?(ac\.ug|edu|ac\.ke|ac\.tz)$/i.test(email.trim());
   const [orgName, setOrgName] = useState("");
   const [orgType, setOrgType] = useState("");
   const [orgSector, setOrgSector] = useState("");
@@ -106,6 +107,11 @@ export function SignInView() {
                 autoComplete="username"
               />
             </div>
+            {mode === "signup" && isAcademicEmail && (
+              <div style={{ fontSize: "12px", color: "var(--blue)", marginTop: "-6px", marginBottom: "8px" }}>
+                University / education email detected — you can register as a student, lecturer or institution.
+              </div>
+            )}
             <div className="field">
               <label>Password</label>
               <input
@@ -129,6 +135,8 @@ export function SignInView() {
                   <option value="student">Student</option>
                   <option value="jobseeker">Job seeker</option>
                   <option value="employer">Employer</option>
+                  <option value="lecturer">Lecturer</option>
+                  <option value="university">University</option>
                 </select>
               </div>
             )}

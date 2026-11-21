@@ -349,6 +349,21 @@ export const NAV: Record<UserRole, [string, string, string][]> = {
     ["apps", "Applications", "03"],
     ["messages", "Messages", "04"],
   ],
+  lecturer: [
+    ["overview", "Overview", "01"],
+    ["messages", "Messages", "02"],
+  ],
+  university: [
+    ["overview", "Overview", "01"],
+    ["placements", "Placements", "02"],
+    ["messages", "Messages", "03"],
+  ],
+  alumni: [
+    ["overview", "Overview", "01"],
+    ["roles", "Graduate roles", "02"],
+    ["apps", "Applications", "03"],
+    ["messages", "Messages", "04"],
+  ],
   employer: [
     ["overview", "Overview", "01"],
     ["placements", "My placements", "02"],
@@ -390,5 +405,8 @@ export const ROLE_META: Record<UserRole, [string, string, string, string]> = {
   jobseeker: ["Job seeker", "Brian Ssekandi", "BS", "Graduate"],
   employer: ["Employer", "Lumen Labs", "LL", "Host organisation"],
   admin: ["System admin", "BrighterWorks", "BW", "Platform administration"],
+  lecturer: ["Lecturer", "Dr. Lecturer", "DL", "Academic staff"],
+  university: ["University", "Makerere University", "MU", "Institution"],
+  alumni: ["Alumni", "Graduate", "AL", "Alumni network"],
   employee: ["Employee", "James Okello", "JO", "Staff member"],
 };

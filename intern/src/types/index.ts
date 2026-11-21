@@ -195,7 +195,7 @@ export interface ApplicationPack {
   targets: string[];
 }
 
-export type UserRole = "student" | "jobseeker" | "employer" | "admin" | "employee";
+export type UserRole = "student" | "jobseeker" | "employer" | "admin" | "employee" | "lecturer" | "university" | "alumni";
 export type Portal = "internships" | "jobs";
 
 // A host organisation's live billing state. Free accounts publish up to
