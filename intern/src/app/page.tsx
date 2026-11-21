@@ -8,6 +8,7 @@ import { DashboardShell } from "../components/dashboard/DashboardShell";
 import { MobileMenu } from "../components/common/MobileMenu";
 import { Modal } from "../components/common/Modal";
 import { Toast } from "../components/common/Toast";
+import { AssistantWidget } from "../components/common/AssistantWidget";
 
 function MainApp() {
   const { route } = useApp();
@@ -36,6 +37,9 @@ function MainApp() {
 
       {/* Toast Notifications */}
       <Toast />
+
+      {/* Virtual Assistant */}
+      <AssistantWidget />
     </>
   );
 }
