@@ -683,8 +683,10 @@ export function MessagesView() {
                 value={chatSettings?.preferred_language || "en"}
                 onChange={(e) => {
                   const next = e.target.value;
-                  setChatSettings((s) => (s ? { ...s, preferred_language: next } : s));
-                  updateChatSettings({ preferred_language: next }).catch(() => undefined);
+                  setChatSettings((s) => (s ? { ...s, preferred_language: next } : { preferred_language: next, auto_translate: true, show_original: true, notification_sound: true, desktop_notifications: true, theme: "light", font_size: 14 }));
+                  updateChatSettings({ preferred_language: next })
+                    .then((s) => setChatSettings(s))
+                    .catch(() => undefined);
                 }}
                 aria-label="Preferred language"
                 title="Translate incoming messages into this language"
@@ -942,8 +944,10 @@ export function MessagesView() {
               value={chatSettings?.preferred_language || "en"}
               onChange={(e) => {
                 const next = e.target.value;
-                setChatSettings((s) => (s ? { ...s, preferred_language: next } : s));
-                updateChatSettings({ preferred_language: next }).catch(() => undefined);
+                setChatSettings((s) => (s ? { ...s, preferred_language: next } : { preferred_language: next, auto_translate: true, show_original: true, notification_sound: true, desktop_notifications: true, theme: "light", font_size: 14 }));
+                updateChatSettings({ preferred_language: next })
+                  .then((s) => setChatSettings(s))
+                  .catch(() => undefined);
               }}
               style={{ width: "100%", height: "32px", borderRadius: "var(--r-sm)", border: "1px solid var(--rule-2)", padding: "0 8px", fontSize: "12px" }}
             >
@@ -962,8 +966,10 @@ export function MessagesView() {
                 checked={chatSettings?.auto_translate ?? true}
                 onChange={(e) => {
                   const next = e.target.checked;
-                  setChatSettings((s) => (s ? { ...s, auto_translate: next } : s));
-                  updateChatSettings({ auto_translate: next }).catch(() => undefined);
+                  setChatSettings((s) => (s ? { ...s, auto_translate: next } : { preferred_language: "en", auto_translate: next, show_original: true, notification_sound: true, desktop_notifications: true, theme: "light", font_size: 14 }));
+                  updateChatSettings({ auto_translate: next })
+                    .then((s) => setChatSettings(s))
+                    .catch(() => undefined);
                 }}
               />
               Auto-translate incoming messages

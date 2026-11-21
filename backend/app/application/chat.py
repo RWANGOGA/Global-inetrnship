@@ -1,3 +1,4 @@
+import dataclasses
 """Chat / Messaging service — handles groups, messages, direct chats, and translation."""
 
 from datetime import datetime
@@ -351,10 +352,12 @@ class ChatService:
         self, user_id: str, **fields
     ) -> UserChatSettings:
         settings = self.get_settings(user_id)
+        updates = {}
         for k, v in fields.items():
             if hasattr(settings, k):
-                setattr(settings, k, v)
-        settings.updated_at = datetime.utcnow().isoformat()
+                updates[k] = v
+        updates["updated_at"] = datetime.utcnow().isoformat()
+        settings = dataclasses.replace(settings, **updates)
         self._settings.upsert(settings)
         return settings
 
