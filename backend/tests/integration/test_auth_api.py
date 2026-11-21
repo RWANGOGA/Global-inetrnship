@@ -9,7 +9,7 @@ DEMO_PASSWORD = "password123"
 
 def _register(client, **overrides):
     payload = {
-        "email": "new@example.com",
+        "email": "new@mak.ac.ug",
         "name": "New User",
         "role": "student",
         "password": "secret123",
@@ -24,7 +24,7 @@ def test_register_returns_token_and_safe_user(client):
     body = res.json()
     assert body["access_token"]
     assert body["token_type"] == "bearer"
-    assert body["user"]["email"] == "new@example.com"
+    assert body["user"]["email"] == "new@mak.ac.ug"
     assert body["user"]["role"] == "student"
     # The hash must never be exposed.
     assert "password_hash" not in body["user"]

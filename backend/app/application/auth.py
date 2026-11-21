@@ -24,9 +24,15 @@ class AuthService:
         org_loc: str = "", org_about: str = ""
     ) -> User:
         email = email.strip().lower()
-        role = role.strip()
+        role = role.strip() or "student"
         if role not in USER_ROLES or role == "admin":
             raise ValueError(f"Unknown role: {role!r}")
+
+        academic_roles = {"student", "lecturer", "university"}
+        if role in academic_roles:
+            domain = email.strip().lower().rsplit("@", 1)[-1]
+            if not (domain.endswith(".ac.ug") or domain.endswith(".edu") or domain.endswith(".ac.ke") or domain.endswith(".ac.tz")):
+                raise ValueError("Student, lecturer and university accounts require an academic email (.ac.ug / .edu).")
         if not email or "@" not in email:
             raise ValueError("A valid email is required")
         if not password:

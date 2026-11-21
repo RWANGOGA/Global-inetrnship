@@ -76,22 +76,22 @@ def _service() -> AuthService:
 
 def test_register_normalizes_email_and_returns_user():
     user = _service().register(
-        email="  Amina@Example.COM ", name="Amina", role="student", password="pw12345"
+        email="  Amina@Mak.ac.ug ", name="Amina", role="student", password="pw12345"
     )
-    assert user.email == "amina@example.com"
+    assert user.email == "amina@mak.ac.ug"
     assert user.role == "student"
     assert user.id  # generated
     assert user.password_hash != "pw12345"  # stored hashed
 
 
 def test_register_defaults_name_from_email():
-    user = _service().register(email="bob@example.com", name="", role="student", password="pw")
+    user = _service().register(email="bob@mak.ac.ug", name="", role="student", password="pw")
     assert user.name == "bob"
 
 
 def test_register_rejects_unknown_role():
     with pytest.raises(ValueError):
-        _service().register(email="a@b.com", name="A", role="wizard", password="pw")
+        _service().register(email="a@mak.ac.ug", name="A", role="wizard", password="pw")
 
 
 def test_register_rejects_invalid_email():
@@ -101,22 +101,22 @@ def test_register_rejects_invalid_email():
 
 def test_register_rejects_empty_password():
     with pytest.raises(ValueError):
-        _service().register(email="a@b.com", name="A", role="student", password="")
+        _service().register(email="a@mak.ac.ug", name="A", role="student", password="")
 
 
 def test_register_rejects_duplicate_email():
     service = _service()
-    service.register(email="a@b.com", name="A", role="student", password="pw")
+    service.register(email="a@mak.ac.ug", name="A", role="student", password="pw")
     with pytest.raises(EmailAlreadyExists):
-        service.register(email="a@b.com", name="A2", role="student", password="pw2")
+        service.register(email="a@mak.ac.ug", name="A2", role="student", password="pw2")
 
 
 def test_login_success_and_wrong_password():
     service = _service()
-    service.register(email="a@b.com", name="A", role="student", password="right")
-    assert service.login(email="a@b.com", password="right").email == "a@b.com"
+    service.register(email="a@mak.ac.ug", name="A", role="student", password="right")
+    assert service.login(email="a@mak.ac.ug", password="right").email == "a@mak.ac.ug"
     with pytest.raises(InvalidCredentials):
-        service.login(email="a@b.com", password="wrong")
+        service.login(email="a@mak.ac.ug", password="wrong")
 
 
 def test_login_unknown_email_does_not_leak_existence():

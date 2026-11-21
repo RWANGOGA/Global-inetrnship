@@ -28,8 +28,8 @@ export function SignInView() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (mode === "signup" && (role === "lecturer" || role === "university") && !isAcademicEmail) {
-      setError("Lecturer and university accounts require an academic email (.ac.ug / .edu).");
+    if (mode === "signup" && (role === "student" || role === "lecturer" || role === "university") && !isAcademicEmail) {
+      setError("Student, lecturer and university accounts require an academic email (.ac.ug / .edu / .ac.ke / .ac.tz).");
       return;
     }
     setBusy(true);
