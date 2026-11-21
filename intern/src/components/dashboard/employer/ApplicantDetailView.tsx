@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useApp } from "../../../context/AppContext";
 import { fetchApplicantDetail, ApplicantDetail } from "../../../lib/api";
 import { Icon, IconName } from "../../icons/Icons";
+import { sendDirectMessage } from "../../../lib/chat";
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, { label: string; className: string }> = {
@@ -145,7 +146,20 @@ export function ApplicantDetailView({ applicationId, onClose }: { applicationId:
           </div>
         </div>
         <div style={{ display: "flex", gap: "8px" }}>
-          <button type="button" className="btn btn-blue" onClick={() => console.log("Message candidate")}>
+          <button
+            type="button"
+            className="btn btn-blue"
+            onClick={async () => {
+              const msg = window.prompt("Message to candidate:", `Hi ${d.student_name || "there"}, `);
+              if (!msg) return;
+              try {
+                await sendDirectMessage(d.student_id, msg);
+                toast("Message sent");
+              } catch (e) {
+                toast(e instanceof Error ? e.message : "Could not send message");
+              }
+            }}
+          >
             <Icon name="send" size={14} /> Message
           </button>
           <button type="button" className="btn btn-ghost" onClick={onClose}>

@@ -20,6 +20,7 @@ import {
 import { Placement, ApplicationDto, Job, JobApplicationDto } from "../../../types";
 import { Icon, IconName } from "../../icons/Icons";
 import { ApplicantDetailView } from "./ApplicantDetailView";
+import { sendDirectMessage } from "../../../lib/chat";
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, { label: string; className: string }> = {
@@ -582,7 +583,16 @@ function KanbanBoard() {
                       isInternship={isInternship}
                       onRemove={() => isInternship ? handleShortlistInternship(app.id, false) : handleShortlistJob(app.id, false)}
                       onView={() => setSelectedApplicantId(app.id)}
-                      onInvite={() => console.log("Invite", app.id)}
+                      onInvite={async () => {
+                        const msg = window.prompt("Invite message:", "We'd like to invite you to an interview.");
+                        if (!msg) return;
+                        try {
+                          await sendDirectMessage(app.user_id, msg);
+                          toast("Invitation sent");
+                        } catch (e) {
+                          toast(e instanceof Error ? e.message : "Could not send invitation");
+                        }
+                      }}
                     />
                   );
                 })}
@@ -681,7 +691,16 @@ function KanbanBoard() {
                             <button
                               type="button"
                               className="btn btn-sm btn-ghost"
-                              onClick={() => console.log("Invite", app.id)}
+                              onClick={async () => {
+                                const msg = window.prompt("Invite message:", "We'd like to invite you to an interview.");
+                                if (!msg) return;
+                                try {
+                                  await sendDirectMessage(app.user_id, msg);
+                                  toast("Invitation sent");
+                                } catch (e) {
+                                  toast(e instanceof Error ? e.message : "Could not send invitation");
+                                }
+                              }}
                             >
                               <Icon name="send" size={12} /> Invite
                             </button>

@@ -7,12 +7,13 @@ import {
   ApiError,
   fetchOrganizationInternships,
   fetchOrganizationApplicants,
+  toggleInternshipApplicationShortlist,
   isApiEnabled,
 } from "../../../lib/api";
 import { Placement, ApplicationDto } from "../../../types";
 
 export function EmployerOverview() {
-  const { session, dashGo, organizationPlacements } = useApp();
+  const { session, dashGo, organizationPlacements, toast } = useApp();
   const [placements, setPlacements] = useState<Placement[]>([]);
   const [applicants, setApplicants] = useState<ApplicationDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,15 +32,13 @@ export function EmployerOverview() {
     try {
       const placementsRes = await fetchOrganizationInternships();
       setPlacements(placementsRes);
-      
-      // Fetch applicants for the first placement if any
-      let allApplicants: ApplicationDto[] = [];
-      if (placementsRes.length > 0) {
-        const firstPlacementId = placementsRes[0].id;
-        const applicantsRes = await fetchOrganizationApplicants(firstPlacementId);
-        allApplicants = applicantsRes;
-      }
-      setApplicants(allApplicants);
+      const results = await Promise.all(
+        placementsRes.map((pl) =>
+          fetchOrganizationApplicants(pl.id).catch(() => [] as ApplicationDto[])
+        )
+      );
+      const all = results.flat().sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+      setApplicants(all);
       setLoading(false);
     } catch (cause) {
       setError(
@@ -48,6 +47,17 @@ export function EmployerOverview() {
       setLoading(false);
     }
   }
+
+  const handleShortlist = async (app: ApplicationDto) => {
+    try {
+      await toggleInternshipApplicationShortlist(app.id);
+      setApplicants((list) =>
+        list.map((a) => (a.id === app.id ? { ...a, shortlisted: !a.shortlisted } : a))
+      );
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Could not update shortlist");
+    }
+  };
 
   const totalPlacements = placements.length;
   const totalApplicants = applicants.length;
@@ -127,25 +137,27 @@ export function EmployerOverview() {
                   <td colSpan={6}>No applicants yet.</td>
                 </tr>
               ) : (
-                (applicants || []).slice(0, 4).map((app) => (
+                (applicants || []).slice(0, 5).map((app) => (
                   <tr key={app.id}>
                     <td className="who">
-                      <b>{app.user_id.slice(0, 8)}…</b>
-                      <span>Year 3</span>
+                      <b>{app.user_name || app.user_email || `Candidate ${app.user_id.slice(0, 6)}`}</b>
+                      <span>{app.user_email || ""}</span>
                     </td>
-                    <td>{app.placement_id}</td>
-                    <td className="hide-xs">Makerere</td>
+                    <td>{placements.find((p) => p.id === app.placement_id)?.title || app.placement_id}</td>
+                    <td className="hide-xs">{app.created_at?.split("T")[0] || "—"}</td>
                     <td>
-                      <span className="tg green">Verified</span>
+                      <span className={app.document_ids?.length ? "tg green" : "tg"}>
+                        {app.document_ids?.length ? `${app.document_ids.length} docs` : "No docs"}
+                      </span>
                     </td>
-                    <td className="num">93%</td>
+                    <td className="num">{app.shortlisted ? "★" : "—"}</td>
                     <td className="act">
                       <button
                         type="button"
-                        className="btn btn-sm"
-                        onClick={() => console.log("Shortlist", app.id)}
+                        className={`btn btn-sm ${app.shortlisted ? "btn-blue" : "btn-ghost"}`}
+                        onClick={() => void handleShortlist(app)}
                       >
-                        Shortlist
+                        {app.shortlisted ? "Shortlisted" : "Shortlist"}
                       </button>
                     </td>
                   </tr>
@@ -223,14 +235,14 @@ export function EmployerOverview() {
               <button
                 type="button"
                 className="btn btn-sm btn-blue"
-                onClick={() => console.log("Compare plans")}
+                onClick={() => dashGo("billing")}
               >
                 Compare plans
               </button>
               <button
                 type="button"
                 className="btn btn-sm"
-                onClick={() => console.log("Invoice request")}
+                onClick={() => dashGo("billing")}
               >
                 Request invoice
               </button>
@@ -269,7 +281,7 @@ export function EmployerOverview() {
               <button
                 type="button"
                 className="btn btn-sm"
-                onClick={() => console.log("Unlock")}
+                onClick={() => dashGo("billing")}
               >
                 Unlock
               </button>
@@ -300,7 +312,7 @@ export function EmployerOverview() {
               <button
                 type="button"
                 className="btn btn-sm"
-                onClick={() => console.log("Get embed code")}
+                onClick={() => { navigator.clipboard?.writeText(window.location.origin + "/embed"); toast("Embed code copied"); }}
               >
                 Get code
               </button>

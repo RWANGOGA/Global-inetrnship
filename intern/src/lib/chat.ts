@@ -211,6 +211,13 @@ export async function leaveGroup(groupId: string): Promise<void> {
   await request(`/chat/groups/${groupId}/leave`, { method: "POST" });
 }
 
+export async function sendDirectMessage(recipientId: string, content: string): Promise<void> {
+  await request("/chat/direct", {
+    method: "POST",
+    body: JSON.stringify({ recipient_id: recipientId, content, type: "text" }),
+  });
+}
+
 export interface ChatUploadResult {
   url: string;
   file_name: string;
