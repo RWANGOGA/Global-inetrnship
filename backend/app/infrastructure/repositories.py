@@ -1126,6 +1126,9 @@ class SqlAlchemyUserRepository(UserRepository):
             org_id=row.org_id or None,
             deleted=bool(row.deleted),
             deleted_at=row.deleted_at or None,
+            personal_email=row.personal_email or None,
+            graduated=bool(row.graduated),
+            graduated_at=row.graduated_at or None,
         )
 
     def add(self, user: User) -> User:
@@ -1138,6 +1141,9 @@ class SqlAlchemyUserRepository(UserRepository):
                 password_hash=user.password_hash,
                 created_at=user.created_at,
                 org_id=user.org_id,
+                personal_email=user.personal_email,
+                graduated=user.graduated,
+                graduated_at=user.graduated_at,
             )
         )
         self._session.commit()

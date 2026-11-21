@@ -369,6 +369,10 @@ class UserORM(Base):
     # Soft delete
     deleted: Mapped[bool] = mapped_column(Boolean, default=False)
     deleted_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Graduation support
+    personal_email: Mapped[str | None] = mapped_column(String, nullable=True)
+    graduated: Mapped[bool] = mapped_column(Boolean, default=False)
+    graduated_at: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class OrganizationMemberORM(Base):

@@ -5,19 +5,21 @@ password/hash never cross the boundary. ``/auth/me`` proves the token works and
 is the anchor the frontend uses to restore a session on load.
 """
 from fastapi import APIRouter, Body, Depends, HTTPException
+from sqlalchemy.orm import Session
 
 from app.application.auth import AuthService
 from app.application.chat import ChatService
 from app.core.errors import EmailAlreadyExists, InvalidCredentials
 from app.core.security import create_access_token
 from app.domain.entities import User
-from app.presentation.deps import get_auth_service, get_chat_service, get_current_user
+from app.presentation.deps import get_auth_service, get_chat_service, get_current_user, get_session
 from app.presentation.schemas import (
     AuthResponse,
     LoginRequest,
     RegisterRequest,
     UserRead,
 )
+from app.infrastructure.orm import UserORM
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -76,3 +78,63 @@ def login(
 @router.get("/me", response_model=UserRead)
 def me(current_user: User = Depends(get_current_user)) -> UserRead:
     return UserRead.model_validate(current_user)
+
+
+from pydantic import BaseModel as _BaseModel
+
+class GraduateRequest(_BaseModel):
+    personal_email: str
+
+
+@router.post("/graduate", response_model=AuthResponse)
+def graduate(
+    payload: GraduateRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Convert a student account on graduation.
+
+    The student provides a personal email; the login email becomes the personal
+    one (so the university mailbox can be retired) and the role moves to
+    "jobseeker" (alumni). The original student email is retained as a note.
+    """
+    from datetime import date
+
+    pe = payload.personal_email.strip().lower()
+    if "@" not in pe:
+        raise HTTPException(status_code=422, detail="A valid personal email is required")
+
+    row = session.query(UserORM).filter_by(id=current_user.id).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if row.role not in ("student", "jobseeker"):
+        raise HTTPException(status_code=400, detail="Only students can graduate")
+
+    # Ensure the personal email is not already in use
+    existing = session.query(UserORM).filter_by(email=pe).first()
+    if existing is not None and existing.id != row.id:
+        raise HTTPException(status_code=409, detail="That email is already in use")
+
+    row.personal_email = pe
+    row.graduated = True
+    row.graduated_at = date.today().isoformat()
+    row.email = pe
+    if row.role == "student":
+        row.role = "jobseeker"
+    session.commit()
+
+    user = User(
+        id=row.id,
+        email=row.email,
+        name=row.name,
+        role=row.role,
+        password_hash=row.password_hash,
+        created_at=row.created_at or "",
+        org_id=row.org_id or None,
+        deleted=bool(row.deleted),
+        deleted_at=row.deleted_at or None,
+        personal_email=row.personal_email or None,
+        graduated=bool(row.graduated),
+        graduated_at=row.graduated_at or None,
+    )
+    return _auth_response(user)

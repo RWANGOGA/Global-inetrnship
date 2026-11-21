@@ -252,6 +252,12 @@ class User:
     # restores it (PATCH /users/{id}/action, action=restore).
     deleted: bool = False
     deleted_at: Optional[str] = None
+    # Graduation support: a student can keep their account by providing a
+    # personal email; on graduation the login email becomes the personal one
+    # and the role moves to "jobseeker" (alumni).
+    personal_email: Optional[str] = None
+    graduated: bool = False
+    graduated_at: Optional[str] = None
 
 
 @dataclass(frozen=True)
