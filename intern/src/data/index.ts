@@ -389,6 +389,6 @@ export const ROLE_META: Record<UserRole, [string, string, string, string]> = {
   student: ["Student", "Amina Nakato", "AK", "Free record"],
   jobseeker: ["Job seeker", "Brian Ssekandi", "BS", "Graduate"],
   employer: ["Employer", "Lumen Labs", "LL", "Host organisation"],
-  admin: ["University admin", "Makerere University", "MU", "Placement office"],
+  admin: ["System admin", "BrighterWorks", "BW", "Platform administration"],
   employee: ["Employee", "James Okello", "JO", "Staff member"],
 };
