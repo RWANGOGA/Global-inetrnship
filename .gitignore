@@ -11,3 +11,6 @@ next-env.d.ts
 
 # Local env
 .env*.local
+
+# Chat attachments are user files, never committed
+backend/uploads/

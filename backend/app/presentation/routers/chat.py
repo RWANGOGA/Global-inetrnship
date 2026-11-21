@@ -312,11 +312,24 @@ def create_group(
         member_ids=payload.member_ids,
     )
 
-    # Admins monitor every channel: make sure all of them are participants of
-    # the new group, even if they were created after it.
+    # Fill the new channel with the accounts it is meant for: admins monitor
+    # every channel, "mixed" includes everyone, and the role channels include
+    # the users of that role.
     try:
-        admin_ids = [u.id for u in users.list_by_role("admin")]
-        service.ensure_admins_in_group(group.id, admin_ids)
+        from app.domain.entities import USER_ROLES
+
+        if group.type.value == "mixed":
+            roles = [r for r in USER_ROLES if r != "admin"]
+        elif group.type.value in USER_ROLES and group.type.value != "admin":
+            roles = [group.type.value]
+        else:
+            roles = []
+        service.ensure_members_in_group(
+            group.id, {u.id for role in roles for u in users.list_by_role(role)}
+        )
+        service.ensure_admins_in_group(
+            group.id, [u.id for u in users.list_by_role("admin")]
+        )
     except Exception:
         pass
 
@@ -545,14 +558,22 @@ def get_messages(
     # Auto-translate for current user
     import asyncio
     names = _names(session, {msg.sender_id for msg in messages})
+    others = [p for p in participants if p.user_id != current_user.id]
     translated = []
     for msg in messages:
         t = asyncio.run(service.translate_to_user_language(msg, current_user.id))
+        is_mine = msg.sender_id == current_user.id
+        read = False
+        if is_mine:
+            read = True if not others else all(
+                (p.last_read_at or "") >= msg.created_at for p in others
+            )
         translated.append(
             {
                 **msg.__dict__,
                 "translated_content": t,
                 "sender_name": names.get(msg.sender_id, "Member"),
+                "read": read,
             }
         )
     
@@ -1037,7 +1058,6 @@ async def detect_language(
 
 # ---- User Settings ------------------------------------------------------------
 
-@router.get("/settings", response_model=dict)
 @router.post("/upload", response_model=dict)
 async def upload_chat_file(
     file: UploadFile = File(...),
@@ -1086,6 +1106,7 @@ def get_chat_file(filename: str):
     return FileResponse(path, filename=filename)
 
 
+@router.get("/settings", response_model=dict)
 def get_settings(
     service: ChatService = Depends(get_chat_service),
     current_user: User = Depends(get_current_user),

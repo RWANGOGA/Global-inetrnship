@@ -131,6 +131,11 @@ class ChatService:
         for uid in admin_user_ids:
             self.ensure_member(group_id, uid, "admin")
 
+    def ensure_members_in_group(self, group_id: str, user_ids: set[str]) -> None:
+        """Make sure each user is a participant of the group (idempotent)."""
+        for uid in user_ids:
+            self.ensure_member(group_id, uid, "member")
+
     def auto_join_for_user(self, user_id: str, role: str) -> None:
         """On account creation, join the channels that match the user's role.
 
