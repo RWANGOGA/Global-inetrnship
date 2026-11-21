@@ -12,7 +12,7 @@ from app.application.services import ApplicationService, PlacementService
 from app.domain.entities import User
 from app.infrastructure.db import get_session
 from app.infrastructure.orm import PlacementORM
-from app.presentation.deps import get_application_service, get_current_user, get_placement_service
+from app.presentation.deps import get_application_service, get_current_user, get_placement_service, require_roles
 from app.presentation.schemas import (
     ApplicationRead,
     CatalogMetaRead,
@@ -133,3 +133,33 @@ def update_placement_requirements(
         raise HTTPException(status_code=404, detail="Placement not found")
 
     return InternshipPostingRead.model_validate(updated)
+
+
+@router.patch("/{placement_id}/admin", response_model=PlacementRead)
+def admin_update_placement(
+    placement_id: str,
+    payload: dict,
+    service: PlacementService = Depends(get_placement_service),
+    current_user: User = Depends(require_roles("admin")),
+) -> PlacementRead:
+    placement = service.get_placement(placement_id)
+    if placement is None:
+        raise HTTPException(status_code=404, detail="Placement not found")
+    updated = service.update_placement(placement_id, **payload)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Placement not found")
+    return PlacementRead.model_validate(updated)
+
+
+@router.delete("/{placement_id}/admin", response_model=dict)
+def admin_delete_placement(
+    placement_id: str,
+    service: PlacementService = Depends(get_placement_service),
+    current_user: User = Depends(require_roles("admin")),
+) -> dict:
+    placement = service.get_placement(placement_id)
+    if placement is None:
+        raise HTTPException(status_code=404, detail="Placement not found")
+    # Soft delete by closing
+    service.update_placement(placement_id, status="Closed", review_status="rejected")
+    return {"deleted": True}

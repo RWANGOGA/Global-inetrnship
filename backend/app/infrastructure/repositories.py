@@ -278,6 +278,17 @@ class SqlAlchemyJobRepository(JobRepository):
         row = self._query().filter(JobORM.id == job_id).first()
         return self._to_domain(row[0], row[1]) if row else None
 
+    def update(self, job_id: str, **fields) -> Optional[Job]:
+        row = self._session.query(JobORM).filter_by(id=job_id).first()
+        if row is None:
+            return None
+        for k, v in fields.items():
+            if hasattr(row, k):
+                setattr(row, k, v)
+        self._session.commit()
+        org = self._session.query(OrganisationORM).filter_by(id=row.org_id).first()
+        return self._to_domain(row, org)
+
 
 class SqlAlchemySavedRepository(SavedRepository):
     def __init__(self, session: Session) -> None:

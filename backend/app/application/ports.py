@@ -56,6 +56,12 @@ class JobRepository(ABC):
     @abstractmethod
     def get(self, job_id: str) -> Optional[Job]: ...
 
+    @abstractmethod
+    def update(self, job_id: str, **fields) -> Optional[Job]: ...
+
+    @abstractmethod
+    def update(self, job_id: str, **fields) -> Optional[Job]: ...
+
 
 class LLMClient(ABC):
     """Port for the language model behind the career advisor.

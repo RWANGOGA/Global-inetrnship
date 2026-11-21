@@ -10,7 +10,7 @@ from app.domain.entities import User
 from app.infrastructure.db import get_session
 from app.infrastructure.orm import JobApplicationORM, JobORM
 from app.infrastructure.repositories import SqlAlchemyJobRepository
-from app.presentation.deps import get_current_user, get_job_application_repository, get_saved_jobs_repository
+from app.presentation.deps import get_current_user, require_roles, get_job_application_repository, get_saved_jobs_repository
 from app.presentation.schemas import (
     JobListResponse,
     JobRead,
@@ -250,3 +250,32 @@ def withdraw_job_application(
         session.commit()
 
     return JobApplicationRead.model_validate(updated)
+
+
+@router.patch("/{job_id}/admin", response_model=dict)
+def admin_update_job(
+    job_id: str,
+    payload: dict,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_roles("admin")),
+) -> dict:
+    repo = SqlAlchemyJobRepository(session)
+    job = repo.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    updated = repo.update(job_id, **payload)
+    return {"job": updated.__dict__ if updated else None}
+
+
+@router.delete("/{job_id}/admin", response_model=dict)
+def admin_delete_job(
+    job_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_roles("admin")),
+) -> dict:
+    repo = SqlAlchemyJobRepository(session)
+    job = repo.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    repo.update(job_id, status="Closed", review_status="rejected")
+    return {"deleted": True}
