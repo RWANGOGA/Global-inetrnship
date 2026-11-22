@@ -177,6 +177,119 @@ class RevenueAnalyticsResponse(BaseModel):
     by_plan: list[dict]
 
 
+class PaymentSessionRequest(BaseModel):
+    invoice_id: str
+    terms_accepted: bool = False
+
+
+class PaymentSessionResponse(BaseModel):
+    hosted_url: str
+    reference: str
+    amount_cents: int
+    currency: str
+    gateway: str
+    mode: str
+    invoice_number: str
+
+
+class StudentPlusSessionRequest(BaseModel):
+    billing_email: Optional[str] = None
+    idempotency_key: str = Field(min_length=8, max_length=128)
+    terms_accepted: bool = False
+    payment_gateway: Literal["stripe", "flutterwave"] = "flutterwave"
+
+
+# ---- Real-world hosted checkout ----
+
+@router.post("/payments/initialize", response_model=PaymentSessionResponse)
+def initialize_payment(
+    payload: PaymentSessionRequest,
+    service: BillingService = Depends(get_billing_service),
+    current_user: User = Depends(get_current_user),
+) -> PaymentSessionResponse:
+    """Create a hosted payment link for an invoice the caller owns.
+
+    No amount is accepted from the client — the price comes from the stored
+    invoice. Nothing is marked paid here; only a signed webhook can settle it.
+    """
+    invoice = service.get_invoice(payload.invoice_id)
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+
+    if current_user.role == "student" and invoice.user_id == current_user.id:
+        email = current_user.email
+    elif current_user.role == "employer" and invoice.org_id == current_user.org_id:
+        email = current_user.email
+    else:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+
+    if invoice.status != "open":
+        raise HTTPException(status_code=409, detail="Invoice is not payable")
+    if not payload.terms_accepted:
+        raise HTTPException(status_code=422, detail="Payment authorization is required")
+
+    session = service.create_hosted_payment(invoice, email, current_user.name or "")
+    return PaymentSessionResponse(
+        **session, invoice_number=invoice.invoice_number
+    )
+
+
+@router.get("/payments/status")
+def payment_status(
+    invoice_id: str = Query(...),
+    service: BillingService = Depends(get_billing_service),
+    current_user: User = Depends(get_current_user),
+):
+    """Poll the server-side status after returning from hosted checkout."""
+    invoice = service.get_invoice(invoice_id)
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    owns = (
+        (current_user.role == "student" and invoice.user_id == current_user.id)
+        or (current_user.role == "employer" and invoice.org_id == current_user.org_id)
+        or current_user.role == "admin"
+    )
+    if not owns:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    transactions = [
+        tx for tx in service.list_all_transactions()
+        if tx.invoice_id == invoice.id and tx.status == "succeeded"
+    ]
+    return {
+        "invoice_id": invoice.id,
+        "status": invoice.status,
+        "paid_at": invoice.paid_at,
+        "amount_cents": invoice.amount_cents,
+        "currency": invoice.currency,
+        "paid": invoice.status == "paid" and bool(transactions),
+    }
+
+
+@router.post("/student/plus/session")
+def student_plus_session(
+    payload: StudentPlusSessionRequest,
+    service: BillingService = Depends(get_billing_service),
+    current_user: User = Depends(get_current_user),
+):
+    """Create a hosted Student Plus checkout (no local charge)."""
+    if current_user.role != "student":
+        raise HTTPException(status_code=403, detail="Only students can purchase Student Plus")
+    try:
+        result = service.create_student_subscription_session(
+            user_id=current_user.id,
+            billing_email=payload.billing_email or current_user.email,
+            idempotency_key=payload.idempotency_key,
+            terms_accepted=payload.terms_accepted,
+            payment_gateway=payload.payment_gateway,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "session": result["session"],
+        "invoice": InvoiceResponse.model_validate(result["invoice"], from_attributes=True),
+    }
+
+
 # ---- Company/Org Endpoints ----
 
 @router.post("/subscriptions", response_model=SubscriptionRead)
@@ -536,6 +649,11 @@ def get_student_usage(
             unpaid_invoice_id = inv.id
             break
 
+    settings = get_settings()
+    checkout_enabled = (
+        settings.environment.lower() in ("development", "test")
+        or settings.is_flutterwave_configured
+    )
     return StudentUsageResponse(
         id=usage.id,
         user_id=usage.user_id,
@@ -548,7 +666,7 @@ def get_student_usage(
         plan=plan["plan"],
         subscription_status=plan["status"],
         price_cents=plan["price_cents"],
-        checkout_enabled=get_settings().environment.lower() in ("development", "test"),
+        checkout_enabled=checkout_enabled,
         current_period_start=plan["current_period_start"],
         current_period_end=plan["current_period_end"],
         cancel_at_period_end=plan["cancel_at_period_end"],
@@ -564,13 +682,13 @@ def checkout_student_plan(
     service: BillingService = Depends(get_billing_service),
     current_user: User = Depends(get_current_user),
 ):
-    """Purchase the monthly Student Plus plan."""
+    """Purchase the monthly Student Plus plan (sandbox/dev only)."""
     if current_user.role != "student":
         raise HTTPException(status_code=403, detail="Only students can purchase Student Plus")
     if get_settings().environment.lower() not in ("development", "test"):
         raise HTTPException(
-            status_code=503,
-            detail="Student checkout requires a configured payment-provider integration",
+            status_code=409,
+            detail="Use hosted checkout for live payments",
         )
     if not payload.terms_accepted:
         raise HTTPException(status_code=422, detail="Payment authorization is required")
@@ -643,26 +761,25 @@ def pay_student_invoice(
     service: BillingService = Depends(get_billing_service),
     current_user: User = Depends(get_current_user),
 ) -> TransactionResponse:
-    """Pay a student's open invoice."""
+    """Pay a student's open invoice (sandbox/dev shortcut)."""
     if current_user.role != "student":
         raise HTTPException(status_code=403, detail="Only students can pay their invoices")
-    if get_settings().environment.lower() not in ("development", "test"):
+    settings = get_settings()
+    if settings.environment.lower() not in ("development", "test") and not settings.is_flutterwave_configured:
         raise HTTPException(
             status_code=503,
             detail="Student payments require a configured payment-provider integration",
         )
     if not payload.terms_accepted:
         raise HTTPException(status_code=422, detail="Payment authorization is required")
-    
+
     invoice = service.get_invoice(invoice_id)
-    if not invoice or (
-        invoice.user_id != current_user.id and invoice.org_id != current_user.id
-    ):
+    if not invoice or (invoice.user_id != current_user.id and invoice.org_id != current_user.id):
         raise HTTPException(status_code=404, detail="Invoice not found")
-    
+
     if invoice.status != "open":
         raise HTTPException(status_code=409, detail="Invoice is not payable")
-    
+
     try:
         transaction = service.pay_student_invoice(
             invoice_id,
@@ -738,6 +855,42 @@ def list_admin_transactions(
         raise HTTPException(status_code=403, detail="Admin access required")
     transactions = service.list_all_transactions(status, org_id)
     return [TransactionResponse.model_validate(tx, from_attributes=True) for tx in transactions]
+
+
+@router.get("/admin/payers")
+def list_payers_admin(
+    search: Optional[str] = Query(None),
+    kind: Optional[str] = Query(None, pattern="^(student|employer)$"),
+    service: BillingService = Depends(get_billing_service),
+    current_user: User = Depends(get_current_user),
+):
+    """All payers (students and employers), aggregated from real invoices."""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return service.list_payers(search or "", kind)
+
+
+@router.get("/admin/payers/{kind}/{payer_id}")
+def get_payer_profile_admin(
+    kind: str,
+    payer_id: str,
+    service: BillingService = Depends(get_billing_service),
+    current_user: User = Depends(get_current_user),
+):
+    """Billing profile for one payer: plan, usage, invoices, transactions."""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    try:
+        profile = service.get_payer_profile(kind, payer_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "payer": profile["payer"],
+        "plan": profile["plan"],
+        "usage": profile["usage"],
+        "invoices": [InvoiceResponse.model_validate(i, from_attributes=True) for i in profile["invoices"]],
+        "transactions": [TransactionResponse.model_validate(t, from_attributes=True) for t in profile["transactions"]],
+    }
 
 
 @router.post("/admin/invoices/{invoice_id}/void")

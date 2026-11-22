@@ -999,6 +999,69 @@ class BillingService:
             "transaction": transaction,
         }
 
+    def create_student_subscription_session(
+        self,
+        user_id: str,
+        billing_email: str,
+        idempotency_key: str,
+        terms_accepted: bool,
+        payment_gateway: str = "flutterwave",
+    ) -> dict:
+        """Create an open Student Plus invoice and a hosted Flutterwave session.
+
+        Unlike ``checkout_student_plan`` (the sandbox path) this never marks the
+        invoice paid locally: only a verified webhook can grant access.
+        """
+        from app.core.config import get_settings
+        if not terms_accepted:
+            raise ValueError("You must accept the billing terms to continue")
+        if not billing_email or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", billing_email):
+            raise ValueError("A valid billing email is required")
+        if not idempotency_key or len(idempotency_key) > 128:
+            raise ValueError("A valid idempotency key is required")
+        if not get_settings().is_flutterwave_configured:
+            raise ValueError("Live checkout is not configured")
+        if self._session is None:
+            raise ValueError("Student subscription storage is not configured")
+        if self.get_student_plan(user_id)["plan"] == "Student Plus":
+            raise ValueError("Student Plus is already active")
+
+        key = f"student-plus-{user_id}-{idempotency_key}"
+        invoice = next(
+            (
+                item for item in self.list_student_invoices(user_id)
+                if item.status == "open"
+                and item.invoice_metadata.get("type") == "student_subscription"
+                and item.invoice_metadata.get("checkout_key") == key
+            ),
+            None,
+        )
+        if invoice is None:
+            now = datetime.utcnow()
+            invoice = Invoice(
+                id=f"inv_{uuid4().hex[:12]}",
+                org_id=None,
+                user_id=user_id,
+                amount_cents=self.STUDENT_PLUS_PRICE_CENTS,
+                currency="USD",
+                status="open",
+                invoice_number=f"STU-{now.strftime('%Y%m%d')}-{uuid4().hex[:6].upper()}",
+                description="Student Plus monthly subscription",
+                line_items=[{
+                    "description": "Student Plus monthly subscription",
+                    "quantity": 1,
+                    "unit_amount_cents": self.STUDENT_PLUS_PRICE_CENTS,
+                    "amount_cents": self.STUDENT_PLUS_PRICE_CENTS,
+                }],
+                invoice_metadata={"type": "student_subscription", "checkout_key": key},
+                due_date=now + timedelta(days=7),
+                payment_gateway=payment_gateway,
+            )
+            self._invoices.save(invoice)
+
+        session = self.create_hosted_payment(invoice, billing_email, billing_email.split("@", 1)[0])
+        return {"invoice": invoice, "session": session}
+
     def cancel_student_subscription(self, user_id: str) -> dict:
         """Schedule Student Plus cancellation at the end of the paid period."""
         subscription = self._student_subscription_row(user_id)
@@ -1463,10 +1526,17 @@ class BillingService:
     # ============ WEBHOOK HANDLING ============
 
     def handle_webhook(self, gateway_id: str, payload: bytes, signature: str) -> WebhookEvent:
-        """Process gateway webhook - update local state from external events."""
+        """Process gateway webhook - update local state from external events.
+
+        The provider signature is verified *before* any event is parsed or any
+        local state is mutated. This is what stops a client from forging a
+        "payment succeeded" callback to unlock paid features for free.
+        """
         gateway = self._gateways.get(gateway_id)
+        if not gateway.verify_webhook_signature(payload, signature):
+            raise ValueError("Invalid webhook signature")
         event = gateway.handle_webhook(payload, signature)
-        
+
         with self._transaction():
             if event.type in ("invoice.payment_succeeded", "payment_intent.succeeded"):
                 self._handle_payment_succeeded(event, gateway_id)
@@ -1491,7 +1561,21 @@ class BillingService:
         invoice = self._invoices.find_by_gateway_id(gateway_id, gw_invoice_id)
         if not invoice:
             return
-        
+
+        # Idempotent webhook delivery: a duplicate callback must not create a
+        # second transaction or re-apply a subscription.
+        if invoice.status == "paid":
+            return
+
+        # Never trust a provider amount that disagrees with the server invoice.
+        reported_amount = data.get("amount_cents")
+        if reported_amount is not None:
+            try:
+                if int(reported_amount) != int(invoice.amount_cents):
+                    raise ValueError("Webhook amount does not match the invoice")
+            except (TypeError, ValueError) as exc:
+                raise ValueError("Webhook amount does not match the invoice") from exc
+
         invoice = replace(
             invoice,
             status="paid",
@@ -1524,6 +1608,17 @@ class BillingService:
         
         self._invoices.save(invoice)
         self._transactions.save(transaction)
+
+        # Access is granted only from a verified, amount-checked callback.
+        # (The sandbox checkout path activates locally; renewals/webhooks extend it.)
+        if (
+            invoice.invoice_metadata.get("type") == "student_subscription"
+            and invoice.user_id
+            and self.get_student_plan(invoice.user_id)["plan"] != "Student Plus"
+        ):
+            self._activate_student_subscription(
+                invoice.user_id, invoice, transaction, invoice.payment_gateway or gateway_id
+            )
 
     def _handle_payment_failed(self, event: WebhookEvent, gateway_id: str):
         """Handle failed payment."""
@@ -1632,6 +1727,159 @@ class BillingService:
     def get_outstanding_invoices(self) -> list[Invoice]:
         """Admin: All unpaid invoices past due date."""
         return self._invoices.list_outstanding()
+
+    # ============ HOSTED CHECKOUT (real-world payments) ============
+
+    def create_hosted_payment(
+        self, invoice: Invoice, email: str, name: str = ""
+    ) -> dict:
+        """Create a provider-hosted payment for a server-owned invoice.
+
+        The amount always comes from the stored invoice; the client cannot
+        influence it. Access is only granted later by a verified webhook (or by
+        the sandbox settle path), never by this call.
+        """
+        from app.core.config import get_settings
+        settings = get_settings()
+        gateway_id = settings.payment_provider or "flutterwave"
+        gateway = self._gateways.get(gateway_id)
+        customer = gateway.get_or_create_customer(
+            invoice.org_id or invoice.user_id, email=email, name=name
+        )
+        hosted_invoice = gateway.create_invoice(
+            customer.id,
+            invoice.line_items,
+            {
+                "amount_cents": invoice.amount_cents,
+                "currency": invoice.currency,
+                "invoice_id": invoice.id,
+                "email": email,
+                "name": name,
+                "description": invoice.description or f"Invoice {invoice.invoice_number}",
+            },
+        )
+        hosted_url = getattr(hosted_invoice, "hosted_invoice_url", "") or ""
+        if not hosted_url and hasattr(gateway, "get_hosted_url"):
+            hosted_url = gateway.get_hosted_url(hosted_invoice.id)
+
+        # Echo our invoice id as the gateway reference so the webhook can find
+        # this exact invoice without trusting client data.
+        self._invoices.save(
+            replace(invoice, gateway_invoice_id=invoice.id, payment_gateway=gateway_id)
+        )
+        return {
+            "hosted_url": hosted_url,
+            "reference": invoice.id,
+            "amount_cents": invoice.amount_cents,
+            "currency": invoice.currency,
+            "gateway": gateway_id,
+            "mode": "live" if settings.is_live_payments_enabled else "sandbox",
+        }
+
+    # ============ ADMIN PAYER DRILL-DOWN ============
+
+    def list_payers(
+        self, search: str = "", kind: Optional[str] = None, limit: int = 200
+    ) -> list[dict]:
+        """Aggregate every payer (students and employers) from real invoices."""
+        from app.infrastructure.orm import (
+            InvoiceORM, UserORM, OrganisationORM,
+            StudentSubscriptionORM, SubscriptionORM,
+        )
+
+        payers: dict[str, dict] = {}
+        for inv in self._session.query(InvoiceORM).all():
+            if inv.user_id:
+                key, payer_kind, payer_id = f"student:{inv.user_id}", "student", inv.user_id
+            elif inv.org_id:
+                key, payer_kind, payer_id = f"employer:{inv.org_id}", "employer", inv.org_id
+            else:
+                continue
+            if kind and payer_kind != kind:
+                continue
+            payer = payers.setdefault(key, {
+                "kind": payer_kind,
+                "id": payer_id,
+                "name": "",
+                "email": "",
+                "plan": "Free",
+                "invoice_count": 0,
+                "paid_count": 0,
+                "total_paid_cents": 0,
+                "outstanding_cents": 0,
+                "last_payment_at": None,
+            })
+            payer["invoice_count"] += 1
+            if inv.status == "paid":
+                payer["paid_count"] += 1
+                payer["total_paid_cents"] += inv.amount_cents
+                if inv.paid_at and (
+                    payer["last_payment_at"] is None or inv.paid_at > payer["last_payment_at"]
+                ):
+                    payer["last_payment_at"] = inv.paid_at
+            elif inv.status == "open":
+                payer["outstanding_cents"] += inv.amount_cents
+
+        for payer in payers.values():
+            if payer["kind"] == "student":
+                user = self._session.get(UserORM, payer["id"])
+                if user:
+                    payer["name"], payer["email"] = user.name, user.email
+                sub = self._session.get(StudentSubscriptionORM, payer["id"])
+                if sub and sub.status == "active":
+                    payer["plan"] = "Student Plus"
+            else:
+                org = self._session.get(OrganisationORM, payer["id"])
+                if org:
+                    payer["name"] = org.name
+                    payer["email"] = org.billing_email or ""
+                sub = self._session.get(SubscriptionORM, payer["id"])
+                if sub:
+                    payer["plan"] = sub.plan
+
+        rows = list(payers.values())
+        if search:
+            needle = search.lower()
+            rows = [
+                row for row in rows
+                if needle in (row["name"] or "").lower()
+                or needle in (row["email"] or "").lower()
+                or needle in row["id"].lower()
+            ]
+        rows.sort(key=lambda row: row["total_paid_cents"], reverse=True)
+        return rows[:limit]
+
+    def get_payer_profile(self, kind: str, payer_id: str) -> dict:
+        """Full billing profile used by the admin drill-down."""
+        from app.infrastructure.orm import UserORM, OrganisationORM
+
+        payer = {"kind": kind, "id": payer_id, "name": "", "email": ""}
+        if kind == "student":
+            user = self._session.get(UserORM, payer_id)
+            if user:
+                payer["name"], payer["email"] = user.name, user.email
+            payer["plan"] = self.get_student_plan(payer_id)
+            payer["usage"] = self.get_student_usage(payer_id)
+        elif kind == "employer":
+            org = self._session.get(OrganisationORM, payer_id)
+            if org:
+                payer["name"], payer["email"] = org.name, org.billing_email or ""
+            payer["plan"] = self.get_subscription(payer_id)
+            payer["usage"] = self.check_placement_limit(payer_id)
+        else:
+            raise ValueError("Unknown payer kind")
+
+        invoices = self.list_all_invoices()
+        transactions = self.list_all_transactions()
+        if kind == "student":
+            invoices = [i for i in invoices if i.user_id == payer_id]
+            transactions = [t for t in transactions if t.user_id == payer_id]
+        else:
+            invoices = [i for i in invoices if i.org_id == payer_id]
+            transactions = [t for t in transactions if t.org_id == payer_id]
+        payer["invoices"] = invoices
+        payer["transactions"] = transactions
+        return payer
 
     # ============ UTILITIES ============
 

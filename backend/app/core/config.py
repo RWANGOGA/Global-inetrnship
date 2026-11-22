@@ -32,6 +32,26 @@ class Settings(BaseSettings):
     # CORS origins (comma-separated). Default to localhost for dev.
     cors_origins: str = "http://localhost:3000,http://localhost:8000,http://127.0.0.1:3000,http://127.0.0.1:8000,https://rwangoga.github.io"
 
+    # Flutterwave payments. All credentials come from the environment and are
+    # never committed. With no keys the gateway stays in mock mode, so local
+    # development and the test suite never need a live provider. `webhook_hash`
+    # is the hash value configured under Settings -> Webhooks in Flutterwave
+    # (the dashboard shows the hash we must compare the verif-hash header to).
+    flutterwave_secret_key: str = ""
+    flutterwave_public_key: str = ""
+    flutterwave_webhook_hash: str = ""
+    flutterwave_encryption_key: str = ""
+    flutterwave_mode: str = "test"  # "test" | "live"
+    payment_provider: str = "flutterwave"  # primary provider for new payments
+
+    @property
+    def is_flutterwave_configured(self) -> bool:
+        return bool(self.flutterwave_secret_key and self.flutterwave_webhook_hash)
+
+    @property
+    def is_live_payments_enabled(self) -> bool:
+        return self.is_flutterwave_configured and self.flutterwave_mode.lower() == "live"
+
     @property
     def is_test(self) -> bool:
         return self.environment == "test"

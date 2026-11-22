@@ -10,8 +10,11 @@ import {
   cancelStudentSubscription,
   checkoutStudentPlan,
   fetchStudentInvoices,
+  fetchPaymentStatus,
   fetchStudentUsage,
   resumeStudentSubscription,
+  startPaymentSession,
+  startStudentPlusSession,
   type StudentInvoiceResponse,
   type StudentUsageDto,
 } from "../../../lib/api";
@@ -127,6 +130,19 @@ export function StudentBilling() {
     setCheckoutBusy(true);
     setCheckoutError("");
     try {
+      if (process.env.NODE_ENV === "production" || usage?.checkout_enabled) {
+        const result = await startStudentPlusSession({
+          billing_email: billingEmail.trim(),
+          idempotency_key: checkoutKey,
+          terms_accepted: termsAccepted,
+          payment_gateway: paymentGateway,
+        });
+        if (result.session?.hosted_url) {
+          window.location.href = result.session.hosted_url;
+          return;
+        }
+        toast("Student Plus checkout started");
+      }
       await checkoutStudentPlan(
         billingEmail.trim(),
         checkoutKey,

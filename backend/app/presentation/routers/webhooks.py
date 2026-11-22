@@ -57,14 +57,18 @@ async def paypal_webhook(
 @router.post("/flutterwave")
 async def flutterwave_webhook(
     request: Request,
+    verif_hash: str = Header(None, alias="verif-hash"),
     service: BillingService = Depends(get_billing_service),
 ):
-    """Handle Flutterwave webhook events."""
+    """Handle Flutterwave webhook events.
+
+    The ``verif-hash`` header is verified by the gateway before any state is
+    changed. Missing or forged signatures are rejected with HTTP 400.
+    """
     payload = await request.body()
-    
-    # Flutterwave uses hash verification in the payload
+
     try:
-        event = service.handle_webhook("flutterwave", payload, "")
+        event = service.handle_webhook("flutterwave", payload, verif_hash or "")
         return {"received": True, "event_type": event.type}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

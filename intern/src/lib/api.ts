@@ -1482,6 +1482,46 @@ export async function payStudentInvoiceApi(
   });
 }
 
+export interface PaymentSessionResponse {
+  hosted_url: string;
+  reference: string;
+  amount_cents: number;
+  currency: string;
+  gateway: string;
+  mode: string;
+  invoice_number: string;
+}
+
+export async function startPaymentSession(
+  invoice_id: string,
+  terms_accepted: boolean
+): Promise<PaymentSessionResponse> {
+  return postJson<PaymentSessionResponse>("/billing/payments/initialize", {
+    invoice_id,
+    terms_accepted,
+  });
+}
+
+export async function fetchPaymentStatus(invoice_id: string): Promise<{
+  invoice_id: string;
+  status: string;
+  paid_at: string | null;
+  amount_cents: number;
+  currency: string;
+  paid: boolean;
+}> {
+  return getJson(`/billing/payments/status?invoice_id=${encodeURIComponent(invoice_id)}`);
+}
+
+export async function startStudentPlusSession(payload: {
+  billing_email?: string;
+  idempotency_key: string;
+  terms_accepted: boolean;
+  payment_gateway?: "stripe" | "flutterwave";
+}): Promise<{ session: PaymentSessionResponse; invoice: StudentInvoiceResponse }> {
+  return postJson("/billing/student/plus/session", payload);
+}
+
 export async function fetchAdminRevenue(): Promise<AdminRevenueResponse> {
   return getJson<AdminRevenueResponse>("/billing/admin/revenue");
 }
@@ -1494,6 +1534,42 @@ export async function fetchAdminInvoices(params?: {
   if (params?.status) searchParams.append("status", params.status);
   if (params?.org_id) searchParams.append("org_id", params.org_id);
   return getJson<InvoiceResponse[]>(`/billing/admin/invoices?${searchParams.toString()}`);
+}
+
+export interface AdminPayerRow {
+  kind: "student" | "employer";
+  id: string;
+  name: string;
+  email: string;
+  plan: string;
+  invoice_count: number;
+  paid_count: number;
+  total_paid_cents: number;
+  outstanding_cents: number;
+  last_payment_at: string | null;
+}
+
+export interface AdminPayerProfile {
+  payer: AdminPayerRow & { kind: "student" | "employer"; id: string; name: string; email: string };
+  plan: any;
+  usage: any;
+  invoices: InvoiceResponse[];
+  transactions: TransactionResponse[];
+}
+
+export async function fetchAdminPayers(params?: {
+  search?: string;
+  kind?: "student" | "employer";
+}): Promise<AdminPayerRow[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.search) searchParams.append("search", params.search);
+  if (params?.kind) searchParams.append("kind", params.kind);
+  const query = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  return getJson<AdminPayerRow[]>(`/billing/admin/payers${query}`);
+}
+
+export async function fetchAdminPayerProfile(kind: "student" | "employer", payerId: string): Promise<AdminPayerProfile> {
+  return getJson<AdminPayerProfile>(`/billing/admin/payers/${kind}/${encodeURIComponent(payerId)}`);
 }
 
 export async function fetchAdminRevenueStats(): Promise<AdminRevenueStatsResponse> {

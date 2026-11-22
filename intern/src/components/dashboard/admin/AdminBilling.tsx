@@ -3,7 +3,15 @@
 import React, { useEffect, useState } from "react";
 import { useApp } from "../../../context/AppContext";
 import type { InvoiceResponse, TransactionResponse } from "../../../lib/api";
-import { fetchAdminInvoices, fetchAdminRevenue, fetchAdminTransactions } from "../../../lib/api";
+import {
+  fetchAdminInvoices,
+  fetchAdminPayerProfile,
+  fetchAdminPayers,
+  fetchAdminRevenue,
+  fetchAdminTransactions,
+  type AdminPayerRow,
+  type AdminPayerProfile,
+} from "../../../lib/api";
 import { Icon } from "../../icons/Icons";
 import { BillingStatusBanner } from "../common/BillingStatusBanner";
 import billingStyles from "../common/Billing.module.css";
@@ -62,6 +70,10 @@ export function AdminBilling() {
     total_revenue_usd: number;
     by_gateway: Array<{ gateway: string; count: number; revenue_cents: number; revenue_usd: number }>;
   } | null>(null);
+  const [payers, setPayers] = useState<AdminPayerRow[]>([]);
+  const [payerSearch, setPayerSearch] = useState("");
+  const [payerKind, setPayerKind] = useState<"" | "student" | "employer">("");
+  const [payerProfile, setPayerProfile] = useState<AdminPayerProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -77,10 +89,11 @@ export function AdminBilling() {
 
   const loadData = async () => {
     try {
-      const [inv, rev, txns] = await Promise.all([
+      const [inv, rev, txns, payerRows] = await Promise.all([
         fetchAdminInvoices(),
         fetchAdminRevenue(),
         fetchAdminTransactions(),
+        fetchAdminPayers({}),
       ]);
       setInvoices(Array.isArray(inv) ? inv : []);
       setTransactions(Array.isArray(txns) ? txns : []);
@@ -89,11 +102,33 @@ export function AdminBilling() {
         total_revenue_usd: rev.total_revenue_usd,
         by_gateway: rev.by_gateway,
       });
+      setPayers(Array.isArray(payerRows) ? payerRows : []);
     } catch (e) {
       toast("Failed to load billing data");
       setInvoices([]);
       setTransactions([]);
     } finally { setLoading(false); }
+  };
+
+  const loadPayers = async () => {
+    try {
+      const rows = await fetchAdminPayers({
+        search: payerSearch || undefined,
+        kind: payerKind || undefined,
+      });
+      setPayers(Array.isArray(rows) ? rows : []);
+    } catch {
+      toast("Failed to load payers");
+    }
+  };
+
+  const openPayerProfile = async (kind: "student" | "employer", id: string) => {
+    try {
+      const profile = await fetchAdminPayerProfile(kind, id);
+      setPayerProfile(profile);
+    } catch {
+      toast("Failed to load payer profile");
+    }
   };
 
   const outstanding = Array.isArray(invoices)
@@ -206,6 +241,71 @@ export function AdminBilling() {
           </div>
         </div>
       )}
+
+      {/* Payers drill-down */}
+      <div className="panel" style={{ marginBottom: "20px", overflow: "hidden" }}>
+        <div className="ph">
+          <span className="lbl blue">Payers &amp; accounts</span>
+          <span className="lbl" style={{ fontSize: "10px" }}>{payers.length} shown</span>
+        </div>
+        <div className="pb" style={{ padding: "16px 20px 20px" }}>
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "14px" }}>
+            <input
+              type="text"
+              placeholder="Search name, email, ID…"
+              value={payerSearch}
+              onChange={(e) => setPayerSearch(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && loadPayers()}
+              style={{ flex: "1 1 220px", padding: "8px 10px", border: "1px solid var(--rule)", borderRadius: "var(--r-md)", fontSize: "12px" }}
+            />
+            <select
+              value={payerKind}
+              onChange={(e) => setPayerKind(e.target.value as "" | "student" | "employer")}
+              style={{ padding: "8px 10px", border: "1px solid var(--rule)", borderRadius: "var(--r-md)", fontSize: "12px" }}
+            >
+              <option value="">All payers</option>
+              <option value="student">Students</option>
+              <option value="employer">Employers</option>
+            </select>
+            <button type="button" className="btn btn-sm btn-blue" onClick={loadPayers}>Search</button>
+          </div>
+          {payers.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "24px 16px", color: "var(--muted)", fontSize: "13px" }}>No payers found for this filter.</div>
+          ) : (
+            <div style={{ overflowX: "auto", borderRadius: "var(--r-md)", border: "1px solid var(--rule)" }}>
+              <table className="dtable">
+                <thead>
+                  <tr style={{ textAlign: "left", background: "var(--paper-2)", borderBottom: "1px solid var(--rule)" }}>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)" }}>Payer</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)" }}>Type</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)" }}>Plan</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)" }}>Paid</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)" }}>Outstanding</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)" }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payers.slice(0, 50).map((p) => (
+                    <tr key={`${p.kind}-${p.id}`} style={{ borderBottom: "1px solid var(--rule)" }}>
+                      <td style={{ padding: "10px 12px" }}>
+                        <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: "12px" }}>{p.name || "—"}</div>
+                        <div style={{ fontSize: "11px", color: "var(--muted)" }}>{p.email || p.id}</div>
+                      </td>
+                      <td style={{ padding: "10px 12px", fontSize: "12px", textTransform: "capitalize", color: "var(--ink-2)" }}>{p.kind}</td>
+                      <td style={{ padding: "10px 12px", fontSize: "12px", color: "var(--ink-2)" }}>{p.plan || "Free"}</td>
+                      <td style={{ padding: "10px 12px", fontWeight: 600, color: "var(--ink)", fontSize: "12px" }}>{formatCents(p.total_paid_cents)}</td>
+                      <td style={{ padding: "10px 12px", fontSize: "12px", color: p.outstanding_cents > 0 ? "var(--red)" : "var(--ink-2)" }}>{formatCents(p.outstanding_cents)}</td>
+                      <td style={{ padding: "10px 12px" }}>
+                        <button type="button" className="btn btn-sm" onClick={() => openPayerProfile(p.kind, p.id)}>View profile</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Outstanding invoices */}
       <div className="panel" style={{ marginBottom: "20px", overflow: "hidden" }}>
@@ -366,6 +466,47 @@ export function AdminBilling() {
           )}
         </div>
       </div>
+
+      {payerProfile && (
+        <div className="panel" style={{ marginBottom: "20px", overflow: "hidden", border: "1px solid var(--blue)" }}>
+          <div className="ph">
+            <span className="lbl blue">Payer profile — {payerProfile.payer?.name || payerProfile.payer?.id}</span>
+            <button type="button" className="btn btn-sm" onClick={() => setPayerProfile(null)}>Close</button>
+          </div>
+          <div className="pb" style={{ padding: "16px 20px 20px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", marginBottom: "16px", fontSize: "12px" }}>
+              <div><div className="lbl">Type</div><div style={{ color: "var(--ink)" }}>{payerProfile.payer?.kind}</div></div>
+              <div><div className="lbl">Email</div><div style={{ color: "var(--ink)" }}>{payerProfile.payer?.email || "—"}</div></div>
+              <div><div className="lbl">Plan</div><div style={{ color: "var(--ink)" }}>{(payerProfile.plan as any)?.plan || "Free"}</div></div>
+            </div>
+            <div style={{ fontSize: "12px", color: "var(--ink-2)" }}>
+              <b>Invoices:</b> {payerProfile.invoices?.length ?? 0} · <b>Transactions:</b> {payerProfile.transactions?.length ?? 0}
+            </div>
+            {payerProfile.invoices?.length > 0 && (
+              <div style={{ marginTop: "12px", overflowX: "auto", border: "1px solid var(--rule)", borderRadius: "var(--r-md)" }}>
+                <table className="dtable">
+                  <thead>
+                    <tr style={{ background: "var(--paper-2)", borderBottom: "1px solid var(--rule)" }}>
+                      <th style={{ padding: "6px 10px", fontFamily: "var(--mono)", fontSize: "8px", color: "var(--muted)" }}>Invoice</th>
+                      <th style={{ padding: "6px 10px", fontFamily: "var(--mono)", fontSize: "8px", color: "var(--muted)" }}>Amount</th>
+                      <th style={{ padding: "6px 10px", fontFamily: "var(--mono)", fontSize: "8px", color: "var(--muted)" }}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payerProfile.invoices.slice(0, 10).map((inv) => (
+                      <tr key={inv.id} style={{ borderBottom: "1px solid var(--rule)" }}>
+                        <td style={{ padding: "8px 10px", fontSize: "12px" }}>{inv.invoice_number}</td>
+                        <td style={{ padding: "8px 10px", fontSize: "12px" }}>{formatCents(inv.amount_cents)}</td>
+                        <td style={{ padding: "8px 10px" }}><span className={`tg ${inv.status === "paid" ? "green" : inv.status === "open" ? "blue" : "red"}`}>{inv.status}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
