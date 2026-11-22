@@ -1045,7 +1045,7 @@ rhythm survives descenders and longer labels. */
 
 /* about */
 .about-lead{display:grid;grid-template-columns:1.1fr .9fr;gap:44px;align-items:start;padding:44px 0}
-.about-lead .photo-frame{aspect-ratio:4/3;padding:12px}
+.about-lead .photo-frame{aspect-ratio:4/5;padding:12px}
 .about-lead .photo-frame img{border-radius:var(--r-md)}
 .about-lead h2{font-family:var(--serif);font-size:clamp(28px,3.2vw,42px);font-weight:800;line-height:1.05;letter-spacing:-.02em}
 .about-lead p{font-size:14px;line-height:1.75;color:var(--ink-2);margin-top:14px;max-width:460px}
