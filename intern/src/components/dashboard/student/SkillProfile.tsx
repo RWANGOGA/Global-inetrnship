@@ -79,6 +79,7 @@ export function SkillProfile() {
     removeSkill,
     setSkillConfidence,
     openPlacement,
+    applyTo,
     toast,
     dashboardDataStatus,
   } = useApp();
@@ -881,6 +882,17 @@ export function SkillProfile() {
               <span className="lbl">Best matches for you</span>
               <span className="lbl">{matches.length}</span>
             </div>
+            <details style={{ padding: "8px 14px", borderBottom: "1px solid var(--rule)" }}>
+              <summary style={{ cursor: "pointer", fontWeight: 600, fontSize: "11.5px", color: "var(--ink)" }}>
+                How these matches are scored
+              </summary>
+              <ol style={{ margin: "8px 0 0 16px", padding: 0, fontSize: "11px", lineHeight: 1.6, color: "var(--ink-2)" }}>
+                <li>Your saved skills, course and CGPA are read from your profile.</li>
+                <li>Each placement's required skills, eligible courses and grade threshold are compared to yours.</li>
+                <li>Score = skills 60% + course fit 25% + grade fit 15% (internship); gigs 80/20; entry-level 50/30/20.</li>
+                <li>Matched skills show in green; gaps in grey. Apply when course and grade fit.</li>
+              </ol>
+            </details>
             <div className="pb" style={{ display: "grid", gap: "12px" }}>
               {matchesLoading ? (
                 <div style={{ fontSize: "12px", color: "var(--muted)" }}>
@@ -922,17 +934,14 @@ export function SkillProfile() {
                     ? p.courses.filter(Boolean)
                     : [];
                   return (
-                    <button
+                    <div
                       key={p.id}
-                      type="button"
-                      onClick={() => openPlacement(p.id)}
                       style={{
                         textAlign: "left",
                         border: "1px solid var(--rule)",
                         borderRadius: "var(--r-md)",
                         padding: "12px 13px",
                         background: "var(--white)",
-                        cursor: "pointer",
                         display: "block",
                         width: "100%",
                       }}
@@ -1030,7 +1039,29 @@ export function SkillProfile() {
                             : "."}
                         </div>
                       )}
-                    </button>
+                      <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          onClick={() => openPlacement(p.id)}
+                        >
+                          View details
+                        </button>
+                        {match.courseFit && match.gradeFit ? (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-blue"
+                            onClick={() => applyTo(p.id)}
+                          >
+                            Apply now
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: "10.5px", color: "var(--muted)", alignSelf: "center" }}>
+                            Complete course/grade fit to apply
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   );
                 })
               )}

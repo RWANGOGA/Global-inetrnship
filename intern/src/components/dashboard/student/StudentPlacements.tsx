@@ -121,6 +121,18 @@ export function StudentPlacements() {
           })}
         </div>
       </div>
+      <details className="panel" style={{ padding: "12px 14px", marginBottom: "12px" }}>
+        <summary style={{ cursor: "pointer", fontWeight: 600, fontSize: "12.5px", color: "var(--ink)" }}>
+          How your matches are calculated
+        </summary>
+        <ol style={{ margin: "10px 0 0 18px", padding: 0, fontSize: "12px", lineHeight: 1.7, color: "var(--ink-2)" }}>
+          <li><b>Collect</b> — your saved skills, course and CGPA are read from your profile.</li>
+          <li><b>Compare</b> — each placement's required skills, eligible courses and grade threshold are checked against yours.</li>
+          <li><b>Score</b> — skills 60%, course fit 25%, grade fit 15% (internships); gigs weight skills 80% / availability 20%; entry-level roles 50/30/20.</li>
+          <li><b>Rank</b> — placements are sorted by score; matched skills are shown in green, gaps in grey.</li>
+          <li><b>Apply</b> — when your course and grade fit, an <b>Apply</b> button appears so you can submit directly from this list.</li>
+        </ol>
+      </details>
       <div className="panel">
         <div className="pb" style={{ padding: 0 }}>
           <table className="dtable">

@@ -11,6 +11,7 @@ import {
   isApiEnabled,
 } from "../../../lib/api";
 import { Icon, IconName } from "../../icons/Icons";
+import { sendDirectMessage } from "../../../lib/chat";
 
 function Field({ label, children, fullWidth, hint }: { label: string; children: React.ReactNode; fullWidth?: boolean; hint?: string }) {
   return (
@@ -125,9 +126,15 @@ function StatBadge({ label, value, color = "blue" }: { label: string; value: str
   );
 }
 
-function StudentCard({ student }: { student: any }) {
+function StudentCard({ student, selectedSkills, onInvite }: { student: any; selectedSkills: string[]; onInvite: () => void }) {
   const skills = student.skills || [];
   const displaySkills = skills.slice(0, 5);
+  const matchedSkills = selectedSkills.filter((s) =>
+    skills.some((sk: string) => sk.toLowerCase() === s.toLowerCase())
+  );
+  const matchPct = selectedSkills.length
+    ? Math.round((matchedSkills.length / selectedSkills.length) * 100)
+    : null;
   const remainingSkills = skills.length > 5 ? skills.length - 5 : 0;
 
   return (
@@ -157,6 +164,19 @@ function StudentCard({ student }: { student: any }) {
         <StatBadge label="CGPA" value={student.cgpa.toFixed(2)} color="green" />
       </div>
 
+      {selectedSkills.length > 0 && (
+        <div style={{ padding: "8px 0", fontSize: "12px", color: "var(--ink-2)" }}>
+          <b>Skill match:</b> {matchedSkills.length}/{selectedSkills.length} required skills
+          {matchPct !== null && ` (${matchPct}%)`}
+          {matchedSkills.length > 0 && (
+            <div style={{ marginTop: "4px", display: "flex", flexWrap: "wrap", gap: "4px" }}>
+              {matchedSkills.map((s) => (
+                <span key={s} className="tg green" style={{ fontSize: "9px" }}>✓ {s}</span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       <div className="skills-section">
         <div className="skills-label">Skills</div>
         <div className="skills-list">
@@ -177,7 +197,7 @@ function StudentCard({ student }: { student: any }) {
         <button type="button" className="btn btn-sm btn-ghost">
           <Icon name="eye" size={13} /> View Profile
         </button>
-        <button type="button" className="btn btn-sm btn-blue">
+        <button type="button" className="btn btn-sm btn-blue" onClick={onInvite}>
           <Icon name="send" size={13} /> Invite to Apply
         </button>
       </div>
@@ -284,6 +304,22 @@ export function EmployerTalentSearch() {
       setResults([]);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function inviteStudent(student: any) {
+    if (!isApiEnabled) {
+      toast("Invitation sent (demo mode)");
+      return;
+    }
+    try {
+      await sendDirectMessage(
+        student.user_id,
+        "Hi! We reviewed your profile and would love you to apply to our open roles. Please check the available placements and submit an application."
+      );
+      toast("Invitation sent to candidate");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Could not send invitation");
     }
   }
 
@@ -420,7 +456,12 @@ export function EmployerTalentSearch() {
           ) : (
             <div className="results-grid">
               {results.map((student) => (
-                <StudentCard key={student.user_id} student={student} />
+                <StudentCard
+                  key={student.user_id}
+                  student={student}
+                  selectedSkills={selectedSkills}
+                  onInvite={() => void inviteStudent(student)}
+                />
               ))}
             </div>
           )}

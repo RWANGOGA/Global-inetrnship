@@ -199,6 +199,17 @@ export function ApplicationForm({ placementId, onClose, onSubmit, onResolveLimit
 
   return (
     <form onSubmit={handleSubmit} style={{ display: "grid", gap: "20px", padding: "20px" }}>
+      <div style={{ border: "1px solid var(--rule)", borderRadius: "var(--r-md)", padding: "12px 14px", background: "var(--paper-2)" }}>
+        <div style={{ fontSize: "11.5px", fontWeight: 700, color: "var(--ink)", marginBottom: "6px" }}>
+          Application steps
+        </div>
+        <ol style={{ margin: "0 0 0 16px", padding: 0, fontSize: "11px", lineHeight: 1.6, color: "var(--ink-2)" }}>
+          <li>Write a personal statement (required)</li>
+          <li>Attach your CV and portfolio links (recommended)</li>
+          <li>Add up to two references (optional)</li>
+          <li>Review and submit — you can track status on your Applications tab</li>
+        </ol>
+      </div>
       <div className="field">
         <label className="lbl">Personal Statement <span style={{ color: "var(--red)" }}>*</span></label>
         <textarea
