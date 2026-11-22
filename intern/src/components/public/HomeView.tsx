@@ -129,7 +129,7 @@ export function HomeView() {
               BrighterWorks.
             </h1>
             <p className="lede">
-              BrighterWorks connects students, universities, and employers through verified placements,
+              BrighterWorks connects students, graduates seeking jobs, universities, and employers through verified placements,
               skill-based matching, and a transparent application process — from first search to final offer.
             </p>
 
@@ -303,7 +303,7 @@ export function HomeView() {
             />
           </div>
           <div>
-            <span className="lbl">Students</span>
+            <span className="lbl">Students &amp; job seekers</span>
             <h2
               className="serif"
               style={{
@@ -312,7 +312,7 @@ export function HomeView() {
                 margin: "12px 0 14px",
               }}
             >
-              Students see their own eligibility before applying; the index shows the requirement before the application, not after the rejection.
+              Students and graduates see their own eligibility before applying; the index shows the requirement before the application, not after the rejection.
             </h2>
             <p
               style={{
