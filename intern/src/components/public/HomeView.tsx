@@ -126,10 +126,11 @@ export function HomeView() {
               <span className="lbl blue">The placement office, in software</span>
             </div>
             <h1>
-              Placement.
+              BrighterWorks.
             </h1>
             <p className="lede">
-              Universities list internships from companies, government agencies and NGOs in one place — with the required courses, the minimum grade and the exact documents stated before anyone applies.
+              BrighterWorks connects students, universities, and employers through verified placements,
+              skill-based matching, and a transparent application process — from first search to final offer.
             </p>
 
             <form className="searchcard" onSubmit={handleHeroSearch}>

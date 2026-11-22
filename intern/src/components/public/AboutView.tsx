@@ -25,11 +25,12 @@ export function AboutView() {
             <span className="lbl ink">About</span>
           </div>
           <h1>
-            A placement office,<br />
-            not a job board.
+            A placement and skills platform,<br />
+            not just a job board.
           </h1>
           <p>
-            BrighterWorks exists because the first rung of a career is decided by information — who tells you the requirement, and whether anyone verifies that you meet it.
+            BrighterWorks exists because the first rung of a career is decided by information — who tells you the requirement,
+            whether your skills match, and whether anyone verifies that you meet it.
           </p>
         </div>
       </div>
@@ -43,10 +44,14 @@ export function AboutView() {
               Universities were tracking in spreadsheets.
             </h2>
             <p>
-              In most placement offices, requirements live in an email, documents live in a folder, and nobody can answer “does this student qualify?” without opening three files. Meanwhile companies, ministries and NGOs each publish placements in a different format, if at all.
+              In most placement offices, requirements live in an email, documents live in a folder, and nobody can answer
+              “does this student qualify?” without opening three files. Meanwhile companies, ministries and NGOs each publish
+              placements in a different format, if at all, and students have no way to see how their skills compare.
             </p>
             <p>
-              We built one record: the placement with its stated bar, the student with their verified documents, and the office that sits between them. Government listings are first-class citizens, not an afterthought.
+              We built one record: the placement with its stated bar, the student with their verified documents and skill
+              profile, and the office that sits between them — with skill-based matching, a guided application process,
+              employer talent search, and transparent billing. Government listings are first-class citizens, not an afterthought.
             </p>
           </div>
           <div className="photo-frame tall">
