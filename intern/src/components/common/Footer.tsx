@@ -17,7 +17,7 @@ type FooterLink =
 // privacy policy" is not how anybody looks for it.
 const COLUMNS: { heading: string; links: FooterLink[] }[] = [
   {
-    heading: "Organisations",
+    heading: "Employers",
     links: [
       { label: "Post a placement", route: "employers" },
       { label: "Compare plans", route: "plans" },
@@ -33,7 +33,7 @@ const COLUMNS: { heading: string; links: FooterLink[] }[] = [
     ],
   },
   {
-    heading: "Students",
+    heading: "Students & graduates",
     links: [
       { label: "Find an internship", route: "placements" },
       { label: "Find a job", route: "jobs" },
@@ -87,8 +87,8 @@ export function Footer() {
               </span>
             </a>
             <p>
-              Placements from companies, government agencies and NGOs — listed by
-              universities, with requirements stated before anyone applies.
+              A placement and skills platform for students, graduates, universities and employers — with
+              verified documents, skill-based matching, and a transparent application process.
             </p>
             <a
               className="fmore"

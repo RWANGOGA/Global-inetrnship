@@ -90,12 +90,12 @@ export function AboutView() {
             <div className="principle">
               <span className="n">03</span>
               <h3>Government listings are equal</h3>
-              <p>Ministries and agencies use the same fields, the same deadline logic and the same index as companies and NGOs.</p>
+              <p>Ministries and agencies use the same fields, the same deadline logic and the same index as companies, NGOs, and university departments.</p>
             </div>
             <div className="principle">
               <span className="n">04</span>
-              <h3>Students never pay to apply</h3>
-              <p>Browsing, applying and document verification are free. Universities and host organisations fund the service.</p>
+              <h3>Free for students and graduates</h3>
+              <p>Browsing, applying, skill matching and document verification are free. Universities and host organisations fund the service.</p>
             </div>
           </div>
         </div>
@@ -113,7 +113,7 @@ export function AboutView() {
                 margin: "12px 0 14px",
               }}
             >
-              Three checks before<br />a placement goes live.
+              Four checks before<br />a placement goes live.
             </h2>
             <div className="principles" style={{ borderTop: "1px solid var(--ink)", marginTop: "10px" }}>
               <div className="principle" style={{ gridTemplateColumns: "44px 1fr" }}>
@@ -135,6 +135,13 @@ export function AboutView() {
                 <div>
                   <h3 style={{ fontSize: "18px" }}>Deadline and slots confirmed</h3>
                   <p style={{ marginTop: "6px" }}>Re-checked every six hours; closed placements leave the index the same day.</p>
+                </div>
+              </div>
+              <div className="principle" style={{ gridTemplateColumns: "44px 1fr", borderBottom: 0 }}>
+                <span className="n">04</span>
+                <div>
+                  <h3 style={{ fontSize: "18px" }}>Skill match computed</h3>
+                  <p style={{ marginTop: "6px" }}>Each student's skills, course and grade are matched against the placement's requirements, so eligibility is visible before applying.</p>
                 </div>
               </div>
             </div>
@@ -160,7 +167,9 @@ export function AboutView() {
               Small team.<br />One <em>record</em>.
             </h2>
             <p>
-              We are a placement-software team working with universities in Uganda, Kenya, Tanzania and Ethiopia. We do not sell candidate data and we do not rank students for employers beyond the published criteria.
+              We are a placement-software team working with universities and employers across Uganda, Kenya, Tanzania and
+              Ethiopia. We help students and graduates find verified opportunities, help employers find matched talent,
+              and we do not sell candidate data or rank students beyond the published criteria.
             </p>
             <div style={{ display: "flex", gap: "10px", marginTop: "22px", flexWrap: "wrap" }}>
               <button

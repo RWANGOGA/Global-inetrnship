@@ -134,7 +134,7 @@ export function Header() {
       <div className="util">
         <div className="wrap">
           <span>
-            Placement office in software · universities, employers and agencies
+            Placement and skills platform · students, graduates, universities and employers
           </span>
         </div>
       </div>
