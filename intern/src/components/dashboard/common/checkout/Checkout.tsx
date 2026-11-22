@@ -9,6 +9,7 @@ import {
   addPaymentMethodApi,
   previewCheckoutApi,
   checkoutApi,
+  startEmployerSubscriptionSession,
   type SubscriptionDto,
   type GatewayOption,
   type CheckoutPreviewResponse,
@@ -52,6 +53,7 @@ export function Checkout({
   const [preview, setPreview] = useState<CheckoutPreviewResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [placing, setPlacing] = useState(false);
+  const [hostedPlacing, setHostedPlacing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState<{
     subscription: SubscriptionDto | null;
@@ -62,7 +64,7 @@ export function Checkout({
   // Form state
   const [plan, setPlan] = useState(initialPlan);
   const [cycle, setCycle] = useState<"monthly" | "annual">(initialBillingCycle);
-  const [gateway, setGateway] = useState("stripe");
+  const [gateway, setGateway] = useState("flutterwave");
   const [billingEmail, setBillingEmail] = useState("");
   const [taxId, setTaxId] = useState("");
   const [billingAddress, setBillingAddress] = useState("");
@@ -92,7 +94,8 @@ export function Checkout({
           const def = pm.find((m) => m.is_default) || pm[0];
           setSelectedPaymentMethod(def.id);
         }
-        setGateway(gw[0]?.id || "stripe");
+        const preferred = gw.find((g) => g.id === "flutterwave") || gw[0];
+        setGateway(preferred?.id || "flutterwave");
       } catch {
         /* gateways optional — checkout still works with defaults */
       }
@@ -172,6 +175,45 @@ export function Checkout({
       setPlacing(false);
     }
   }, [plan, cycle, gateway, selectedPaymentMethod, preview, billingEmail, taxId, billingAddress, done, termsAccepted]);
+
+  const hostedGateway = gateway === "flutterwave";
+  const canPayHosted = Boolean(
+    preview && done.plan && done.details && termsAccepted && !hostedPlacing
+  );
+
+  const payWithHostedProvider = useCallback(async () => {
+    if (!preview || !done.plan || !done.details) {
+      setError("Complete the plan and billing details steps first.");
+      return;
+    }
+    if (!termsAccepted) {
+      setError("Accept the subscription terms before continuing to secure payment.");
+      return;
+    }
+    setHostedPlacing(true);
+    setError(null);
+    try {
+      const { session } = await startEmployerSubscriptionSession({
+        plan: "Pro",
+        billing_cycle: cycle,
+        billing_email: billingEmail,
+        idempotency_key: idempotencyKeyRef.current,
+        terms_accepted: true,
+        payment_gateway: "flutterwave",
+      });
+      if (!session?.hosted_url) {
+        throw new Error("The payment provider did not return a checkout link.");
+      }
+      window.location.assign(session.hosted_url);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Secure checkout is unavailable right now. Please try again."
+      );
+      setHostedPlacing(false);
+    }
+  }, [preview, done.plan, done.details, termsAccepted, cycle, billingEmail]);
 
   const handleSectionToggle = (s: Section) => {
     setExpanded(expanded === s ? null : s);
@@ -278,6 +320,10 @@ export function Checkout({
               placing={placing}
               onPlaceOrder={placeOrder}
               canPlace={canPlaceOrder}
+              hostedAvailable={hostedGateway}
+              hostedPlacing={hostedPlacing}
+              onHostedCheckout={payWithHostedProvider}
+              canPayHosted={canPayHosted}
             />
           </div>
         </>
@@ -528,6 +574,34 @@ export function Checkout({
     const defaultMethod = methods.find((m) => m.is_default) || methods[0];
     return (
       <div style={{ display: "grid", gap: 10 }}>
+        {hostedGateway && (
+          <div
+            style={{
+              border: "1px solid var(--blue)",
+              background: "var(--blue-tint)",
+              borderRadius: "var(--r-sm)",
+              padding: "12px 14px",
+              display: "grid",
+              gap: 8,
+            }}
+          >
+            <div className="lbl blue">Secure hosted checkout</div>
+            <p style={{ margin: 0, fontSize: "12px", lineHeight: 1.5, color: "var(--ink-2)" }}>
+              Pay with card or mobile money on Flutterwave's secure page. Your plan
+              activates automatically once the provider confirms payment.
+            </p>
+            <button
+              className="btn btn-blue btn-sm"
+              onClick={() => {
+                setDone((d) => ({ ...d, payment: true }));
+                setExpanded("review");
+              }}
+              style={{ justifySelf: "start" }}
+            >
+              Continue to review
+            </button>
+          </div>
+        )}
         <PaymentMethodPicker
           methods={methods}
           selectedId={selectedPaymentMethod ?? (defaultMethod?.id ?? null)}
@@ -644,17 +718,30 @@ export function Checkout({
               onChange={(event) => setTermsAccepted(event.target.checked)}
             />
             <span style={{}}>I agree to the subscription terms and authorize
-              {currency(preview?.total_cents || 0)} to be charged to my selected payment method.</span>
+              {currency(preview?.total_cents || 0)}{" "}
+              {hostedGateway
+                ? "to be charged through Flutterwave's secure checkout."
+                : "to be charged to my selected payment method."}</span>
           </label>
           <button
             className="btn btn-blue btn-block"
             onClick={() => {
-              placeOrder();
+              if (hostedGateway) {
+                void payWithHostedProvider();
+              } else {
+                void placeOrder();
+              }
             }}
-            disabled={!canPlaceOrder}
+            disabled={hostedGateway ? !canPayHosted : !canPlaceOrder}
             style={{}}
           >
-            Place your order
+            {hostedGateway ? (
+              hostedPlacing ? "Opening secure checkout…" : "Pay securely with Flutterwave"
+            ) : placing ? (
+              "Placing order…"
+            ) : (
+              "Place your order"
+            )}
           </button>
         </div>
       </div>

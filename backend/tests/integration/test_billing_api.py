@@ -42,7 +42,8 @@ def test_gateways_returns_a_list(client: TestClient):
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert isinstance(body["gateways"], list) and len(body["gateways"]) > 0
-    assert body["gateways"][0]["id"] == "stripe"
+    assert body["gateways"][0]["id"] == "flutterwave"
+    assert body["gateways"][0]["recommended"] is True
 
 
 # ---- Subscription lifecycle ---------------------------------------------
@@ -470,3 +471,77 @@ def test_admin_billing_defaults_to_recent_period_and_lists_all_records(client: T
     assert transactions.status_code == 200, transactions.text
     assert transactions.json()
     assert client.get("/billing/admin/transactions", headers=employer_headers).status_code == 403
+
+
+def test_employer_hosted_session_activates_only_after_webhook(client: TestClient, monkeypatch):
+    """A hosted subscription must stay unpaid until a provider webhook settles it."""
+    from types import SimpleNamespace
+
+    import app.core.config as config_module
+
+    fake_settings = SimpleNamespace(
+        is_flutterwave_configured=True,
+        is_live_payments_enabled=False,
+        payment_provider="flutterwave",
+    )
+    monkeypatch.setattr(config_module, "get_settings", lambda: fake_settings)
+
+    headers = _login(client, EMPLOYER)
+    session_response = client.post(
+        "/billing/employer/subscription/session",
+        json={
+            "plan": "Pro",
+            "billing_cycle": "monthly",
+            "billing_email": "billing@lumenlabs.example",
+            "idempotency_key": "employer-hosted-checkout-1",
+            "terms_accepted": True,
+            "payment_gateway": "flutterwave",
+        },
+        headers=headers,
+    )
+    assert session_response.status_code == 200, session_response.text
+    body = session_response.json()
+    assert body["session"]["hosted_url"]
+    assert body["session"]["amount_cents"] == 3000
+
+    # The session must not grant the paid plan by itself.
+    assert client.get("/billing/subscriptions/current", headers=headers).json()["plan"] == "Free"
+
+    invoice_id = body["invoice"]["id"]
+    settled = client.post(
+        "/webhooks/flutterwave",
+        json={
+            "type": "invoice.payment_succeeded",
+            "invoice": invoice_id,
+            "id": "flw-pay-test",
+            "amount_cents": 3000,
+        },
+        headers={"verif-hash": "sandbox"},
+    )
+    assert settled.status_code == 200, settled.text
+
+    current = client.get("/billing/subscriptions/current", headers=headers).json()
+    assert current["plan"] == "Pro"
+    assert current["is_premium"] is True
+
+
+def test_admin_payer_profile_returns_student_and_employer_details(client: TestClient):
+    admin = _login(client, ADMIN)
+    student = _login(client, STUDENT)
+    student_id = client.get("/auth/me", headers=student).json()["id"]
+
+    profile = client.get(f"/billing/admin/payers/student/{student_id}", headers=admin)
+    assert profile.status_code == 200, profile.text
+    body = profile.json()
+    assert body["payer"]["id"] == student_id
+    assert body["plan"]["plan"] in ("Free", "Student Plus")
+    assert isinstance(body["invoices"], list)
+
+    org_id = _org_id(client, EMPLOYER)
+    employer_profile = client.get(f"/billing/admin/payers/employer/{org_id}", headers=admin)
+    assert employer_profile.status_code == 200, employer_profile.text
+    assert employer_profile.json()["payer"]["kind"] == "employer"
+
+    missing = client.get("/billing/admin/payers/student/does-not-exist", headers=admin)
+    assert missing.status_code == 200
+    assert missing.json()["payer"]["name"] == ""

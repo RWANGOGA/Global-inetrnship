@@ -199,6 +199,15 @@ class StudentPlusSessionRequest(BaseModel):
     payment_gateway: Literal["stripe", "flutterwave"] = "flutterwave"
 
 
+class EmployerCheckoutSessionRequest(BaseModel):
+    plan: Literal["Pro"] = "Pro"
+    billing_cycle: Literal["monthly", "annual"] = "monthly"
+    billing_email: Optional[str] = None
+    idempotency_key: str = Field(min_length=8, max_length=128)
+    terms_accepted: bool = False
+    payment_gateway: Literal["stripe", "flutterwave"] = "flutterwave"
+
+
 # ---- Real-world hosted checkout ----
 
 @router.post("/payments/initialize", response_model=PaymentSessionResponse)
@@ -280,6 +289,33 @@ def student_plus_session(
             billing_email=payload.billing_email or current_user.email,
             idempotency_key=payload.idempotency_key,
             terms_accepted=payload.terms_accepted,
+            payment_gateway=payload.payment_gateway,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "session": result["session"],
+        "invoice": InvoiceResponse.model_validate(result["invoice"], from_attributes=True),
+    }
+
+
+@router.post("/employer/subscription/session")
+def employer_subscription_session(
+    payload: EmployerCheckoutSessionRequest,
+    service: BillingService = Depends(get_billing_service),
+    current_user: User = Depends(get_current_user),
+):
+    """Create a hosted subscription checkout (the paid plan activates on webhook)."""
+    if current_user.role != "employer" or not current_user.org_id:
+        raise HTTPException(status_code=403, detail="Only employers can subscribe")
+    try:
+        result = service.create_employer_subscription_session(
+            org_id=current_user.org_id,
+            billing_email=payload.billing_email or current_user.email,
+            idempotency_key=payload.idempotency_key,
+            terms_accepted=payload.terms_accepted,
+            plan=payload.plan,
+            billing_cycle=payload.billing_cycle,
             payment_gateway=payload.payment_gateway,
         )
     except ValueError as exc:
@@ -499,12 +535,19 @@ def get_usage(
 def list_gateways(
     current_user: User = Depends(get_current_user),
 ):
-    """List available payment gateways."""
+    """List available payment gateways (Flutterwave is the live provider)."""
+    live = get_settings().is_flutterwave_configured
     return {
         "gateways": [
+            {
+                "id": "flutterwave",
+                "name": "Flutterwave (Cards, Mobile Money)",
+                "currencies": ["USD", "UGX", "KES", "NGN", "GHS", "ZAR"],
+                "recommended": True,
+                "live": live,
+            },
             {"id": "stripe", "name": "Stripe (Cards)", "currencies": ["USD", "EUR", "GBP", "UGX", "KES"]},
             {"id": "paypal", "name": "PayPal", "currencies": ["USD", "EUR", "GBP"]},
-            {"id": "flutterwave", "name": "Flutterwave (Africa)", "currencies": ["USD", "UGX", "KES", "NGN", "GHS", "ZAR"]},
             {"id": "mpesa", "name": "M-Pesa (Mobile Money)", "currencies": ["KES", "USD"]},
             {"id": "bank_transfer", "name": "Bank Transfer", "currencies": ["USD", "UGX", "EUR", "KES"]},
             {"id": "crypto", "name": "Crypto (USDC/USDT)", "currencies": ["USDC", "USDT", "USD"]},
@@ -885,7 +928,12 @@ def get_payer_profile_admin(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {
-        "payer": profile["payer"],
+        "payer": {
+            "kind": profile["kind"],
+            "id": profile["id"],
+            "name": profile["name"],
+            "email": profile["email"],
+        },
         "plan": profile["plan"],
         "usage": profile["usage"],
         "invoices": [InvoiceResponse.model_validate(i, from_attributes=True) for i in profile["invoices"]],

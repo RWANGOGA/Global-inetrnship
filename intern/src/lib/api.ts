@@ -1522,6 +1522,17 @@ export async function startStudentPlusSession(payload: {
   return postJson("/billing/student/plus/session", payload);
 }
 
+export async function startEmployerSubscriptionSession(payload: {
+  plan?: "Pro";
+  billing_cycle?: "monthly" | "annual";
+  billing_email?: string;
+  idempotency_key: string;
+  terms_accepted: boolean;
+  payment_gateway?: "stripe" | "flutterwave";
+}): Promise<{ session: PaymentSessionResponse; invoice: InvoiceResponse }> {
+  return postJson("/billing/employer/subscription/session", payload);
+}
+
 export async function fetchAdminRevenue(): Promise<AdminRevenueResponse> {
   return getJson<AdminRevenueResponse>("/billing/admin/revenue");
 }
@@ -1580,6 +1591,8 @@ export interface GatewayOption {
   id: string;
   name: string;
   currencies: string[];
+  recommended?: boolean;
+  live?: boolean;
 }
 
 export interface StudentUsageDto {

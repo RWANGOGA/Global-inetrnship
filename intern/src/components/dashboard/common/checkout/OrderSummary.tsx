@@ -16,6 +16,10 @@ interface OrderSummaryProps {
   placing: boolean;
   onPlaceOrder: () => void;
   canPlace: boolean;
+  hostedAvailable?: boolean;
+  hostedPlacing?: boolean;
+  onHostedCheckout?: () => void;
+  canPayHosted?: boolean;
   className?: string;
 }
 
@@ -27,6 +31,10 @@ export function OrderSummary({
   placing,
   onPlaceOrder,
   canPlace,
+  hostedAvailable = false,
+  hostedPlacing = false,
+  onHostedCheckout,
+  canPayHosted = false,
   className,
 }: OrderSummaryProps) {
   const subtotal = preview?.subtotal_cents ?? 0;
@@ -78,17 +86,36 @@ export function OrderSummary({
         </div>
         <button
           className="btn btn-blue btn-block"
-          onClick={onPlaceOrder}
-          disabled={!canPlace || placing}
+          onClick={hostedAvailable ? onHostedCheckout : onPlaceOrder}
+          disabled={hostedAvailable ? !canPayHosted || hostedPlacing : !canPlace || placing}
           style={{
             marginTop: 12,
             height: 46,
-            opacity: canPlace && !placing ? 1 : 0.5,
+            opacity:
+              (hostedAvailable ? canPayHosted && !hostedPlacing : canPlace && !placing) ? 1 : 0.5,
           }}
         >
-          {placing ? <Icon name="spinner" size={16} style={{ marginRight: 6, animation: "spin 1s linear infinite" }} /> : null}
-          Place your order
+          {hostedAvailable && hostedPlacing ? (
+            <Icon name="spinner" size={16} style={{ marginRight: 6, animation: "spin 1s linear infinite" }} />
+          ) : !hostedAvailable && placing ? (
+            <Icon name="spinner" size={16} style={{ marginRight: 6, animation: "spin 1s linear infinite" }} />
+          ) : null}
+          {hostedAvailable
+            ? hostedPlacing
+              ? "Opening secure checkout…"
+              : "Pay securely with Flutterwave"
+            : "Place your order"}
         </button>
+        {hostedAvailable ? (
+          <button
+            className="btn btn-ghost btn-block"
+            onClick={onPlaceOrder}
+            disabled={!canPlace || placing}
+            style={{ marginTop: 6, height: 38, fontSize: "11.5px", opacity: canPlace && !placing ? 1 : 0.5 }}
+          >
+            Simulate payment (development)
+          </button>
+        ) : null}
         <div style={{ marginTop: 8, fontSize: "10.5px", color: "var(--muted)", lineHeight: 1.4 }}>
           By placing your order you agree to the subscription terms. You may cancel at any
           time from the billing page; cancellation takes effect at the end of the period.

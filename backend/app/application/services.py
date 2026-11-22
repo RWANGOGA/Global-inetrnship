@@ -342,6 +342,11 @@ class ApplicationService:
         return self._apps.withdraw(user_id, application_id)
 
 
+def _cycle_label(billing_cycle: str) -> str:
+    """Human wording for a billing period ("monthly" / "annually")."""
+    return "monthly" if billing_cycle == "monthly" else "annually"
+
+
 class BillingService:
     """
     Billing service with ACID guarantees:
@@ -539,7 +544,7 @@ class BillingService:
         amount_cents = self.PLAN_PRICES.get(subscription.plan, {}).get(subscription.billing, 0)
 
         line_items = [{
-            "description": f"{subscription.plan} Plan - {subscription.billing}ly",
+            "description": f"{subscription.plan} Plan - {_cycle_label(subscription.billing)}",
             "quantity": 1,
             "unit_amount_cents": amount_cents,
             "period_start": subscription.current_period_start.isoformat() if hasattr(subscription.current_period_start, "isoformat") else (subscription.current_period_start or ""),
@@ -1062,6 +1067,121 @@ class BillingService:
         session = self.create_hosted_payment(invoice, billing_email, billing_email.split("@", 1)[0])
         return {"invoice": invoice, "session": session}
 
+    def create_employer_subscription_session(
+        self,
+        org_id: str,
+        billing_email: str,
+        idempotency_key: str,
+        terms_accepted: bool,
+        plan: str = "Pro",
+        billing_cycle: str = "monthly",
+        payment_gateway: str = "flutterwave",
+    ) -> dict:
+        """Create an open subscription invoice and a hosted provider session.
+
+        The client never supplies the amount: it comes from ``PLAN_PRICES``. The
+        paid plan is activated only when the provider's signed webhook settles
+        this exact invoice, so a browser cannot fake an upgrade.
+        """
+        from app.core.config import get_settings
+        if not terms_accepted:
+            raise ValueError("You must accept the billing terms to continue")
+        self._validate_plan(plan, billing_cycle)
+        if plan == "Free":
+            raise ValueError("Choose a paid plan to check out")
+        if not billing_email or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", billing_email):
+            raise ValueError("A valid billing email is required")
+        if not idempotency_key or len(idempotency_key) > 128:
+            raise ValueError("A valid idempotency key is required")
+        if not get_settings().is_flutterwave_configured:
+            raise ValueError("Live checkout is not configured")
+        if self._session is None:
+            raise ValueError("Subscription storage is not configured")
+
+        current = self.get_subscription(org_id)
+        if (
+            current.is_premium
+            and current.plan == plan
+            and current.billing == billing_cycle
+        ):
+            raise ValueError(f"{plan} is already active")
+
+        key = f"subscription-{org_id}-{idempotency_key}"
+        invoice = next(
+            (
+                item for item in self.list_invoices(org_id, status="open")
+                if item.invoice_metadata.get("type") == "subscription_checkout"
+                and item.invoice_metadata.get("checkout_key") == key
+            ),
+            None,
+        )
+        if invoice is None:
+            now = datetime.utcnow()
+            amount_cents = self.PLAN_PRICES[plan][billing_cycle]
+            description = f"{plan} plan ({_cycle_label(billing_cycle)})"
+            invoice = Invoice(
+                id=f"inv_{uuid4().hex[:12]}",
+                org_id=org_id,
+                user_id=None,
+                amount_cents=amount_cents,
+                currency="USD",
+                status="open",
+                invoice_number=self._generate_invoice_number(),
+                description=description,
+                line_items=[{
+                    "description": f"{plan} Plan - {_cycle_label(billing_cycle)}",
+                    "quantity": 1,
+                    "unit_amount_cents": amount_cents,
+                    "amount_cents": amount_cents,
+                }],
+                invoice_metadata={
+                    "type": "subscription_checkout",
+                    "checkout_key": key,
+                    "plan": plan,
+                    "billing_cycle": billing_cycle,
+                },
+                due_date=now + timedelta(days=7),
+                payment_gateway=payment_gateway,
+            )
+            self._invoices.save(invoice)
+
+        session = self.create_hosted_payment(
+            invoice, billing_email, billing_email.split("@", 1)[0]
+        )
+        return {"invoice": invoice, "session": session, "plan": self.get_subscription(org_id)}
+
+    def _activate_employer_subscription(
+        self,
+        invoice: Invoice,
+        transaction: Transaction,
+        gateway_id: str,
+    ) -> None:
+        """Grant the paid employer plan after a verified invoice settlement."""
+        from app.infrastructure.orm import SubscriptionORM
+
+        meta = invoice.invoice_metadata or {}
+        plan = str(meta.get("plan") or "Pro")
+        billing_cycle = str(meta.get("billing_cycle") or "monthly")
+        now = datetime.utcnow()
+        subscription = self._session.get(SubscriptionORM, invoice.org_id)
+        if subscription is None:
+            subscription = SubscriptionORM(org_id=invoice.org_id)
+
+        subscription.plan = plan
+        subscription.billing = billing_cycle
+        subscription.status = "active"
+        subscription.since = now.date().isoformat()
+        subscription.current_period_start = now
+        subscription.current_period_end = now + (
+            timedelta(days=365) if billing_cycle == "annual" else timedelta(days=30)
+        )
+        subscription.cancel_at_period_end = False
+        subscription.payment_gateway = gateway_id
+        subscription.gateway_customer_id = invoice.org_id
+        subscription.gateway_subscription_id = f"flw-sub-{uuid4().hex[:12]}"
+        self._session.add(subscription)
+        self._session.commit()
+
     def cancel_student_subscription(self, user_id: str) -> dict:
         """Schedule Student Plus cancellation at the end of the paid period."""
         subscription = self._student_subscription_row(user_id)
@@ -1314,7 +1434,7 @@ class BillingService:
             "period": period,
             "line_items": [
                 {
-                    "description": f"{plan} Plan - {billing_cycle}ly",
+                    "description": f"{plan} Plan - {_cycle_label(billing_cycle)}",
                     "quantity": 1,
                     "unit_amount_cents": amount_cents,
                     "amount_cents": amount_cents,
@@ -1430,7 +1550,7 @@ class BillingService:
         period_end = now + timedelta(days=30 if billing_cycle == "monthly" else 365)
 
         line_items = [{
-            "description": f"{plan} Plan - {billing_cycle}ly",
+            "description": f"{plan} Plan - {_cycle_label(billing_cycle)}",
             "quantity": 1,
             "unit_amount_cents": self.PLAN_PRICES.get(plan, {}).get(billing_cycle, 0),
             "period_start": now.isoformat(),
@@ -1619,6 +1739,11 @@ class BillingService:
             self._activate_student_subscription(
                 invoice.user_id, invoice, transaction, invoice.payment_gateway or gateway_id
             )
+        elif (
+            invoice.invoice_metadata.get("type") == "subscription_checkout"
+            and invoice.org_id
+        ):
+            self._activate_employer_subscription(invoice, transaction, gateway_id)
 
     def _handle_payment_failed(self, event: WebhookEvent, gateway_id: str):
         """Handle failed payment."""
