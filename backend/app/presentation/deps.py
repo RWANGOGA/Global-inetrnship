@@ -92,6 +92,25 @@ async def rate_limit(request: Request) -> None:
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
 
 
+def get_unit_of_work(session: Session = Depends(get_session)):
+    """Request-scoped Unit of Work for multi-aggregate business operations.
+
+    Repositories exposed here never commit on their own; the use case calls
+    ``uow.commit()`` once, and any exception rolls the whole operation back.
+    """
+    from app.infrastructure.unit_of_work import SqlAlchemyUnitOfWork
+
+    uow = SqlAlchemyUnitOfWork(session=session)
+    try:
+        yield uow
+        uow.commit()
+    except Exception:
+        uow.rollback()
+        raise
+    finally:
+        uow.close()
+
+
 def get_placement_service(session: Session = Depends(get_session)) -> PlacementService:
     return PlacementService(SqlAlchemyPlacementRepository(session))
 

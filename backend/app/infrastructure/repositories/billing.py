@@ -1,4 +1,5 @@
 """Billing bounded context: invoices, transactions, usage, subscriptions, payment methods."""
+from app.infrastructure.repositories._base import AutocommitMixin
 from datetime import datetime
 from typing import Optional
 from uuid import uuid4
@@ -32,9 +33,9 @@ def _billing_org_id(session: Session, table: str, org_id: Optional[str]) -> Opti
     org_column = next((column for column in columns if column["name"] == "org_id"), None)
     return "" if org_column and not org_column["nullable"] else None
 
-class SqlAlchemyInvoiceRepository(InvoiceRepository):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+class SqlAlchemyInvoiceRepository(AutocommitMixin, InvoiceRepository):
+    def __init__(self, session: Session, *, autocommit: bool = True) -> None:
+        self._init_session(session, autocommit)
 
     @staticmethod
     def _to_domain(row: "InvoiceORM") -> Invoice:
@@ -130,12 +131,12 @@ class SqlAlchemyInvoiceRepository(InvoiceRepository):
         row.gateway_invoice_id = invoice.gateway_invoice_id
         row.gateway_payment_intent_id = invoice.gateway_payment_intent_id
         row.updated_at = datetime.utcnow()
-        self._session.commit()
+        self._persist()
         return invoice
 
-class SqlAlchemyTransactionRepository(TransactionRepository):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+class SqlAlchemyTransactionRepository(AutocommitMixin, TransactionRepository):
+    def __init__(self, session: Session, *, autocommit: bool = True) -> None:
+        self._init_session(session, autocommit)
 
     @staticmethod
     def _to_domain(row: "TransactionORM") -> Transaction:
@@ -209,12 +210,12 @@ class SqlAlchemyTransactionRepository(TransactionRepository):
         row.transaction_metadata = transaction.transaction_metadata
         row.idempotency_key = transaction.idempotency_key
         row.processed_at = transaction.processed_at
-        self._session.commit()
+        self._persist()
         return transaction
 
-class SqlAlchemyStudentUsageRepository(StudentUsageRepository):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+class SqlAlchemyStudentUsageRepository(AutocommitMixin, StudentUsageRepository):
+    def __init__(self, session: Session, *, autocommit: bool = True) -> None:
+        self._init_session(session, autocommit)
 
     @staticmethod
     def _to_domain(row: "StudentUsageORM") -> StudentUsage:
@@ -259,12 +260,12 @@ class SqlAlchemyStudentUsageRepository(StudentUsageRepository):
         row.billed_count = usage.billed_count
         row.last_billed_at = usage.last_billed_at
         row.updated_at = datetime.utcnow()
-        self._session.commit()
+        self._persist()
         return usage
 
-class SqlAlchemySubscriptionRepository(SubscriptionRepository):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+class SqlAlchemySubscriptionRepository(AutocommitMixin, SubscriptionRepository):
+    def __init__(self, session: Session, *, autocommit: bool = True) -> None:
+        self._init_session(session, autocommit)
 
     @staticmethod
     def _to_orm_datetime(value: Optional[str]) -> Optional[datetime]:
@@ -323,12 +324,12 @@ class SqlAlchemySubscriptionRepository(SubscriptionRepository):
         row.payment_gateway = subscription.payment_gateway
         row.gateway_customer_id = subscription.gateway_customer_id
         row.gateway_subscription_id = subscription.gateway_subscription_id
-        self._session.commit()
+        self._persist()
         return subscription
 
-class SqlAlchemyPaymentMethodRepository(PaymentMethodRepository):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+class SqlAlchemyPaymentMethodRepository(AutocommitMixin, PaymentMethodRepository):
+    def __init__(self, session: Session, *, autocommit: bool = True) -> None:
+        self._init_session(session, autocommit)
 
     def _to_dict(self, row: PaymentMethodORM) -> dict:
         return {
@@ -375,7 +376,7 @@ class SqlAlchemyPaymentMethodRepository(PaymentMethodRepository):
             gateway_payment_method_id=gateway_payment_method_id,
         )
         self._session.add(row)
-        self._session.commit()
+        self._persist()
         return self._to_dict(row)
 
     def delete(self, org_id: str, payment_method_id: str) -> bool:
@@ -387,7 +388,7 @@ class SqlAlchemyPaymentMethodRepository(PaymentMethodRepository):
         if row is None:
             return False
         self._session.delete(row)
-        self._session.commit()
+        self._persist()
         return True
 
     def set_default(self, org_id: str, payment_method_id: str) -> bool:
@@ -400,5 +401,5 @@ class SqlAlchemyPaymentMethodRepository(PaymentMethodRepository):
             return False
         self._session.query(PaymentMethodORM).filter_by(org_id=org_id).update({PaymentMethodORM.is_default: False})
         row.is_default = True
-        self._session.commit()
+        self._persist()
         return True

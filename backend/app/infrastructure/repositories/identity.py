@@ -1,4 +1,5 @@
 """Identity & Access bounded context: users, admin audit, organisations."""
+from app.infrastructure.repositories._base import AutocommitMixin
 from typing import Optional
 from sqlalchemy.orm import Session
 from app.application.ports import (
@@ -17,9 +18,9 @@ from app.infrastructure.orm import (
     UserORM,
 )
 
-class SqlAlchemyUserRepository(UserRepository):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+class SqlAlchemyUserRepository(AutocommitMixin, UserRepository):
+    def __init__(self, session: Session, *, autocommit: bool = True) -> None:
+        self._init_session(session, autocommit)
 
     @staticmethod
     def _to_domain(row: UserORM) -> User:
@@ -53,7 +54,7 @@ class SqlAlchemyUserRepository(UserRepository):
                 graduated_at=user.graduated_at,
             )
         )
-        self._session.commit()
+        self._persist()
         return user
 
     def get_by_email(self, email: str) -> Optional[User]:
@@ -75,12 +76,12 @@ class SqlAlchemyUserRepository(UserRepository):
         for k, v in fields.items():
             if hasattr(row, k):
                 setattr(row, k, v)
-        self._session.commit()
+        self._persist()
         return self.get_by_id(user_id)
 
-class SqlAlchemyAdminActionLogRepository(AdminActionLogRepository):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+class SqlAlchemyAdminActionLogRepository(AutocommitMixin, AdminActionLogRepository):
+    def __init__(self, session: Session, *, autocommit: bool = True) -> None:
+        self._init_session(session, autocommit)
 
     @staticmethod
     def _to_domain(row: AdminActionLogORM) -> AdminActionLog:
@@ -110,7 +111,7 @@ class SqlAlchemyAdminActionLogRepository(AdminActionLogRepository):
                 created_at=log.created_at,
             )
         )
-        self._session.commit()
+        self._persist()
         return log
 
     def list(
@@ -167,9 +168,9 @@ class SqlAlchemyAdminActionLogRepository(AdminActionLogRepository):
 
         return query.count()
 
-class SqlAlchemyOrganisationRepository(OrganisationRepository):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+class SqlAlchemyOrganisationRepository(AutocommitMixin, OrganisationRepository):
+    def __init__(self, session: Session, *, autocommit: bool = True) -> None:
+        self._init_session(session, autocommit)
 
     def _to_domain(self, row: "OrganisationORM") -> Organisation:
         return Organisation(
@@ -197,7 +198,7 @@ class SqlAlchemyOrganisationRepository(OrganisationRepository):
             created_at=org.created_at,
         )
         self._session.add(row)
-        self._session.commit()
+        self._persist()
         return org
 
     def get(self, org_id: str) -> Optional[Organisation]:

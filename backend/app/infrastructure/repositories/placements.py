@@ -1,4 +1,5 @@
 """Placements bounded context: placements, jobs, applications, profiles, resources."""
+from app.infrastructure.repositories._base import AutocommitMixin
 from datetime import datetime
 from typing import Optional
 from sqlalchemy import func
@@ -43,9 +44,9 @@ from app.infrastructure.orm import (
     UserORM,
 )
 
-class SqlAlchemyPlacementRepository(PlacementRepository):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+class SqlAlchemyPlacementRepository(AutocommitMixin, PlacementRepository):
+    def __init__(self, session: Session, *, autocommit: bool = True) -> None:
+        self._init_session(session, autocommit)
 
     def _to_domain(self, row: PlacementORM, org: Optional[OrganisationORM]) -> Placement:
         organisation = (
@@ -160,7 +161,7 @@ class SqlAlchemyPlacementRepository(PlacementRepository):
         for key, value in fields.items():
             if key in allowed and value is not None:
                 setattr(row, key, value)
-        self._session.commit()
+        self._persist()
         self._session.refresh(row)
         org = (
             self._session.query(OrganisationORM)
@@ -169,9 +170,9 @@ class SqlAlchemyPlacementRepository(PlacementRepository):
         )
         return self._to_domain(row, org)
 
-class SqlAlchemyJobRepository(JobRepository):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+class SqlAlchemyJobRepository(AutocommitMixin, JobRepository):
+    def __init__(self, session: Session, *, autocommit: bool = True) -> None:
+        self._init_session(session, autocommit)
 
     def _to_domain(self, row: JobORM, org: Optional[OrganisationORM]) -> Job:
         organisation = (
@@ -238,13 +239,13 @@ class SqlAlchemyJobRepository(JobRepository):
         for k, v in fields.items():
             if hasattr(row, k):
                 setattr(row, k, v)
-        self._session.commit()
+        self._persist()
         org = self._session.query(OrganisationORM).filter_by(id=row.org_id).first()
         return self._to_domain(row, org)
 
-class SqlAlchemySavedRepository(SavedRepository):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+class SqlAlchemySavedRepository(AutocommitMixin, SavedRepository):
+    def __init__(self, session: Session, *, autocommit: bool = True) -> None:
+        self._init_session(session, autocommit)
 
     def list(self, user_id: str) -> list[str]:
         rows = (
@@ -271,15 +272,15 @@ class SqlAlchemySavedRepository(SavedRepository):
         )
         if existing is not None:
             self._session.delete(existing)
-            self._session.commit()
+            self._persist()
             return False
         self._session.add(SavedORM(user_id=user_id, placement_id=placement_id))
-        self._session.commit()
+        self._persist()
         return True
 
-class SqlAlchemySavedJobsRepository(SavedJobsRepository):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+class SqlAlchemySavedJobsRepository(AutocommitMixin, SavedJobsRepository):
+    def __init__(self, session: Session, *, autocommit: bool = True) -> None:
+        self._init_session(session, autocommit)
 
     def list(self, user_id: str) -> list[str]:
         rows = (
@@ -306,15 +307,15 @@ class SqlAlchemySavedJobsRepository(SavedJobsRepository):
         )
         if existing is not None:
             self._session.delete(existing)
-            self._session.commit()
+            self._persist()
             return False
         self._session.add(SavedJobORM(user_id=user_id, job_id=job_id))
-        self._session.commit()
+        self._persist()
         return True
 
-class SqlAlchemyApplicationRepository(ApplicationRepository):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+class SqlAlchemyApplicationRepository(AutocommitMixin, ApplicationRepository):
+    def __init__(self, session: Session, *, autocommit: bool = True) -> None:
+        self._init_session(session, autocommit)
 
     @staticmethod
     def _to_domain(row: ApplicationORM) -> Application:
@@ -372,7 +373,7 @@ class SqlAlchemyApplicationRepository(ApplicationRepository):
                 shortlisted=application.shortlisted,
             )
         )
-        self._session.commit()
+        self._persist()
         return application
 
     def find(self, user_id: str, placement_id: str) -> Optional[Application]:
@@ -396,7 +397,7 @@ class SqlAlchemyApplicationRepository(ApplicationRepository):
         if row is None:
             return None
         row.status = "Withdrawn"
-        self._session.commit()
+        self._persist()
         return self._to_domain(row)
 
     def reactivate(self, user_id: str, application_id: str) -> Optional[Application]:
@@ -409,7 +410,7 @@ class SqlAlchemyApplicationRepository(ApplicationRepository):
             return None
         row.status = "Submitted"
         row.updated_at = datetime.utcnow().isoformat()
-        self._session.commit()
+        self._persist()
         return self._to_domain(row)
 
     def list_for_user(self, user_id: str) -> list[Application]:
@@ -430,9 +431,9 @@ class SqlAlchemyApplicationRepository(ApplicationRepository):
         )
         return [self._to_domain(r) for r in rows]
 
-class SqlAlchemyJobApplicationRepository(JobApplicationRepository):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+class SqlAlchemyJobApplicationRepository(AutocommitMixin, JobApplicationRepository):
+    def __init__(self, session: Session, *, autocommit: bool = True) -> None:
+        self._init_session(session, autocommit)
 
     @staticmethod
     def _to_domain(row: JobApplicationORM) -> JobApplication:
@@ -490,7 +491,7 @@ class SqlAlchemyJobApplicationRepository(JobApplicationRepository):
                 shortlisted=application.shortlisted,
             )
         )
-        self._session.commit()
+        self._persist()
         return application
 
     def find(self, user_id: str, job_id: str) -> Optional[JobApplication]:
@@ -529,7 +530,7 @@ class SqlAlchemyJobApplicationRepository(JobApplicationRepository):
             return None
         row.status = status
         row.updated_at = datetime.utcnow().isoformat()
-        self._session.commit()
+        self._persist()
         return self._to_domain(row)
 
 
@@ -537,9 +538,9 @@ def get_by_id(self, user_id: str) -> Optional[User]:
         row = self._session.query(UserORM).filter_by(id=user_id).first()
         return self._to_domain(row) if row is not None else None
 
-class SqlAlchemyStudentProfileRepository(StudentProfileRepository):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+class SqlAlchemyStudentProfileRepository(AutocommitMixin, StudentProfileRepository):
+    def __init__(self, session: Session, *, autocommit: bool = True) -> None:
+        self._init_session(session, autocommit)
 
     @staticmethod
     def _to_domain(row: StudentProfileORM) -> StudentProfile:
@@ -576,12 +577,12 @@ class SqlAlchemyStudentProfileRepository(StudentProfileRepository):
         row.talent_search_opt_in = profile.talent_search_opt_in
         row.skills_confidence = profile.skills_confidence
         row.skills_source = profile.skills_source
-        self._session.commit()
+        self._persist()
         return profile
 
-class SqlAlchemyResumeRepository(ResumeRepository):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+class SqlAlchemyResumeRepository(AutocommitMixin, ResumeRepository):
+    def __init__(self, session: Session, *, autocommit: bool = True) -> None:
+        self._init_session(session, autocommit)
 
     @staticmethod
     def _to_domain(row: ResumeORM) -> Resume:
@@ -608,12 +609,12 @@ class SqlAlchemyResumeRepository(ResumeRepository):
         row.size_bytes = resume.size_bytes
         row.content = resume.content
         row.uploaded_at = resume.uploaded_at
-        self._session.commit()
+        self._persist()
         return resume
 
-class SqlAlchemyStudentDocumentRepository(StudentDocumentRepository):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+class SqlAlchemyStudentDocumentRepository(AutocommitMixin, StudentDocumentRepository):
+    def __init__(self, session: Session, *, autocommit: bool = True) -> None:
+        self._init_session(session, autocommit)
 
     @staticmethod
     def _to_domain(row: StudentDocumentORM) -> StudentDocument:
@@ -679,12 +680,12 @@ class SqlAlchemyStudentDocumentRepository(StudentDocumentRepository):
         row.is_public = getattr(document, 'is_public', False)
         row.author_role = getattr(document, 'author_role', 'student')
         row.author_id = getattr(document, 'author_id', '')
-        self._session.commit()
+        self._persist()
         return document
 
-class SqlAlchemyLearningResourceRepository(LearningResourceRepository):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+class SqlAlchemyLearningResourceRepository(AutocommitMixin, LearningResourceRepository):
+    def __init__(self, session: Session, *, autocommit: bool = True) -> None:
+        self._init_session(session, autocommit)
 
     @staticmethod
     def _to_domain(row: LearningResourceORM) -> LearningResource:
@@ -741,7 +742,7 @@ class SqlAlchemyLearningResourceRepository(LearningResourceRepository):
             created_at=resource.created_at,
         )
         self._session.add(row)
-        self._session.commit()
+        self._persist()
         return resource
 
     def update(self, resource: LearningResource) -> LearningResource:
@@ -761,7 +762,7 @@ class SqlAlchemyLearningResourceRepository(LearningResourceRepository):
         row.level = resource.level
         row.resource_type = resource.resource_type
         row.duration = resource.duration
-        self._session.commit()
+        self._persist()
         return resource
 
     def delete(self, resource_id: str) -> bool:
@@ -773,7 +774,7 @@ class SqlAlchemyLearningResourceRepository(LearningResourceRepository):
         if row is None:
             return False
         self._session.delete(row)
-        self._session.commit()
+        self._persist()
         return True
 
 

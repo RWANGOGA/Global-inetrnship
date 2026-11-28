@@ -1,4 +1,5 @@
 """Chat bounded context: groups, participants, messages, direct chats, settings."""
+from app.infrastructure.repositories._base import AutocommitMixin
 from datetime import datetime
 from typing import Optional
 from uuid import uuid4
@@ -28,9 +29,9 @@ from app.infrastructure.orm import (
     UserChatSettingsORM,
 )
 
-class SqlAlchemyChatGroupRepository(ChatGroupRepository):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+class SqlAlchemyChatGroupRepository(AutocommitMixin, ChatGroupRepository):
+    def __init__(self, session: Session, *, autocommit: bool = True) -> None:
+        self._init_session(session, autocommit)
 
     def add(self, group: ChatGroup) -> ChatGroup:
         row = ChatGroupORM(
@@ -47,7 +48,7 @@ class SqlAlchemyChatGroupRepository(ChatGroupRepository):
             org_id=group.org_id,
         )
         self._session.add(row)
-        self._session.commit()
+        self._persist()
         return group
 
     def get(self, group_id: str) -> Optional[ChatGroup]:
@@ -151,7 +152,7 @@ class SqlAlchemyChatGroupRepository(ChatGroupRepository):
             if hasattr(row, k):
                 setattr(row, k, v)
         row.updated_at = datetime.utcnow().isoformat()
-        self._session.commit()
+        self._persist()
         return self.get(group_id)
 
     def delete(self, group_id: str) -> bool:
@@ -159,12 +160,12 @@ class SqlAlchemyChatGroupRepository(ChatGroupRepository):
         if not row:
             return False
         row.is_active = False
-        self._session.commit()
+        self._persist()
         return True
 
-class SqlAlchemyGroupParticipantRepository(GroupParticipantRepository):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+class SqlAlchemyGroupParticipantRepository(AutocommitMixin, GroupParticipantRepository):
+    def __init__(self, session: Session, *, autocommit: bool = True) -> None:
+        self._init_session(session, autocommit)
 
     def add(self, participant: GroupParticipant) -> GroupParticipant:
         row = GroupParticipantORM(
@@ -178,7 +179,7 @@ class SqlAlchemyGroupParticipantRepository(GroupParticipantRepository):
             notifications_enabled=participant.notifications_enabled,
         )
         self._session.add(row)
-        self._session.commit()
+        self._persist()
         return participant
 
     def get(self, group_id: str, user_id: str) -> Optional[GroupParticipant]:
@@ -239,7 +240,7 @@ class SqlAlchemyGroupParticipantRepository(GroupParticipantRepository):
         for k, v in fields.items():
             if hasattr(row, k):
                 setattr(row, k, v)
-        self._session.commit()
+        self._persist()
         return self.get(group_id, user_id)
 
     def remove(self, group_id: str, user_id: str) -> bool:
@@ -249,12 +250,12 @@ class SqlAlchemyGroupParticipantRepository(GroupParticipantRepository):
         if not row:
             return False
         self._session.delete(row)
-        self._session.commit()
+        self._persist()
         return True
 
-class SqlAlchemyChatMessageRepository(ChatMessageRepository):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+class SqlAlchemyChatMessageRepository(AutocommitMixin, ChatMessageRepository):
+    def __init__(self, session: Session, *, autocommit: bool = True) -> None:
+        self._init_session(session, autocommit)
 
     def _to_entity(self, row: "ChatMessageORM") -> ChatMessage:
         return ChatMessage(
@@ -300,7 +301,7 @@ class SqlAlchemyChatMessageRepository(ChatMessageRepository):
             translations=message.translations,
         )
         self._session.add(row)
-        self._session.commit()
+        self._persist()
         return message
 
     def get(self, message_id: str) -> Optional[ChatMessage]:
@@ -362,7 +363,7 @@ class SqlAlchemyChatMessageRepository(ChatMessageRepository):
             if hasattr(row, k):
                 setattr(row, k, v)
         row.updated_at = datetime.utcnow().isoformat()
-        self._session.commit()
+        self._persist()
         return self.get(message_id)
 
     def soft_delete(self, message_id: str) -> bool:
@@ -370,7 +371,7 @@ class SqlAlchemyChatMessageRepository(ChatMessageRepository):
         if not row:
             return False
         row.deleted_at = datetime.utcnow().isoformat()
-        self._session.commit()
+        self._persist()
         return True
 
     def mark_read(self, group_id: str, user_id: str, message_id: str) -> None:
@@ -381,11 +382,11 @@ class SqlAlchemyChatMessageRepository(ChatMessageRepository):
         )
         if participant:
             participant.last_read_at = datetime.utcnow().isoformat()
-            self._session.commit()
+            self._persist()
 
-class SqlAlchemyDirectChatRepository(DirectChatRepository):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+class SqlAlchemyDirectChatRepository(AutocommitMixin, DirectChatRepository):
+    def __init__(self, session: Session, *, autocommit: bool = True) -> None:
+        self._init_session(session, autocommit)
 
     def get_or_create(self, user1_id: str, user2_id: str) -> DirectChat:
         # Ensure consistent ordering
@@ -415,7 +416,7 @@ class SqlAlchemyDirectChatRepository(DirectChatRepository):
             created_at=datetime.utcnow().isoformat(),
         )
         self._session.add(row)
-        self._session.commit()
+        self._persist()
         return DirectChat(
             id=row.id,
             user1_id=row.user1_id,
@@ -472,11 +473,11 @@ class SqlAlchemyDirectChatRepository(DirectChatRepository):
         )
         if row:
             row.last_message_at = datetime.utcnow().isoformat()
-            self._session.commit()
+            self._persist()
 
-class SqlAlchemyUserChatSettingsRepository(UserChatSettingsRepository):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+class SqlAlchemyUserChatSettingsRepository(AutocommitMixin, UserChatSettingsRepository):
+    def __init__(self, session: Session, *, autocommit: bool = True) -> None:
+        self._init_session(session, autocommit)
 
     def get(self, user_id: str) -> Optional[UserChatSettings]:
         row = self._session.query(UserChatSettingsORM).filter_by(user_id=user_id).first()
@@ -510,5 +511,5 @@ class SqlAlchemyUserChatSettingsRepository(UserChatSettingsRepository):
         row.font_size = settings.font_size
         row.updated_at = datetime.utcnow().isoformat()
         
-        self._session.commit()
+        self._persist()
         return settings
