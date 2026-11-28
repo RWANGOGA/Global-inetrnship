@@ -9,6 +9,13 @@ from typing import Optional
 from uuid import uuid4
 
 
+from app.application.event_bus import EventBus, default_event_bus
+from app.domain.events import (
+    ApplicationSubmitted,
+    InvoicePaid,
+    PlacementPublished,
+    SubscriptionActivated,
+)
 from app.application.ports import (
     ApplicationRepository,
     LearningResourceRepository,
@@ -198,12 +205,15 @@ class ApplicationService:
         billing: BillingService = None,
         student_profiles: StudentProfileRepository = None,
         student_documents: StudentDocumentRepository = None,
+        *,
+        events: EventBus | None = None,
     ) -> None:
         self._placements = placements
         self._apps = apps
         self._billing = billing
         self._student_profiles = student_profiles
         self._student_documents = student_documents
+        self._events = events or default_event_bus
 
     def apply(
         self,
@@ -299,6 +309,14 @@ class ApplicationService:
         if self._billing:
             self._billing.record_student_application(user_id)
 
+        self._events.publish(
+            ApplicationSubmitted(
+                application_id=application.id,
+                user_id=user_id,
+                placement_id=placement_id,
+            )
+        )
+
         return application
 
     def _check_eligibility(self, user_id: str, placement: Placement) -> None:
@@ -384,6 +402,8 @@ class BillingService:
         gateway_factory: "PaymentGatewayFactory",
         student_usage_repo: StudentUsageRepository,
         payment_method_repo: PaymentMethodRepository | None = None,
+        *,
+        events: EventBus | None = None,
     ) -> None:
         self._session = session
         self._subscriptions = subscription_repo
@@ -392,6 +412,7 @@ class BillingService:
         self._gateways = gateway_factory
         self._student_usage = student_usage_repo
         self._payment_methods = payment_method_repo
+        self._events = events or default_event_bus
 
     def _transaction(self):
         """Context manager for transactions - no-op, let caller manage transaction."""
@@ -532,6 +553,9 @@ class BillingService:
             if transaction.status == "succeeded":
                 subscription = replace(subscription, status="active")
                 self._subscriptions.save(subscription)
+                self._events.publish(
+                    SubscriptionActivated(org_id=org_id, plan=plan)
+                )
 
             return subscription
 
@@ -1742,6 +1766,16 @@ class BillingService:
             and invoice.org_id
         ):
             self._activate_employer_subscription(invoice, transaction, gateway_id)
+
+        self._events.publish(
+            InvoicePaid(
+                invoice_id=invoice.id,
+                amount_cents=invoice.amount_cents,
+                currency=invoice.currency,
+                org_id=invoice.org_id,
+                user_id=invoice.user_id,
+            )
+        )
 
     def _handle_payment_failed(self, event: WebhookEvent, gateway_id: str):
         """Handle failed payment."""

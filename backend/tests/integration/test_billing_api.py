@@ -595,26 +595,62 @@ def test_webhook_signature_and_idempotency_with_real_adapter(client: TestClient,
     assert session_response.status_code == 200, session_response.text
     invoice_id = session_response.json()["invoice"]["id"]
 
-    # Forged signature is rejected.
+    # Realistic Flutterwave charge.completed payload (amount in major units).
+    def _charge_payload() -> dict:
+        return {
+            "event": "charge.completed",
+            "data": {
+                "id": 123456,
+                "tx_ref": invoice_id,
+                "status": "successful",
+                "amount": 10.00,
+                "currency": "USD",
+                "meta": {"invoice_id": invoice_id},
+            },
+        }
+
+    # Forged signature is rejected before any parsing or state change.
     forged = client.post(
         "/webhooks/flutterwave",
-        json={"type": "invoice.payment_succeeded", "invoice": invoice_id, "amount_cents": 1000},
+        json=_charge_payload(),
         headers={"verif-hash": "wrong"},
     )
     assert forged.status_code == 400
 
-    # Valid signature settles the invoice.
-    valid = client.post(
-        "/webhooks/flutterwave",
-        json={"type": "invoice.payment_succeeded", "invoice": invoice_id, "amount_cents": 1000, "id": "flw-1"},
-        headers={"verif-hash": "whash-secret"},
-    )
-    assert valid.status_code == 200, valid.text
+    # Domain fact: a settled invoice publishes InvoicePaid exactly once.
+    from app.application.event_bus import default_event_bus
+    from app.domain.events import InvoicePaid
 
-    # Duplicate delivery is idempotent: still 200 and does not error.
-    duplicate = client.post(
-        "/webhooks/flutterwave",
-        json={"type": "invoice.payment_succeeded", "invoice": invoice_id, "amount_cents": 1000, "id": "flw-1"},
-        headers={"verif-hash": "whash-secret"},
-    )
-    assert duplicate.status_code == 200, duplicate.text
+    paid_events: list[InvoicePaid] = []
+    default_event_bus.subscribe(InvoicePaid, paid_events.append)
+    try:
+        # Valid signature settles the invoice.
+        valid = client.post(
+            "/webhooks/flutterwave",
+            json=_charge_payload(),
+            headers={"verif-hash": "whash-secret"},
+        )
+        assert valid.status_code == 200, valid.text
+        assert valid.json()["event_type"] == "invoice.payment_succeeded"
+
+        # Duplicate delivery is idempotent: still 200, no second event.
+        duplicate = client.post(
+            "/webhooks/flutterwave",
+            json=_charge_payload(),
+            headers={"verif-hash": "whash-secret"},
+        )
+        assert duplicate.status_code == 200, duplicate.text
+
+        # A verified callback actually settled the invoice server-side.
+        status_response = client.get(
+            f"/billing/payments/status?invoice_id={invoice_id}", headers=headers
+        )
+        assert status_response.status_code == 200, status_response.text
+        assert status_response.json()["status"] == "paid"
+        assert status_response.json()["paid"] is True
+    finally:
+        default_event_bus.unsubscribe(InvoicePaid, paid_events.append)
+
+    assert len(paid_events) == 1
+    assert paid_events[0].invoice_id == invoice_id
+    assert paid_events[0].amount_cents == 1000
