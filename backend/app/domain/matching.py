@@ -15,6 +15,7 @@ Every term the score is built from is returned so callers can explain "why".
 from dataclasses import dataclass, field
 
 from app.domain.entities import Placement
+from app.domain.values import GRADE_RANK, Grade
 
 
 @dataclass(frozen=True)
@@ -98,14 +99,6 @@ CONFIDENCE_WEIGHTS: dict[int, float] = {
 }
 DEFAULT_CONFIDENCE_WEIGHT = 1.0
 
-# Grade label -> minimum CGPA it implies (mirrors data/GRADE_RANK).
-GRADE_RANK: dict[str, float] = {
-    "CGPA 3.6+": 3.6,
-    "CGPA 3.4+": 3.4,
-    "CGPA 3.0+": 3.0,
-    "Second Class Upper": 3.3,
-    "Second Class Lower": 2.7,
-}
 
 _WORD_CHARS = set("abcdefghijklmnopqrstuvwxyz0123456789")
 
@@ -255,6 +248,69 @@ class MatchResult:
 
 
 @dataclass(frozen=True)
+class ScoringWeights:
+    """How each fit signal contributes to the 0-100 match score."""
+
+    skills: float
+    course: float = 0.0
+    grade: float = 0.0
+    availability: float = 0.0
+
+    def __post_init__(self) -> None:
+        values = (self.skills, self.course, self.grade, self.availability)
+        if any(v < 0 for v in values):
+            raise ValueError("scoring weights cannot be negative")
+        if abs(sum(values) - 1.0) > 1e-9:
+            raise ValueError(f"scoring weights must sum to 1.0, got {sum(values)}")
+
+    def score(
+        self,
+        *,
+        coverage: float,
+        course_fit: bool,
+        grade_fit: bool,
+        availability_fit: bool,
+    ) -> float:
+        return (
+            coverage * self.skills
+            + (self.course if course_fit else 0.0)
+            + (self.grade if grade_fit else 0.0)
+            + (self.availability if availability_fit else 0.0)
+        )
+
+
+DEFAULT_WEIGHTS: dict[str, ScoringWeights] = {
+    # Internship: skills 60% / course 25% / grade 15%
+    "internship": ScoringWeights(skills=0.6, course=0.25, grade=0.15),
+    # Gig: skills 80% / availability 20% (remote_ok as proxy)
+    "gig": ScoringWeights(skills=0.8, availability=0.2),
+    # Entry-level: skills 50% / course 30% / grade 20%
+    "entry_level": ScoringWeights(skills=0.5, course=0.3, grade=0.2),
+}
+
+
+@dataclass(frozen=True)
+class MatchingPolicy:
+    """Injected strategy: per-opportunity weights for the matcher.
+
+    Swapping the policy (e.g. a skills-first policy for a hiring sprint) changes
+    ranking without editing the scoring function (SOLID: OCP/DIP).
+    """
+
+    weights: dict[str, ScoringWeights] = field(default_factory=lambda: dict(DEFAULT_WEIGHTS))
+    default_opportunity_type: str = "internship"
+
+    def weights_for(self, opportunity_type: str) -> ScoringWeights:
+        return self.weights.get(
+            opportunity_type,
+            self.weights[self.default_opportunity_type],
+        )
+
+
+DEFAULT_MATCHING_POLICY = MatchingPolicy()
+
+
+@dataclass(frozen=True)
 class RankedPlacement:
     """A placement paired with how well a given student matches it."""
 
@@ -268,6 +324,7 @@ def match_placement(
     student_course: str,
     student_cgpa: float,
     student_confidence: dict[str, int] | None = None,
+    policy: "MatchingPolicy | None" = None,
 ) -> MatchResult:
     required = required_skills_for(placement)
     # Normalize student skills to taxonomy names for case-insensitive matching
@@ -289,23 +346,19 @@ def match_placement(
         coverage = 0.0
 
     course_fit = student_course in placement.courses
-    threshold = GRADE_RANK.get(placement.grade, 0.0)
+    threshold = Grade.rank_of(placement.grade)
     grade_fit = student_cgpa >= threshold
 
-    # Weight by opportunity_type
+    # Weight by opportunity_type using the injected policy.
+    policy = policy or DEFAULT_MATCHING_POLICY
     opp_type = placement.opportunity_type or "internship"
-    
-    if opp_type == "gig":
-        # Gig: 80% skills / 20% availability (remote_ok as proxy)
-        # Availability fit: student has remote preference or placement is remote_ok
-        availability_fit = placement.remote_ok is True  # Simplified: gig is remote-friendly
-        raw = coverage * 0.8 + (0.2 if availability_fit else 0.0)
-    elif opp_type == "entry_level":
-        # Entry-level: 50% skills / 30% course / 20% grade
-        raw = coverage * 0.5 + (0.3 if course_fit else 0.0) + (0.2 if grade_fit else 0.0)
-    else:
-        # Internship (default): 60% skills / 25% course / 15% grade
-        raw = coverage * 0.6 + (0.25 if course_fit else 0.0) + (0.15 if grade_fit else 0.0)
+    availability_fit = opp_type == "gig" and placement.remote_ok is True
+    raw = policy.weights_for(opp_type).score(
+        coverage=coverage,
+        course_fit=course_fit,
+        grade_fit=grade_fit,
+        availability_fit=availability_fit,
+    )
 
     return MatchResult(
         score=round(raw * 100),

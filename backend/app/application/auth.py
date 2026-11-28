@@ -12,6 +12,7 @@ from app.core.errors import EmailAlreadyExists, InvalidCredentials, UserNotFound
 from app.core.security import hash_password, verify_password
 from app.domain.commands import UserUpdate
 from app.domain.entities import USER_ROLES, User, Organisation
+from app.domain.values import Email
 
 
 class AuthService:
@@ -29,13 +30,18 @@ class AuthService:
         if role not in USER_ROLES or role == "admin":
             raise ValueError(f"Unknown role: {role!r}")
 
-        academic_roles = {"student", "lecturer", "university"}
-        if role in academic_roles:
-            domain = email.strip().lower().rsplit("@", 1)[-1]
-            if not (domain.endswith(".ac.ug") or domain.endswith(".edu") or domain.endswith(".ac.ke") or domain.endswith(".ac.tz")):
-                raise ValueError("Student, lecturer and university accounts require an academic email (.ac.ug / .edu).")
         if not email or "@" not in email:
             raise ValueError("A valid email is required")
+        try:
+            email_value = Email(email)
+        except ValueError as exc:
+            raise ValueError("A valid email is required") from exc
+        email = email_value.value
+
+        academic_roles = {"student", "lecturer", "university"}
+        if role in academic_roles and not email_value.is_academic:
+            raise ValueError("Student, lecturer and university accounts require an academic email (.ac.ug / .edu).")
+
         if not password:
             raise ValueError("A password is required")
         if self._users.get_by_email(email) is not None:

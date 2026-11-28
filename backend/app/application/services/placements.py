@@ -49,6 +49,7 @@ from app.domain.matching import (
     REQUIRED_SKILLS,
     SKILLS,
     SKILL_NAMES,
+    MatchingPolicy,
     RankedPlacement,
     SkillSuggestion,
     match_placement,
@@ -120,8 +121,11 @@ class MatchingService:
     behind the port means this use case is testable offline and DB-agnostic.
     """
 
-    def __init__(self, repo: PlacementRepository) -> None:
+    def __init__(
+        self, repo: PlacementRepository, policy: MatchingPolicy | None = None
+    ) -> None:
         self._repo = repo
+        self._policy = policy
 
     def rank(
         self,
@@ -149,6 +153,7 @@ class MatchingService:
                     student_course,
                     student_cgpa,
                     student_confidence,
+                    policy=self._policy,
                 ),
             )
             for p in candidates

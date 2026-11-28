@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from app.application.event_bus import EventBus, default_event_bus
 from app.domain.commands import PlacementUpdate
+from app.domain.values import Money, Period
 from app.domain.events import (
     ApplicationSubmitted,
     InvoicePaid,
@@ -225,7 +226,8 @@ class BillingService:
             #    invoice stays open and the subscription stays past_due so we
             #    never hand out Pro for free.
             now = datetime.utcnow()
-            period_end = now + timedelta(days=30 if billing_cycle == "monthly" else 365)
+            period = Period.for_cycle(now, billing_cycle)
+            period_end = period.end
             subscription = Subscription(
                 org_id=org_id,
                 plan=plan,
@@ -259,7 +261,10 @@ class BillingService:
         self, subscription: Subscription, gateway: PaymentGateway, idempotency_key: Optional[str] = None
     ) -> Invoice:
         """Create invoice for subscription period."""
-        amount_cents = self.PLAN_PRICES.get(subscription.plan, {}).get(subscription.billing, 0)
+        price = Money(
+            self.PLAN_PRICES.get(subscription.plan, {}).get(subscription.billing, 0)
+        )
+        amount_cents = price.amount_cents
 
         line_items = [{
             "description": f"{subscription.plan} Plan - {_cycle_label(subscription.billing)}",
@@ -280,7 +285,7 @@ class BillingService:
             org_id=subscription.org_id,
             subscription_id=subscription.org_id,
             amount_cents=amount_cents,
-            currency="USD",
+            currency=price.currency,
             status="open",
             invoice_number=self._generate_invoice_number(),
             line_items=line_items,
@@ -536,7 +541,8 @@ class BillingService:
         """Bill student for applications beyond their current monthly allowance."""
         overage_count = max(0, usage.application_count - application_limit)
         newly_billable = overage_count - usage.billed_count
-        amount_cents = newly_billable * self.STUDENT_OVERAGE_CENTS
+        price = Money(newly_billable * self.STUDENT_OVERAGE_CENTS)
+        amount_cents = price.amount_cents
         gateway = self._gateways.get("stripe")
         customer = gateway.get_or_create_customer(user_id)
         line_items = [{
@@ -555,7 +561,7 @@ class BillingService:
             org_id=None,
             user_id=user_id,
             amount_cents=amount_cents,
-            currency="USD",
+            currency=price.currency,
             status="open",
             invoice_number=self._generate_invoice_number(),
             line_items=line_items,
