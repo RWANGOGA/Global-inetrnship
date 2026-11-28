@@ -95,6 +95,23 @@ class JobORM(Base):
     applicants: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class InterviewORM(Base):
+    __tablename__ = "interviews"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    org_id: Mapped[str] = mapped_column(String, index=True, nullable=False)
+    user_id: Mapped[str] = mapped_column(String, index=True, nullable=False)
+    placement_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    job_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    scheduled_at: Mapped[str] = mapped_column(String, nullable=False)
+    duration_minutes: Mapped[int] = mapped_column(Integer, default=30)
+    mode: Mapped[str] = mapped_column(String, default="online")
+    location: Mapped[str] = mapped_column(String, default="")
+    status: Mapped[str] = mapped_column(String, default="scheduled")
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[str] = mapped_column(String, default="")
+
+
 class SavedORM(Base):
     __tablename__ = "saved_placements"
 
