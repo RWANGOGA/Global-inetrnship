@@ -28,8 +28,9 @@ from app.presentation.sub import create_sub_app
 def _init_db() -> None:
     Base.metadata.create_all(bind=engine)
     ensure_schema()
-    with SessionLocal() as session:
-        seed_if_empty(session)
+    if get_settings().seed_demo_data:
+        with SessionLocal() as session:
+            seed_if_empty(session)
 
 
 @asynccontextmanager

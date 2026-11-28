@@ -36,6 +36,10 @@ def test_live_payments_require_provider_credentials_in_production():
         )
 
 
+def test_demo_seeding_can_be_disabled_for_production():
+    assert Settings(seed_demo_data=False).seed_demo_data is False
+
+
 def test_invalid_flutterwave_mode_is_rejected():
     with pytest.raises(ConfigurationError, match="FLUTTERWAVE_MODE"):
         validate_runtime_config(Settings(environment="test", flutterwave_mode="sandbox"))

@@ -12,6 +12,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.core.config import get_settings
 from app.core.errors import (
     ApplicationDeadlinePassed,
     ApplicationLimitExceeded,
@@ -59,8 +60,9 @@ async def lifespan(app: FastAPI):
     # Standalone dev convenience. When mounted, the parent app owns lifespan,
     # so this only runs if you serve this sub-app directly.
     Base.metadata.create_all(bind=engine)
-    with SessionLocal() as session:
-        seed_if_empty(session)
+    if get_settings().seed_demo_data:
+        with SessionLocal() as session:
+            seed_if_empty(session)
     yield
 
 

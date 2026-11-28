@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     flutterwave_encryption_key: str = ""
     flutterwave_mode: str = "test"  # "test" | "live"
     payment_provider: str = "flutterwave"  # primary provider for new payments
+    # Demo/seed data is useful for local development and tests; production
+    # deployments should set SEED_DEMO_DATA=false (migrations are separate).
+    seed_demo_data: bool = True
 
     @property
     def is_flutterwave_configured(self) -> bool:

@@ -16,6 +16,7 @@ from app.application.ports import (
     TransactionRepository,
     UserRepository,
 )
+from app.domain.commands import PlacementUpdate, UserUpdate
 from app.domain.entities import (
     Application, Invoice, Placement, StudentUsage, Subscription, 
     Transaction, User
@@ -46,11 +47,11 @@ class InMemoryPlacementRepository(PlacementRepository):
     def get(self, placement_id: str) -> Optional[Placement]:
         return self._by_id.get(placement_id)
 
-    def update(self, placement_id: str, **fields) -> Optional[Placement]:
+    def update(self, placement_id: str, changes: PlacementUpdate) -> Optional[Placement]:
         existing = self._by_id.get(placement_id)
         if existing is None:
             return None
-        updated = dataclasses.replace(existing, **fields)
+        updated = dataclasses.replace(existing, **changes.changed_fields())
         self._by_id[placement_id] = updated
         return updated
 
@@ -283,49 +284,6 @@ class FakeGatewayFactory(InfraGatewayFactory):
             self.register_gateway(gw_id, {"mode": "mock"})
 
 
-class InMemoryUserRepository(UserRepository):
-    def __init__(self) -> None:
-        self._by_id: dict[str, User] = {}
-        self._by_email: dict[str, User] = {}
-
-    def add(self, user: User) -> User:
-        self._by_id[user.id] = user
-        self._by_email[user.email] = user
-        return user
-
-    def get_by_email(self, email: str) -> User | None:
-        return self._by_email.get(email)
-
-    def get_by_id(self, user_id: str) -> User | None:
-        return self._by_id.get(user_id)
-
-    def list_by_role(self, role: str) -> list[User]:
-        return [u for u in self._by_id.values() if u.role == role]
-
-    def update(self, user_id: str, **fields) -> User | None:
-        existing = self._by_id.get(user_id)
-        if existing is None:
-            return None
-        updated = dataclasses.replace(existing, **fields)
-        self._by_id[user_id] = updated
-        self._by_email.pop(existing.email, None)
-        if "email" in fields:
-            self._by_email[fields["email"]] = updated
-        return updated
-
-
-class InMemorySubscriptionRepository(SubscriptionRepository):
-    def __init__(self) -> None:
-        self._by_org: dict[str, Subscription] = {}
-
-    def get(self, org_id: str) -> Subscription:
-        return self._by_org.get(org_id, Subscription(org_id=org_id))
-
-    def save(self, subscription: Subscription) -> Subscription:
-        self._by_org[subscription.org_id] = subscription
-        return subscription
-
-
 class InMemoryPaymentMethodRepository(PaymentMethodRepository):
     """PaymentMethodRepository double, keyed by (org_id, payment_method_id)."""
 
@@ -391,10 +349,11 @@ class InMemoryUserRepository(UserRepository):
     def list_by_role(self, role: str) -> list[User]:
         return [u for u in self._by_id.values() if u.role == role]
 
-    def update(self, user_id: str, **fields) -> User | None:
+    def update(self, user_id: str, changes: UserUpdate) -> User | None:
         existing = self._by_id.get(user_id)
         if existing is None:
             return None
+        fields = changes.changed_fields()
         updated = dataclasses.replace(existing, **fields)
         self._by_id[user_id] = updated
         self._by_email.pop(existing.email, None)
