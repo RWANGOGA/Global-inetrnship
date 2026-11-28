@@ -8,7 +8,6 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 from uuid import uuid4
 
-from fastapi import HTTPException
 
 from app.application.ports import (
     ApplicationRepository,
@@ -25,7 +24,10 @@ from app.application.ports import (
     PaymentMethodRepository,
 )
 from app.core.errors import (
+    ApplicationDeadlinePassed,
+    ApplicationLimitExceeded,
     LearningResourceNotFound,
+    NoSlotsAvailable,
     NotEligible,
     PlacementNotFound,
     PlacementNotOpen,
@@ -234,7 +236,7 @@ class ApplicationService:
         # Check deadline (unparsable dates are skipped, not hard-failed)
         deadline = _parse_deadline(placement.deadline) if placement.deadline else None
         if deadline is not None and deadline < date.today():
-            raise HTTPException(status_code=409, detail="Application deadline has passed")
+            raise ApplicationDeadlinePassed()
 
         # Slots is the number of hires, so count only accepted applications.
         if placement.slots and placement.slots > 0:
@@ -242,7 +244,7 @@ class ApplicationService:
                 [a for a in self._apps.list_for_placement(placement_id) if a.status == "Accepted"]
             )
             if accepted >= placement.slots:
-                raise HTTPException(status_code=409, detail="No slots available for this placement")
+                raise NoSlotsAvailable()
 
         existing = self._apps.find(user_id, placement_id)
         if existing is not None:
@@ -258,15 +260,11 @@ class ApplicationService:
         if self._billing:
             limit_check = self._billing.check_student_application_limit(user_id)
             if not limit_check["allowed"]:
-                raise HTTPException(
-                    status_code=403,
-                    detail={
-                        "error": "application_limit_exceeded",
-                        "message": limit_check["reason"],
-                        "current": limit_check["current"],
-                        "limit": limit_check["limit"],
-                        "unpaid_invoice": limit_check.get("unpaid_invoice")
-                    }
+                raise ApplicationLimitExceeded(
+                    current=limit_check["current"],
+                    limit=limit_check["limit"],
+                    unpaid_invoice=limit_check.get("unpaid_invoice"),
+                    reason=limit_check["reason"],
                 )
 
         now = date.today().isoformat()

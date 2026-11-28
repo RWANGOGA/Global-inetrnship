@@ -12,7 +12,12 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.core.errors import AuthenticationError
+from app.core.errors import (
+    ApplicationDeadlinePassed,
+    ApplicationLimitExceeded,
+    AuthenticationError,
+    NoSlotsAvailable,
+)
 from app.infrastructure.db import Base, SessionLocal, engine
 from app.infrastructure.orm import (  # noqa: F401 (register tables)
     JobORM,
@@ -70,6 +75,29 @@ def create_sub_app() -> FastAPI:
     @sub.exception_handler(AuthenticationError)
     async def _authentication_error(_: Request, exc: AuthenticationError) -> JSONResponse:
         return JSONResponse(status_code=401, content={"detail": str(exc)})
+
+    @sub.exception_handler(ApplicationDeadlinePassed)
+    async def _deadline(_: Request, exc: ApplicationDeadlinePassed) -> JSONResponse:
+        return JSONResponse(status_code=409, content={"detail": str(exc)})
+
+    @sub.exception_handler(NoSlotsAvailable)
+    async def _no_slots(_: Request, exc: NoSlotsAvailable) -> JSONResponse:
+        return JSONResponse(status_code=409, content={"detail": str(exc)})
+
+    @sub.exception_handler(ApplicationLimitExceeded)
+    async def _limit(_: Request, exc: ApplicationLimitExceeded) -> JSONResponse:
+        return JSONResponse(
+            status_code=403,
+            content={
+                "detail": {
+                    "error": "application_limit_exceeded",
+                    "message": exc.reason or str(exc),
+                    "current": exc.current,
+                    "limit": exc.limit,
+                    "unpaid_invoice": exc.unpaid_invoice,
+                }
+            },
+        )
 
     sub.include_router(auth.router)
     sub.include_router(admin.router)

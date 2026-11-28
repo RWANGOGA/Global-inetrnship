@@ -45,7 +45,23 @@ class LearningResourceNotFound(DomainError):
     """No learning resource exists with the requested id."""
 
 
-class NotEligible(DomainError):
+class ApplicationDeadlinePassed(DomainError):
+    """The placement's application deadline has passed."""
+
+
+class NoSlotsAvailable(DomainError):
+    """The placement has no remaining slots."""
+
+
+class ApplicationLimitExceeded(DomainError):
+    """The student has exceeded their monthly application allowance."""
+
+    def __init__(self, current: int, limit: int, unpaid_invoice=None, reason: str = "") -> None:
+        self.current = current
+        self.limit = limit
+        self.unpaid_invoice = unpaid_invoice
+        self.reason = reason
+        super().__init__(reason or "Application limit exceeded")
     """The student does not meet a placement's eligibility requirements."""
 
     def __init__(self, placement_id: str, reasons: str) -> None:
@@ -53,3 +69,12 @@ class NotEligible(DomainError):
         self.reasons = reasons
         super().__init__(f"Not eligible for placement {placement_id}: {reasons}")
 
+
+
+class NotEligible(DomainError):
+    """The student does not meet a placement's eligibility requirements."""
+
+    def __init__(self, placement_id: str, reasons: str) -> None:
+        self.placement_id = placement_id
+        self.reasons = reasons
+        super().__init__(f"Not eligible for placement {placement_id}: {reasons}")
