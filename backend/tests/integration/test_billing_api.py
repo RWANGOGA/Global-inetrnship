@@ -545,3 +545,76 @@ def test_admin_payer_profile_returns_student_and_employer_details(client: TestCl
     missing = client.get("/billing/admin/payers/student/does-not-exist", headers=admin)
     assert missing.status_code == 200
     assert missing.json()["payer"]["name"] == ""
+
+
+def test_webhook_signature_and_idempotency_with_real_adapter(client: TestClient, monkeypatch):
+    """A forged webhook must be rejected; a valid one settles the invoice once."""
+    from types import SimpleNamespace
+
+    import app.core.config as config_module
+    import app.infrastructure.payment_gateways.factory as factory_module
+
+    fake_settings = SimpleNamespace(
+        is_flutterwave_configured=True,
+        is_live_payments_enabled=False,
+        payment_provider="flutterwave",
+        flutterwave_secret_key="secret",
+        flutterwave_public_key="pub",
+        flutterwave_webhook_hash="whash-secret",
+        flutterwave_mode="test",
+        environment="test",
+    )
+    monkeypatch.setattr(config_module, "get_settings", lambda: fake_settings)
+    from app.infrastructure.payment_gateways.flutterwave_gateway import FlutterwaveGateway
+    from app.infrastructure.payment_gateways.factory import PaymentGatewayFactory
+
+    gw = FlutterwaveGateway(
+        {
+            "secret_key": "",
+            "public_key": "",
+            "webhook_hash": "whash-secret",
+            "mode": "test",
+        }
+    )
+    factory = PaymentGatewayFactory()
+    factory._gateways["flutterwave"] = gw
+    factory._configs["flutterwave"] = {"webhook_hash": "whash-secret", "mode": "test"}
+    factory_module._gateway_factory = factory
+
+    headers = _login(client, STUDENT)
+    session_response = client.post(
+        "/billing/student/plus/session",
+        json={
+            "billing_email": "amina@makerere.ac.ug",
+            "idempotency_key": "wh-idempotency-1",
+            "terms_accepted": True,
+            "payment_gateway": "flutterwave",
+        },
+        headers=headers,
+    )
+    assert session_response.status_code == 200, session_response.text
+    invoice_id = session_response.json()["invoice"]["id"]
+
+    # Forged signature is rejected.
+    forged = client.post(
+        "/webhooks/flutterwave",
+        json={"type": "invoice.payment_succeeded", "invoice": invoice_id, "amount_cents": 1000},
+        headers={"verif-hash": "wrong"},
+    )
+    assert forged.status_code == 400
+
+    # Valid signature settles the invoice.
+    valid = client.post(
+        "/webhooks/flutterwave",
+        json={"type": "invoice.payment_succeeded", "invoice": invoice_id, "amount_cents": 1000, "id": "flw-1"},
+        headers={"verif-hash": "whash-secret"},
+    )
+    assert valid.status_code == 200, valid.text
+
+    # Duplicate delivery is idempotent: still 200 and does not error.
+    duplicate = client.post(
+        "/webhooks/flutterwave",
+        json={"type": "invoice.payment_succeeded", "invoice": invoice_id, "amount_cents": 1000, "id": "flw-1"},
+        headers={"verif-hash": "whash-secret"},
+    )
+    assert duplicate.status_code == 200, duplicate.text
