@@ -63,6 +63,38 @@ class Settings(BaseSettings):
         return self.secret_key or "dev-insecure-secret-change-me"
 
 
+class ConfigurationError(RuntimeError):
+    """Raised at startup when required settings are missing or invalid."""
+
+
+def validate_runtime_config(settings: Settings | None = None) -> None:
+    """Fail fast on unusable configuration.
+
+    Development and tests stay frictionless (a dev signing secret and the mock
+    gateway are fine); production must supply its own secret and, if live
+    payments are requested, real Flutterwave credentials.
+    """
+    settings = settings or get_settings()
+    problems: list[str] = []
+
+    if not settings.database_url.strip():
+        problems.append("DATABASE_URL must be set")
+    if settings.flutterwave_mode.lower() not in ("test", "live"):
+        problems.append("FLUTTERWAVE_MODE must be 'test' or 'live'")
+
+    if settings.environment.lower() == "production":
+        if not settings.secret_key.strip():
+            problems.append("SECRET_KEY must be set in production")
+        if settings.flutterwave_mode.lower() == "live" and not settings.is_flutterwave_configured:
+            problems.append(
+                "Live Flutterwave payments require FLUTTERWAVE_SECRET_KEY and "
+                "FLUTTERWAVE_WEBHOOK_HASH"
+            )
+
+    if problems:
+        raise ConfigurationError("Invalid configuration: " + "; ".join(problems))
+
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
