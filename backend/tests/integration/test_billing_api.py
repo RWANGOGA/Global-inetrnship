@@ -654,3 +654,37 @@ def test_webhook_signature_and_idempotency_with_real_adapter(client: TestClient,
     assert len(paid_events) == 1
     assert paid_events[0].invoice_id == invoice_id
     assert paid_events[0].amount_cents == 1000
+
+
+def test_unpaid_overage_invoice_blocks_further_applications(client: TestClient, session):
+    """The billing gate maps to a structured 403 at the HTTP boundary."""
+    from app.presentation.deps import get_billing_service
+
+    headers = _login(client, STUDENT)
+    user_id = client.get("/auth/me", headers=headers).json()["id"]
+    service = get_billing_service(session)
+    for _ in range(service.STUDENT_FREE_APPS + 1):
+        service.record_student_application(user_id)
+
+    # Make the student eligible for p1 so the billing gate is what blocks.
+    client.put(
+        "/profile",
+        json={"course": "Computer Science", "cgpa": 3.5, "university": "Makerere University"},
+        headers=headers,
+    )
+    for doc_type in ("transcript", "student_id", "portfolio"):
+        client.put(
+            f"/documents/{doc_type}",
+            files={"file": (f"{doc_type}.pdf", b"doc content", "application/pdf")},
+            headers=headers,
+        )
+
+    blocked = client.post("/applications", json={"placement_id": "p1"}, headers=headers)
+
+    assert blocked.status_code == 403, blocked.text
+    detail = blocked.json()["detail"]
+    assert isinstance(detail, dict), blocked.text
+    assert detail["error"] == "application_limit_exceeded"
+    assert detail["current"] == service.STUDENT_FREE_APPS + 1
+    assert detail["limit"] == service.STUDENT_FREE_APPS
+    assert detail["unpaid_invoice"]["id"]

@@ -62,13 +62,10 @@ class ApplicationLimitExceeded(DomainError):
         self.unpaid_invoice = unpaid_invoice
         self.reason = reason
         super().__init__(reason or "Application limit exceeded")
-    """The student does not meet a placement's eligibility requirements."""
 
-    def __init__(self, placement_id: str, reasons: str) -> None:
-        self.placement_id = placement_id
-        self.reasons = reasons
-        super().__init__(f"Not eligible for placement {placement_id}: {reasons}")
 
+class RepositoryError(DomainError):
+    """A storage adapter failed; callers must not depend on provider details."""
 
 
 class NotEligible(DomainError):

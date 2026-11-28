@@ -9,6 +9,7 @@ with its own tables + seed.
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -90,7 +91,7 @@ def create_sub_app() -> FastAPI:
     async def _limit(_: Request, exc: ApplicationLimitExceeded) -> JSONResponse:
         return JSONResponse(
             status_code=403,
-            content={
+            content=jsonable_encoder({
                 "detail": {
                     "error": "application_limit_exceeded",
                     "message": exc.reason or str(exc),
@@ -98,7 +99,7 @@ def create_sub_app() -> FastAPI:
                     "limit": exc.limit,
                     "unpaid_invoice": exc.unpaid_invoice,
                 }
-            },
+            }),
         )
 
     sub.include_router(auth.router)
