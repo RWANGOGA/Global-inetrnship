@@ -6,6 +6,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.application.ports import JobApplicationRepository, SavedJobsRepository
+from app.domain.commands import JobUpdate
 from app.domain.entities import User
 from app.infrastructure.db import get_session
 from app.infrastructure.orm import JobApplicationORM, JobORM
@@ -263,7 +264,7 @@ def admin_update_job(
     job = repo.get(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
-    updated = repo.update(job_id, **payload)
+    updated = repo.update(job_id, JobUpdate.from_dict(payload))
     return {"job": updated.__dict__ if updated else None}
 
 
@@ -277,5 +278,5 @@ def admin_delete_job(
     job = repo.get(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
-    repo.update(job_id, status="Closed", review_status="rejected")
+    repo.update(job_id, JobUpdate(status="Closed", review_status="rejected"))
     return {"deleted": True}

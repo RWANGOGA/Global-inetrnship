@@ -10,6 +10,7 @@ from uuid import uuid4
 
 
 from app.application.event_bus import EventBus, default_event_bus
+from app.domain.commands import PlacementUpdate
 from app.domain.events import (
     ApplicationSubmitted,
     InvoicePaid,
@@ -82,10 +83,10 @@ class PlacementService:
         return self._repo.get(placement_id)
 
     def update_placement(
-        self, placement_id: str, **fields
+        self, placement_id: str, changes: PlacementUpdate
     ) -> Optional[Placement]:
         """Update mutable fields on a placement (requirements, courses, grade, ...)."""
-        return self._repo.update(placement_id, **fields)
+        return self._repo.update(placement_id, changes)
 
     def catalog_meta(self) -> dict:
         """Catalogue metadata the UI needs to render filters and explain matches.

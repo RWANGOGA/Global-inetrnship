@@ -13,6 +13,12 @@ from app.application.ports import (
     UserChatSettingsRepository,
     TranslationClient,
 )
+from app.domain.commands import (
+    ChatGroupUpdate,
+    ChatMessageUpdate,
+    GroupParticipantUpdate,
+    UserChatSettingsUpdate,
+)
 from app.domain.entities import (
     ChatGroup,
     GroupParticipant,
@@ -168,9 +174,9 @@ class ChatService:
         return self._participants.list_for_group(group_id)
 
     def update_participant(
-        self, group_id: str, user_id: str, **fields
+        self, group_id: str, user_id: str, changes: GroupParticipantUpdate
     ) -> Optional[GroupParticipant]:
-        return self._participants.update(group_id, user_id, **fields)
+        return self._participants.update(group_id, user_id, changes)
 
     # ---- Direct Chats -----------------------------------------------------------
 
@@ -223,7 +229,7 @@ class ChatService:
         self._messages.add(message)
         
         # Update group's updated_at
-        self._groups.update(group_id, updated_at=now)
+        self._groups.update(group_id, ChatGroupUpdate(updated_at=now))
         
         return message
 
@@ -292,7 +298,9 @@ class ChatService:
         return self._messages.list_direct(user1_id, user2_id, limit=limit, before=before)
 
     def edit_message(self, message_id: str, new_content: str) -> Optional[ChatMessage]:
-        return self._messages.update(message_id, content=new_content, is_edited=True)
+        return self._messages.update(
+            message_id, ChatMessageUpdate(content=new_content, is_edited=True)
+        )
 
     def delete_message(self, message_id: str) -> bool:
         return self._messages.soft_delete(message_id)
@@ -315,7 +323,7 @@ class ChatService:
         
         # Cache translation
         updated = {**message.translations, target_lang: translated}
-        self._messages.update(message_id=message.id, translations=updated)
+        self._messages.update(message.id, ChatMessageUpdate(translations=updated))
         
         return translated
 
@@ -354,13 +362,10 @@ class ChatService:
         return settings
 
     def update_settings(
-        self, user_id: str, **fields
+        self, user_id: str, changes: UserChatSettingsUpdate
     ) -> UserChatSettings:
         settings = self.get_settings(user_id)
-        updates = {}
-        for k, v in fields.items():
-            if hasattr(settings, k):
-                updates[k] = v
+        updates = changes.changed_fields()
         updates["updated_at"] = datetime.utcnow().isoformat()
         settings = dataclasses.replace(settings, **updates)
         self._settings.upsert(settings)

@@ -8,6 +8,14 @@ from abc import ABC, abstractmethod
 from typing import Optional
 from dataclasses import dataclass
 
+from app.domain.commands import (
+    ChatGroupUpdate,
+    ChatMessageUpdate,
+    GroupParticipantUpdate,
+    JobUpdate,
+    PlacementUpdate,
+    UserUpdate,
+)
 from app.domain.entities import (
     AdminActionLog, Application, Job, LearningResource, Placement, Resume,
     StudentDocument, StudentProfile, Subscription, User, Invoice, Transaction,
@@ -38,7 +46,7 @@ class PlacementRepository(ABC):
         """Return a single placement by id, or None."""
 
     @abstractmethod
-    def update(self, placement_id: str, **fields) -> Optional[Placement]:
+    def update(self, placement_id: str, changes: PlacementUpdate) -> Optional[Placement]:
         """Update mutable fields on a placement and return the updated domain object."""
 
 
@@ -57,10 +65,7 @@ class JobRepository(ABC):
     def get(self, job_id: str) -> Optional[Job]: ...
 
     @abstractmethod
-    def update(self, job_id: str, **fields) -> Optional[Job]: ...
-
-    @abstractmethod
-    def update(self, job_id: str, **fields) -> Optional[Job]: ...
+    def update(self, job_id: str, changes: JobUpdate) -> Optional[Job]: ...
 
 
 class LLMClient(ABC):
@@ -334,8 +339,8 @@ class StudentUsageRepository(ABC):
     def save(self, usage: StudentUsage) -> StudentUsage: ...
 
 
-class PaymentGateway(ABC):
-    """Abstract payment gateway - enables multiple providers with same interface."""
+class CustomerGateway(ABC):
+    """Role: creates and resolves provider-side customer records."""
 
     @abstractmethod
     def create_customer(self, org_id: str, email: str, name: str, metadata: dict) -> "GatewayCustomer": ...
@@ -348,13 +353,22 @@ class PaymentGateway(ABC):
         name: Optional[str] = None,
     ) -> "GatewayCustomer": ...
 
+
+class SubscriptionGateway(ABC):
+    """Role: manages recurring subscriptions at the provider."""
+
     @abstractmethod
     def create_subscription(self, customer_id: str, price_id: str, trial_days: int = 0) -> "GatewaySubscription": ...
 
     @abstractmethod
     def cancel_subscription(self, subscription_id: str, at_period_end: bool = True) -> "GatewaySubscription": ...
 
+    @abstractmethod
     def resume_subscription(self, subscription_id: str) -> "GatewaySubscription": ...
+
+
+class InvoiceGateway(ABC):
+    """Role: creates and settles provider-side invoices."""
 
     @abstractmethod
     def create_invoice(self, customer_id: str, line_items: list[dict], metadata: dict) -> "GatewayInvoice": ...
@@ -365,8 +379,16 @@ class PaymentGateway(ABC):
     @abstractmethod
     def pay_invoice(self, invoice_id: str, payment_method_id: str = None) -> "GatewayPayment": ...
 
+
+class PaymentMethodGateway(ABC):
+    """Role: manages saved payment methods."""
+
     @abstractmethod
     def create_payment_method(self, customer_id: str, type: str, details: dict) -> "GatewayPaymentMethod": ...
+
+
+class WebhookHandler(ABC):
+    """Role: verifies and translates provider webhook callbacks."""
 
     @abstractmethod
     def handle_webhook(self, payload: bytes, signature: str) -> "WebhookEvent": ...
@@ -374,11 +396,33 @@ class PaymentGateway(ABC):
     @abstractmethod
     def verify_webhook_signature(self, payload: bytes, signature: str) -> bool: ...
 
+
+class GatewayCapabilities(ABC):
+    """Role: provider metadata used for pricing and UI capability display."""
+
     @abstractmethod
     def get_supported_currencies(self) -> list[str]: ...
 
     @abstractmethod
     def calculate_fees(self, amount_cents: int, currency: str) -> "FeeBreakdown": ...
+
+
+class PaymentGateway(
+    CustomerGateway,
+    SubscriptionGateway,
+    InvoiceGateway,
+    PaymentMethodGateway,
+    WebhookHandler,
+    GatewayCapabilities,
+    ABC,
+):
+    """Composite gateway port.
+
+    Kept so existing adapters and call-sites keep working, but consumers should
+    depend on the narrow role interface they actually use (ISP): a webhook
+    router needs only :class:`WebhookHandler`, a checkout service only
+    :class:`InvoiceGateway`, and so on.
+    """
 
 
 @dataclass
@@ -456,7 +500,7 @@ class UserRepository(ABC):
     def get_by_id(self, user_id: str) -> Optional[User]: ...
 
     @abstractmethod
-    def update(self, user_id: str, **fields) -> Optional[User]: ...
+    def update(self, user_id: str, changes: UserUpdate) -> Optional[User]: ...
 
     @abstractmethod
     def list_by_role(self, role: str) -> list[User]: ...
@@ -541,7 +585,7 @@ class ChatGroupRepository(ABC):
     def list_all(self) -> list[ChatGroup]: ...
 
     @abstractmethod
-    def update(self, group_id: str, **fields) -> Optional[ChatGroup]: ...
+    def update(self, group_id: str, changes: ChatGroupUpdate) -> Optional[ChatGroup]: ...
 
     @abstractmethod
     def delete(self, group_id: str) -> bool: ...
@@ -563,7 +607,7 @@ class GroupParticipantRepository(ABC):
     def list_for_user(self, user_id: str) -> list[GroupParticipant]: ...
 
     @abstractmethod
-    def update(self, group_id: str, user_id: str, **fields) -> Optional[GroupParticipant]: ...
+    def update(self, group_id: str, user_id: str, changes: GroupParticipantUpdate) -> Optional[GroupParticipant]: ...
 
     @abstractmethod
     def remove(self, group_id: str, user_id: str) -> bool: ...
@@ -599,7 +643,7 @@ class ChatMessageRepository(ABC):
     ) -> list[ChatMessage]: ...
 
     @abstractmethod
-    def update(self, message_id: str, **fields) -> Optional[ChatMessage]: ...
+    def update(self, message_id: str, changes: ChatMessageUpdate) -> Optional[ChatMessage]: ...
 
     @abstractmethod
     def soft_delete(self, message_id: str) -> bool: ...

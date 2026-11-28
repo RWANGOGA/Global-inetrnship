@@ -5,6 +5,7 @@ from typing import Optional
 from sqlalchemy import func
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
+from app.domain.commands import JobUpdate, PlacementUpdate
 from app.application.ports import (
     ApplicationRepository,
     JobApplicationRepository,
@@ -142,7 +143,7 @@ class SqlAlchemyPlacementRepository(AutocommitMixin, PlacementRepository):
             return None
         return self._to_domain(row[0], row[1])
 
-    def update(self, placement_id: str, **fields) -> Optional[Placement]:
+    def update(self, placement_id: str, changes: PlacementUpdate) -> Optional[Placement]:
         row = (
             self._session.query(PlacementORM)
             .filter(PlacementORM.id == placement_id)
@@ -158,8 +159,8 @@ class SqlAlchemyPlacementRepository(AutocommitMixin, PlacementRepository):
             "probation_period", "training_included", "career_path",
             "skills_required", "review_status",
         }
-        for key, value in fields.items():
-            if key in allowed and value is not None:
+        for key, value in changes.changed_fields().items():
+            if key in allowed:
                 setattr(row, key, value)
         self._persist()
         self._session.refresh(row)
@@ -232,11 +233,11 @@ class SqlAlchemyJobRepository(AutocommitMixin, JobRepository):
         row = self._query().filter(JobORM.id == job_id).first()
         return self._to_domain(row[0], row[1]) if row else None
 
-    def update(self, job_id: str, **fields) -> Optional[Job]:
+    def update(self, job_id: str, changes: JobUpdate) -> Optional[Job]:
         row = self._session.query(JobORM).filter_by(id=job_id).first()
         if row is None:
             return None
-        for k, v in fields.items():
+        for k, v in changes.changed_fields().items():
             if hasattr(row, k):
                 setattr(row, k, v)
         self._persist()

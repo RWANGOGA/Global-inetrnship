@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.application.services import ApplicationService, PlacementService
+from app.domain.commands import PlacementUpdate
 from app.domain.entities import User
 from app.infrastructure.db import get_session
 from app.infrastructure.orm import PlacementORM
@@ -128,7 +129,7 @@ def update_placement_requirements(
             status_code=422, detail="At least one requirement field must be provided"
         )
 
-    updated = service.update_placement(placement_id, **updates)
+    updated = service.update_placement(placement_id, PlacementUpdate(**updates))
     if updated is None:
         raise HTTPException(status_code=404, detail="Placement not found")
 
@@ -145,7 +146,7 @@ def admin_update_placement(
     placement = service.get_placement(placement_id)
     if placement is None:
         raise HTTPException(status_code=404, detail="Placement not found")
-    updated = service.update_placement(placement_id, **payload)
+    updated = service.update_placement(placement_id, PlacementUpdate.from_dict(payload))
     if updated is None:
         raise HTTPException(status_code=404, detail="Placement not found")
     return PlacementRead.model_validate(updated)
@@ -161,5 +162,7 @@ def admin_delete_placement(
     if placement is None:
         raise HTTPException(status_code=404, detail="Placement not found")
     # Soft delete by closing
-    service.update_placement(placement_id, status="Closed", review_status="rejected")
+    service.update_placement(
+        placement_id, PlacementUpdate(status="Closed", review_status="rejected")
+    )
     return {"deleted": True}

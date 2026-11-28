@@ -21,6 +21,11 @@ from app.application.ports import (
     TranslationClient,
 )
 from app.core.security import decode_access_token
+from app.domain.commands import (
+    ChatGroupUpdate,
+    GroupParticipantUpdate,
+    UserChatSettingsUpdate,
+)
 from app.domain.entities import User, GroupType, MessageType
 from app.infrastructure.db import get_session
 from app.infrastructure.repositories import (
@@ -404,7 +409,7 @@ def update_group(
         raise HTTPException(403, "Not authorized")
     
     update_data = payload.model_dump(exclude_unset=True)
-    updated = service._groups.update(group_id, **update_data)
+    updated = service._groups.update(group_id, ChatGroupUpdate.from_dict(update_data))
     return {"group": updated}
 
 
@@ -503,7 +508,9 @@ def update_member(
     if not me or me.role not in ("owner", "admin") and current_user.role != "admin":
         raise HTTPException(403, "Not authorized")
     
-    updated = service.update_participant(group_id, user_id, **payload.model_dump(exclude_unset=True))
+    updated = service.update_participant(
+        group_id, user_id, GroupParticipantUpdate.from_dict(payload.model_dump(exclude_unset=True))
+    )
     return {"participant": updated}
 
 
@@ -1024,7 +1031,7 @@ def leave_group(
     if me.role == "owner":
         others = [p for p in participants if p.user_id != current_user.id]
         if others:
-            service.update_participant(group_id, others[0].user_id, role="owner")
+            service.update_participant(group_id, others[0].user_id, GroupParticipantUpdate(role="owner"))
         else:
             raise HTTPException(400, "You are the last member; delete the group instead")
 
@@ -1121,5 +1128,7 @@ def update_settings(
     service: ChatService = Depends(get_chat_service),
     current_user: User = Depends(get_current_user),
 ):
-    updated = service.update_settings(current_user.id, **payload.model_dump(exclude_unset=True))
+    updated = service.update_settings(
+        current_user.id, UserChatSettingsUpdate.from_dict(payload.model_dump(exclude_unset=True))
+    )
     return {"settings": updated}

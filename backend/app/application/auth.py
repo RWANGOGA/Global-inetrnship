@@ -10,6 +10,7 @@ from datetime import date
 from app.application.ports import UserRepository, OrganisationRepository
 from app.core.errors import EmailAlreadyExists, InvalidCredentials, UserNotFound
 from app.core.security import hash_password, verify_password
+from app.domain.commands import UserUpdate
 from app.domain.entities import USER_ROLES, User, Organisation
 
 
@@ -68,7 +69,7 @@ class AuthService:
             )
             org = self._organisations.add(org)
             # Link user to organisation
-            user = self._users.update(user.id, org_id=org.id)
+            user = self._users.update(user.id, UserUpdate(org_id=org.id))
 
         return user
 

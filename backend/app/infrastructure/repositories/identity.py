@@ -2,6 +2,7 @@
 from app.infrastructure.repositories._base import AutocommitMixin
 from typing import Optional
 from sqlalchemy.orm import Session
+from app.domain.commands import UserUpdate
 from app.application.ports import (
     AdminActionLogRepository,
     OrganisationRepository,
@@ -69,11 +70,11 @@ class SqlAlchemyUserRepository(AutocommitMixin, UserRepository):
         rows = self._session.query(UserORM).filter_by(role=role).all()
         return [self._to_domain(row) for row in rows]
 
-    def update(self, user_id: str, **fields) -> Optional[User]:
+    def update(self, user_id: str, changes: UserUpdate) -> Optional[User]:
         row = self._session.query(UserORM).filter_by(id=user_id).first()
         if not row:
             return None
-        for k, v in fields.items():
+        for k, v in changes.changed_fields().items():
             if hasattr(row, k):
                 setattr(row, k, v)
         self._persist()

@@ -5,6 +5,7 @@ from typing import Optional
 from uuid import uuid4
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
+from app.domain.commands import ChatGroupUpdate, ChatMessageUpdate, GroupParticipantUpdate
 from app.application.ports import (
     ChatGroupRepository,
     GroupParticipantRepository,
@@ -144,11 +145,11 @@ class SqlAlchemyChatGroupRepository(AutocommitMixin, ChatGroupRepository):
             for r in rows
         ]
 
-    def update(self, group_id: str, **fields) -> Optional[ChatGroup]:
+    def update(self, group_id: str, changes: ChatGroupUpdate) -> Optional[ChatGroup]:
         row = self._session.query(ChatGroupORM).filter_by(id=group_id).first()
         if not row:
             return None
-        for k, v in fields.items():
+        for k, v in changes.changed_fields().items():
             if hasattr(row, k):
                 setattr(row, k, v)
         row.updated_at = datetime.utcnow().isoformat()
@@ -231,13 +232,13 @@ class SqlAlchemyGroupParticipantRepository(AutocommitMixin, GroupParticipantRepo
             for r in rows
         ]
 
-    def update(self, group_id: str, user_id: str, **fields) -> Optional[GroupParticipant]:
+    def update(self, group_id: str, user_id: str, changes: GroupParticipantUpdate) -> Optional[GroupParticipant]:
         row = self._session.query(GroupParticipantORM).filter_by(
             group_id=group_id, user_id=user_id
         ).first()
         if not row:
             return None
-        for k, v in fields.items():
+        for k, v in changes.changed_fields().items():
             if hasattr(row, k):
                 setattr(row, k, v)
         self._persist()
@@ -355,11 +356,11 @@ class SqlAlchemyChatMessageRepository(AutocommitMixin, ChatMessageRepository):
         rows = query.limit(limit).all()
         return [self._to_entity(r) for r in reversed(rows)]
 
-    def update(self, message_id: str, **fields) -> Optional[ChatMessage]:
+    def update(self, message_id: str, changes: ChatMessageUpdate) -> Optional[ChatMessage]:
         row = self._session.query(ChatMessageORM).filter_by(id=message_id).first()
         if not row:
             return None
-        for k, v in fields.items():
+        for k, v in changes.changed_fields().items():
             if hasattr(row, k):
                 setattr(row, k, v)
         row.updated_at = datetime.utcnow().isoformat()
